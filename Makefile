@@ -59,8 +59,20 @@ vpath %.c $(SRC_DIR) $(DRV_DIR)
 vpath %.s $(SRC_DIR)
 
 # ---- Rules ------------------------------------------------------------------
-.PHONY: all clean size
+.PHONY: all clean size test
 all: $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin size
+
+# ---- Host unit tests --------------------------------------------------------
+# Compiles the pure logic with the host compiler against test/shim (no target
+# toolchain needed). Run with: make test
+HOST_CC   ?= cc
+TEST_SRC   = test/test_core.c test/test_support.c src/program.c src/analog_data.c
+TEST_FLAGS = -std=c11 -Wall -Wextra -Itest/shim -I$(SRC_DIR) -lm
+
+test:
+	$(HOST_CC) $(TEST_FLAGS) -o $(BUILD_DIR)/run_tests $(TEST_SRC) 2>/dev/null || \
+	  (mkdir -p $(BUILD_DIR) && $(HOST_CC) $(TEST_FLAGS) -o $(BUILD_DIR)/run_tests $(TEST_SRC))
+	./$(BUILD_DIR)/run_tests
 
 $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@

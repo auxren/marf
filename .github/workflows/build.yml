@@ -14,7 +14,17 @@ permissions:
   contents: write   # needed to create a Release on tag pushes
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run host unit tests
+        run: make test HOST_CC=gcc
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
