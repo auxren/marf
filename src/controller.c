@@ -454,39 +454,47 @@ void ControllerCalibrationLoop() {
         cal_constants[c] = 4095;
       }
     };
+    // Pack the calibration constants and pulse-led flag into a versioned,
+    // checksummed record.
+    StoredCal cal;
+    for (uint8_t c = 0; c < 8; c++) cal.payload.cal_constants[c] = cal_constants[c];
+    cal.payload.swapped_pulses = swapped_pulses;
+    cal.payload.reserved = 0;
+    marf_stored_cal_finalize(&cal);
+
     __disable_irq();
 
     // Erase EPROM
     CAT25512_erase();
 
-    // Store calibration constants to eprom
+    // Store the calibration record to eprom
     CAT25512_write_block(
         eprom_memory.analog_cal_data.start,
-        (unsigned char *) cal_constants,
+        (unsigned char *) &cal,
         eprom_memory.analog_cal_data.size);
-
-    // Store swapped pulses
-    CAT25512_write_block(
-        eprom_memory.pulse_leds_switched.start,
-        (unsigned char *) &swapped_pulses,
-        eprom_memory.pulse_leds_switched.size);
 
     __enable_irq();
     adc_resume();
 }
 
 void ControllerLoadCalibration() {
-  // Read analog calibration data
+  StoredCal cal;
+
+  // Read the calibration record
   CAT25512_read_block(
       eprom_memory.analog_cal_data.start,
-      (unsigned char *) cal_constants,
+      (unsigned char *) &cal,
       eprom_memory.analog_cal_data.size);
 
-  // Read swapped pulses choice
-  CAT25512_read_block(
-      eprom_memory.pulse_leds_switched.start,
-      (unsigned char *) &swapped_pulses,
-      eprom_memory.pulse_leds_switched.size);
+  if (marf_stored_cal_valid(&cal)) {
+    for (uint8_t c = 0; c < 8; c++) cal_constants[c] = cal.payload.cal_constants[c];
+    swapped_pulses = cal.payload.swapped_pulses;
+  } else {
+    // Blank, old-format or corrupt calibration: fall back to unity scaling so
+    // the module is usable (if uncalibrated) instead of wildly mis-scaled.
+    for (uint8_t c = 0; c < 8; c++) cal_constants[c] = 4095;
+    swapped_pulses = 0;
+  }
 
   // Precompute scalers from calibration data
   PrecomputeCalibration();
@@ -495,7 +503,7 @@ void ControllerLoadCalibration() {
 
 // Load program loop
 void ControllerLoadProgramLoop() {
-  SavedProgram saved_program = {};
+  StoredProgram saved_program = {};
   uint8_t program_num = 0;
   uButtons previous_switches, switches;
   uint32_t switch_last_read_time = 0;
@@ -541,17 +549,23 @@ void ControllerLoadProgramLoop() {
             (unsigned char *) &saved_program,
             eprom_memory.programs[program_num].size);
 
-        // Copy from saved_program to steps and sliders
-        memcpy((void *) steps, (void *) saved_program.steps, sizeof(steps));
-        memcpy((void *) sliders, (void *) saved_program.sliders, sizeof(sliders));
+        if (marf_stored_program_valid(&saved_program)) {
+          // Copy from saved_program to steps and sliders
+          memcpy((void *) steps, (void *) saved_program.payload.steps, sizeof(steps));
+          memcpy((void *) sliders, (void *) saved_program.payload.sliders, sizeof(sliders));
 
-        // Pin sliders and reset to step 1
-        pin_all_sliders();
-        AfgReset(AFG1);
-        AfgReset(AFG2);
+          // Pin sliders and reset to step 1
+          pin_all_sliders();
+          AfgReset(AFG1);
+          AfgReset(AFG2);
 
-        // Cute little animation
-        RunLoadProgramAnimation();
+          // Cute little animation
+          RunLoadProgramAnimation();
+        } else {
+          // Empty, old-format or corrupt slot: leave the running program
+          // untouched and signal that nothing was loaded.
+          RunErrorAnimation();
+        }
         display_mode = DISPLAY_MODE_VIEW_1;
         controller_job_flags.modal_loop = CONTROLLER_MODAL_NONE;
         return;
@@ -572,7 +586,7 @@ void ControllerLoadProgramLoop() {
 // Save program loop
 void ControllerSaveProgramLoop() {
   uint8_t program_num = 0;
-  SavedProgram saved_program = {};
+  StoredProgram saved_program = {};
   uButtons previous_switches, switches;
   uint32_t switch_last_read_time = 0;
   uint32_t now = 0;
@@ -614,11 +628,12 @@ void ControllerSaveProgramLoop() {
         // Copy from steps and sliders to temp saved_program.
         // Prevent updates to slider values during this time.
         controller_job_flags.inhibit_adc = 1;
-        memcpy((void *) saved_program.steps, (void *) steps, sizeof(steps));
-        memcpy((void *) saved_program.sliders, (void *) sliders, sizeof(sliders));
+        memcpy((void *) saved_program.payload.steps, (void *) steps, sizeof(steps));
+        memcpy((void *) saved_program.payload.sliders, (void *) sliders, sizeof(sliders));
         controller_job_flags.inhibit_adc = 0;
 
-        // Write the temp saved program to the EPROM
+        // Stamp magic/version/CRC, then write the record to the EPROM
+        marf_stored_program_finalize(&saved_program);
         CAT25512_write_block(
             eprom_memory.programs[program_num].start,
             (unsigned char *) &saved_program,

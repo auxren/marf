@@ -156,6 +156,23 @@ void RunClearAnimation() {
   }
 }
 
+// Quick triple flash of all step leds to signal a refused or empty action
+// (e.g. loading a slot that holds no valid program).
+void RunErrorAnimation() {
+  for (uint8_t i = 0; i < 3; i++) {
+    if (Is_Expander_Present()) {
+      LED_STEP_SendWordExpanded(0x00000000);
+      delay_ms(80);
+      LED_STEP_SendWordExpanded(0xFFFFFFFF);
+    } else {
+      LED_STEP_SendWord(0x0000);
+      delay_ms(80);
+      LED_STEP_SendWord(0xFFFF);
+    }
+    delay_ms(80);
+  }
+}
+
 // Actually shift the lit leds out via the two shift registers
 // and then reset everything.
 void FlushLedUpdates() {

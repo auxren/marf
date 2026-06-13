@@ -65,6 +65,9 @@ void FlushLedUpdates();
 // Flash leds for clear
 void RunClearAnimation();
 
+// Triple-flash all step leds to signal a refused / empty action
+void RunErrorAnimation();
+
 // Flash leds for calibration mode
 void RunCalibrationAnimation();
 

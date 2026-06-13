@@ -5,6 +5,7 @@
 
 #include "CAT25512.h"
 #include "program.h"
+#include "storage.h"
 
 // Typedef for one section of eprom memory layout
 typedef struct {
@@ -14,20 +15,12 @@ typedef struct {
 
 // Typedef for full eprom memory layout
 typedef struct {
-  // 16 saved programs
+  // 16 saved programs (each a versioned, checksummed StoredProgram)
   MemoryRange programs[16];
 
-  // Whether the pulse leds are switched
-  MemoryRange pulse_leds_switched;
-
-  // Analog calibration data
+  // Analog calibration data + pulse-led-swap flag (versioned StoredCal)
   MemoryRange analog_cal_data;
 } EpromMemory;
-
-typedef struct {
-  uStep steps[32];
-  StepSliders sliders[32];
-} SavedProgram;
 
 extern EpromMemory eprom_memory;
 

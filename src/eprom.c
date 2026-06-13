@@ -10,28 +10,20 @@
 EpromMemory eprom_memory = {};
 
 void EpromInitializeMemoryLayout() {
-  SavedProgram savedProgram;
   volatile uint16_t start = 0, size = 0; // in bytes
 
   // Saved programs at the head
-  size = sizeof(savedProgram);
+  size = sizeof(StoredProgram);
   for (uint8_t p = 0; p < 16; p++) {
     eprom_memory.programs[p].start = start;
     eprom_memory.programs[p].size = size;
     start += size;
   }
 
-  // Analog calibration data at the tail
+  // Calibration data (constants + pulse-led-swap flag) at the tail
   start = 0xFFFF;
-  size = sizeof(cal_constants);
+  size = sizeof(StoredCal);
   start -= size;
   eprom_memory.analog_cal_data.start = start;
   eprom_memory.analog_cal_data.size = size;
-
-
-  // Switch pulse leds
-  size = sizeof(swapped_pulses);
-  start -= size;
-  eprom_memory.pulse_leds_switched.start = start;
-  eprom_memory.pulse_leds_switched.size = size;
 }
