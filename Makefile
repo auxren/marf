@@ -66,8 +66,8 @@ all: $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin size
 # Compiles the pure logic with the host compiler against test/shim (no target
 # toolchain needed). Run with: make test
 HOST_CC   ?= cc
-TEST_SRC   = test/test_core.c test/test_storage.c test/test_support.c \
-             src/program.c src/analog_data.c src/storage.c
+TEST_SRC   = test/test_core.c test/test_storage.c test/test_scales.c test/test_support.c \
+             src/program.c src/analog_data.c src/storage.c src/scales.c
 TEST_FLAGS = -std=c11 -Wall -Wextra -Itest/shim -I$(SRC_DIR) -lm
 
 test:

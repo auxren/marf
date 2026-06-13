@@ -10,10 +10,12 @@
 #include "program.h"
 #include "analog_data.h"
 #include "dip_config.h"
+#include "scales.h"
 
 /* ---- tiny test framework ------------------------------------------------- */
 int g_run = 0, g_fail = 0;   // shared with other test_*.c units
 void run_storage_tests(void);
+void run_scales_tests(void);
 #define CHECK(cond) do { \
     g_run++; \
     if (!(cond)) { g_fail++; printf("  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond); } \
@@ -111,6 +113,24 @@ static void test_get_next_step_loop(void) {
   CHECK(GetNextStep(0, 3) == 4);
 }
 
+static void test_step_voltage_scale_quantize(void) {
+  printf("test_step_voltage_scale_quantize\n");
+  clear_steps();
+  use_1v2_per_octave();
+  extern float semitone_offset;
+  current_scale = SCALE_MAJOR;
+  steps[0].b.Quantize = 1;
+  /* Every quantized output must land on a C-major scale degree. */
+  for (int vl = 0; vl <= 4095; vl += 137) {
+    sliders[0].VLevel = (uint16_t) vl;
+    float v = GetStepVoltage(0, 0);
+    int semi = (int) (v / semitone_offset + 0.5f);
+    int pc = ((semi % 12) + 12) % 12;
+    CHECK((scale_mask(SCALE_MAJOR) >> pc) & 1u);
+  }
+  current_scale = SCALE_CHROMATIC;   /* restore default */
+}
+
 static void test_get_next_step_loop_to_zero(void) {
   printf("test_get_next_step_loop_to_zero\n");
   clear_steps();
@@ -126,7 +146,9 @@ int main(void) {
   test_get_next_step_wrap();
   test_get_next_step_loop();
   test_get_next_step_loop_to_zero();
+  test_step_voltage_scale_quantize();
   run_storage_tests();
+  run_scales_tests();
 
   printf("\n%d checks, %d failed\n", g_run, g_fail);
   return g_fail ? 1 : 0;

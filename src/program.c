@@ -5,6 +5,7 @@
 #include "analog_data.h"
 #include "HC165.h"
 #include "afg.h"
+#include "scales.h"
 
 // Main step programming
 volatile uStep steps[32];
@@ -66,11 +67,13 @@ float GetStepVoltage(uint8_t section, uint8_t step_num) {
   }
 
   if (steps[step_num].b.Quantize) {
-    // Quantize the output to semitones.
-    // Use the precomputed magic values to avoid float divisions
-    voltage_level += 0.5 * semitone_offset;
-    voltage_level = (float) ((int) (voltage_level * quantizer_magic));
-    voltage_level *= semitone_offset;
+    // Quantize to the nearest note of the active scale.
+    // Convert to a chromatic semitone index (rounded to nearest), snap that
+    // into the selected scale, then convert back to a voltage. The default
+    // SCALE_CHROMATIC snaps to the nearest semitone -- the original behaviour.
+    int semitone = (int) (voltage_level * quantizer_magic + 0.5f);
+    semitone = scale_quantize_semitone(current_scale, current_scale_root, semitone);
+    voltage_level = (float) semitone * semitone_offset;
   }
 
   return voltage_level;
