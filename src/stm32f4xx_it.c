@@ -29,6 +29,20 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_it.h"
+#include <stm32f4xx.h>
+
+// Make an otherwise-silent CPU fault visible: blink the panel display LEDs
+// (PA6/PA7). If the watchdog is running it resets the module after its timeout
+// (auto-recovery); otherwise this blinks until the unit is power-cycled.
+// Kept register-only and self-contained -- no library calls from a fault.
+static void fault_blink(void) {
+  for (;;) {
+    GPIOA->ODR ^= (1u << 6) | (1u << 7);
+    for (volatile uint32_t d = 0; d < 1500000; d++) {
+      __asm volatile ("nop");
+    }
+  }
+}
 
 /** @addtogroup Template_Project
   * @{
@@ -61,10 +75,8 @@ void NMI_Handler(void)
   */
 void HardFault_Handler(void)
 {
-  /* Go to infinite loop when Hard Fault exception occurs */
-  while (1)
-  {
-  }
+  /* Blink the panel LEDs; the watchdog (if started) resets the module. */
+  fault_blink();
 }
 
 /**
@@ -74,10 +86,7 @@ void HardFault_Handler(void)
   */
 void MemManage_Handler(void)
 {
-  /* Go to infinite loop when Memory Manage exception occurs */
-  while (1)
-  {
-  }
+  fault_blink();
 }
 
 /**
@@ -87,10 +96,7 @@ void MemManage_Handler(void)
   */
 void BusFault_Handler(void)
 {
-  /* Go to infinite loop when Bus Fault exception occurs */
-  while (1)
-  {
-  }
+  fault_blink();
 }
 
 /**
@@ -100,10 +106,7 @@ void BusFault_Handler(void)
   */
 void UsageFault_Handler(void)
 {
-  /* Go to infinite loop when Usage Fault exception occurs */
-  while (1)
-  {
-  }
+  fault_blink();
 }
 
 /**

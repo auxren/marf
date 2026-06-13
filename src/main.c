@@ -24,6 +24,7 @@
 #include "cycle_counter.h"
 #include "eprom.h"
 #include "constants.h"
+#include "watchdog.h"
 
 // Dip switch state
 volatile uDipConfig dip_config;
@@ -649,6 +650,10 @@ int main(void) {
   } else {
     ControllerLoadCalibration();
   }
+
+  // Start the watchdog only now that init (and any calibration, which does a
+  // multi-second full-chip erase) is done. The refresh lives in the run loop.
+  WatchdogInit();
 
   ControllerMainLoop(); // does not return
 };

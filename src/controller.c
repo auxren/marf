@@ -13,6 +13,7 @@
 #include "delays.h"
 #include "eprom.h"
 #include "analog_data.h"
+#include "watchdog.h"
 
 // Step selected for editing (0-31)
 volatile uint8_t edit_mode_step_num = 0;
@@ -46,6 +47,10 @@ void InitClear_Timer() {
 
 // Functionality that needs to run both the main and modal loops
 void ControllerCommonAllLoops() {
+  // Pet the watchdog. This runs in the main loop and the load/save modal
+  // loops, so a hang anywhere in normal operation triggers a recovery reset.
+  WatchdogRefresh();
+
   // Expensive to recalculate every tick, so do it here
   AfgRecalculateStepWidths();
 
