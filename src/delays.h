@@ -10,7 +10,7 @@
 
 extern volatile uint32_t millis;
 
-inline uint32_t get_millis() {
+static inline uint32_t get_millis() {
   return millis;
 }
 

@@ -148,6 +148,9 @@ void CAT25512_erase() {
   CAT25512_SendByte(0x00);
 
   while (total < 0xFFFF) {
+    // The CAT25512 wraps writes within a 128-byte page boundary, which is
+    // determined by the absolute address. Erase starts at address 0, so
+    // total and the absolute address coincide here.
     if ( (((total) & 0x007F) == 0) && (total != 0) ) {
       // Stop data send
       delay_ns(200);
@@ -190,25 +193,29 @@ void CAT25512_write_block(uint16_t address, uint8_t* data, uint16_t size) {
 	CAT25512_SendByte((address&0x00FF));
 	
 	while (total < size) {
-		if ( (((total) & 0x007F) == 0) && (total != 0) ) {
+		// The CAT25512 wraps writes within a 128-byte page, where the page
+		// boundary is set by the absolute address. Detect the crossing on the
+		// absolute address so writes that begin at an unaligned address are
+		// still split at the correct page boundaries.
+		if ( ((((address + total)) & 0x007F) == 0) && (total != 0) ) {
 			// Stop data send
 			delay_ns(200);
 			CAT25512_CS_CLEAR;
-			
+
 			//read status register
 			delay_ms(1);
 			while ((CAT25512_ReadStatusRegister() & (SR_RDY) ) != 0) {
 				delay_ms(1);
 			};
-			
-			delay_ms(1);	
 
-			CAT25512_WREN();			
-			
+			delay_ms(1);
+
+			CAT25512_WREN();
+
 			CAT25512_CS_SET;
 			CAT25512_SendByte(INTSRUCTION_WRITE);
 			CAT25512_SendByte(((address+total)&0xFF00)>>8);
-			CAT25512_SendByte(((address+total)&0x00FF));			
+			CAT25512_SendByte(((address+total)&0x00FF));
 		};
 		
 		CAT25512_SendByte(data[total]);	

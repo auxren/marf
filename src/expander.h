@@ -9,7 +9,7 @@
 extern uint8_t has_expander;
 
 // Returns 1 if expander is connected
-inline uint8_t Is_Expander_Present(void) {
+static inline uint8_t Is_Expander_Present(void) {
   return has_expander;
 }
 

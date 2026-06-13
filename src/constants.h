@@ -11,7 +11,9 @@
 
 #define STEP_WIDTH_2S (AFG_TICK_FREQUENCY * 2.0)
 #define STEP_WIDTH_28S (AFG_TICK_FREQUENCY * 28.0)
-#define RECIPROCAL_12BIT (1.0 / 4096.0)
+// Reciprocal of the 12-bit ADC full-scale reading (4095), to normalise a
+// slider level to 0.0 - 1.0 so that a full slider yields exactly 30s.
+#define RECIPROCAL_12BIT (1.0 / 4095.0)
 
 #define PULSE_ACTIVE_STEP_WIDTH (AFG_TICK_FREQUENCY / 1000) // 32 ticks or 1 ms
 

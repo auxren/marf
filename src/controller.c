@@ -446,7 +446,11 @@ void ControllerCalibrationLoop() {
     for (uint8_t c = 0; c < 8 ; c++) {
       cal_constants[c] = add_data[c];
       if (cal_constants[c] < 500) {
-        // Extremely low reading. Probably wrong. Discard it.
+        // Capture time: a real full-scale (10v / pot maxed) reading is near
+        // 4095. Anything this low means the input is unpatched or broken, so
+        // store a unity-ish constant rather than a huge scaler.
+        // (See the lower <100 guard in PrecomputeCalibration, which catches
+        // disconnected/garbage values read back from a blank eprom.)
         cal_constants[c] = 4095;
       }
     };

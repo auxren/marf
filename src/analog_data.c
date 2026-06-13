@@ -60,7 +60,9 @@ void WriteOtherCvWithoutSmoothing(uint8_t cv_num, uint32_t new_adc_reading) {
 void PrecomputeCalibration(void) {
   for(uint8_t i = 0; i < 8; i++) {
     if (cal_constants[i] < 100) {
-      // Fix anything weirdly low (or disconnected)
+      // Load time: fix anything weirdly low (or disconnected, or read back
+      // from a blank/erased eprom) so we never divide by a tiny number.
+      // The stricter <500 capture-time guard lives in ControllerCalibrationLoop.
       cal_constants[i] = 4095;
     }
     external_cal[i] = 4095.0 / (float) cal_constants[i];

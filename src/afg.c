@@ -131,6 +131,7 @@ uint8_t AfgCheckStart(uint8_t afg_num, uint8_t start_signal) {
   if (run_again) {
     afg->mode = MODE_RUN;
     afg->step_num = GetNextStep(afg->section, afg->step_num);
+    afg->step_width = GetStepWidth(afg->section, afg->step_num, GetTimeMultiplier(afg_num));
     afg->step_cnt = 0;
     return 1;
   } else {
@@ -146,6 +147,7 @@ void AfgJumpToStep(uint8_t afg_num, uint8_t step) {
 
   // Then update the step number to where ever we are strobing to
   afg->step_num = step;
+  afg->step_width = GetStepWidth(afg->section, afg->step_num, GetTimeMultiplier(afg_num));
 
   // Reset step counter
   afg->step_cnt = 0;
@@ -196,6 +198,7 @@ void AfgProcessModeChanges(uint8_t afg_num, PulseInputs pulses) {
       // Start running
       afg->mode = MODE_RUN;
       afg->step_num = GetNextStep(afg->section, afg->step_num);
+      afg->step_width = GetStepWidth(afg->section, afg->step_num, GetTimeMultiplier(afg_num));
       afg->step_cnt = 0;
       update_display();
     } else if (afg->mode == MODE_WAIT_HI_Z || afg->mode == MODE_STAY_HI_Z) {
@@ -216,7 +219,10 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   float output_voltage = 0;
   ProgrammedOutputs outputs;
 
-  afg->step_width = GetStepWidth(afg->section, afg->step_num, GetTimeMultiplier(afg_num));
+  // step_width is kept current for the active step by the main loop
+  // (AfgRecalculateStepWidths). We only recompute it here when the step
+  // actually changes, to keep the float math and ADC read out of the
+  // 32kHz interrupt hot path for long steps.
   if (afg->step_cnt < afg->step_width) {
     afg->step_cnt += ticks;
   }
@@ -232,6 +238,7 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
       afg->prev_step_level = afg->step_level;
       afg->step_num = afg->stage_address;
       step = get_step_programming(afg->section, afg->step_num);
+      afg->step_width = GetStepWidth(afg->section, afg->step_num, GetTimeMultiplier(afg_num));
       // Reset step counter
       afg->step_cnt = 0;
       update_display();
@@ -275,6 +282,7 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
       // Advance to the next step
       afg->step_num = GetNextStep(afg->section, afg->step_num);
       step = get_step_programming(afg->section, afg->step_num);
+      afg->step_width = GetStepWidth(afg->section, afg->step_num, GetTimeMultiplier(afg_num));
       afg->step_cnt = 0; // Reset
       update_display();
     };
@@ -291,7 +299,7 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   if (afg->step_cnt < afg->step_width) {
     // Set AFG reference out value
     // (Slopes down from 1023 to 0 over the course of the step)
-    outputs.ref = 1023 - (uint16_t) ((afg->step_cnt << 10) / afg->step_width);
+    outputs.ref = 1023 - (uint16_t) (((uint64_t) afg->step_cnt << 10) / afg->step_width);
 
     // If the step is sloped, then slope from prev_step_level to the new output value
     outputs.sloped = step.b.Sloped;

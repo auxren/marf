@@ -93,8 +93,8 @@ uint32_t GetStepWidth(uint8_t section, uint8_t step_num, float time_multiplier) 
     time_level = (float) sliders[slider_num].TLevel;
   };
 
-  // This magic number is 112000/4095
-  // This is the step width for the 2-30 range
+  // Map the slider (0..4095) onto the 2-30s range for this time range:
+  // 2s at minimum, rising to 2 + 28 = 30s at full scale.
   step_width = (time_level * RECIPROCAL_12BIT * STEP_WIDTH_28S) + STEP_WIDTH_2S;
 
   if (steps[step_num].b.TimeRange_p03 == 1) {
@@ -134,10 +134,10 @@ void WriteVoltageSlider(uint8_t slider_num, uint32_t new_adc_reading) {
 
 // Write new time slider value, un-pinning slider if needed
 void WriteTimeSlider(uint8_t slider_num, uint32_t new_adc_reading) {
-  static volatile uint16_t voltage_smoothers[32];
+  static volatile uint16_t time_smoothers[32];
 
   uint16_t adc_reading = (uint16_t) (new_adc_reading & 0xfff) << 4;
-  uint16_t smoothed = apply_voltage_smoother(adc_reading, &voltage_smoothers[slider_num]);
+  uint16_t smoothed = apply_voltage_smoother(adc_reading, &time_smoothers[slider_num]);
 
   if (smoothed >> 4 >= sliders[slider_num].TLevel >> 4) {
     time_slider_pins.high &= ~(1UL << slider_num);

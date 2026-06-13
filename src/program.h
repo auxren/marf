@@ -78,16 +78,16 @@ extern volatile PinnedSliders time_slider_pins;
 
 void InitProgram();
 
-inline uint8_t get_max_step() {
+static inline uint8_t get_max_step() {
   return Is_Expander_Present() ? 31 : 15;
 }
 
 // A 12bit value shifted into range for 32 or 16 step selection
-inline uint8_t get_max_step_shift12() {
+static inline uint8_t get_max_step_shift12() {
   return Is_Expander_Present() ? 7 : 8;
 }
 
-inline uStep get_step_programming(uint8_t section, uint8_t step_num) {
+static inline uStep get_step_programming(uint8_t section, uint8_t step_num) {
   step_num += section << 4;
   return steps[step_num];
 }
@@ -106,7 +106,7 @@ float GetStepVoltage(uint8_t section, uint8_t step_num);
 // Scale the time multipliers to more closely match the panel.
 // Use a linear interpolation between the points instead of log2.
 
-inline float scale_time_fake_log2(float linear_val) {
+static inline float scale_time_fake_log2(float linear_val) {
   if (linear_val < 1365.0) {
     // 512 - 1024 or 0.5 - 1
     return linear_val * 0.375 + 512.0;
@@ -120,7 +120,7 @@ inline float scale_time_fake_log2(float linear_val) {
 }
 
 // Get step time slider level as simple linear value
-inline uint16_t get_time_slider_level(uint8_t slider_num) {
+static inline uint16_t get_time_slider_level(uint8_t slider_num) {
   return sliders[slider_num].TLevel;
 }
 
@@ -132,14 +132,14 @@ void ApplyProgrammingSwitches(uint8_t section, uint8_t step_num, uButtons *switc
 
 void ClearProgram(uint8_t section);
 
-inline void pin_all_sliders() {
+static inline void pin_all_sliders() {
   voltage_slider_pins.high = 0xFFFFFFFF;
   voltage_slider_pins.low = 0xFFFFFFFF;
   time_slider_pins.high = 0xFFFFFFFF;
   time_slider_pins.low = 0xFFFFFFFF;
 }
 
-inline void unpin_all_sliders() {
+static inline void unpin_all_sliders() {
   voltage_slider_pins.high = 0x00000000;
   voltage_slider_pins.low = 0x00000000;
   time_slider_pins.high = 0x00000000;

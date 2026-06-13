@@ -20,9 +20,9 @@ typedef struct {
   uint8_t strobe;
 } PulseInputs;
 
-PulseInputs PULSE_INPUTS_NONE;
+extern PulseInputs PULSE_INPUTS_NONE;
 
-inline uint8_t any_pulses_high(PulseInputs in) {
+static inline uint8_t any_pulses_high(PulseInputs in) {
   return in.start || in.stop || in.strobe;
 }
 
@@ -48,7 +48,7 @@ extern float quantizer_magic; // reciprocal of semitone_offset
 // Applies the voltage smoother to the state var passed.
 // The new_reading should already be shifted to a 16 bit value.
 // The returned value is shifted back down to 12 bit range.
-inline uint16_t apply_voltage_smoother(uint16_t new_reading, volatile uint16_t *state) {
+static inline uint16_t apply_voltage_smoother(uint16_t new_reading, volatile uint16_t *state) {
   register uint16_t delta;
 
   if (new_reading > *state) {
@@ -75,11 +75,11 @@ inline uint16_t apply_voltage_smoother(uint16_t new_reading, volatile uint16_t *
   return *state >> 4;
 }
 
-inline uint16_t read_calibrated_add_data_uint16(uint8_t d) {
-  return (uint16_t) ((float) add_data[d]) * external_cal[d] + 0.5;
+static inline uint16_t read_calibrated_add_data_uint16(uint8_t d) {
+  return (uint16_t) ((float) add_data[d] * external_cal[d] + 0.5);
 }
 
-inline float read_calibrated_add_data_float(uint8_t d) {
+static inline float read_calibrated_add_data_float(uint8_t d) {
   return ((float) add_data[d]) * external_cal[d];
 }
 
@@ -100,7 +100,7 @@ void SetVoltageRange(uDipConfig dip_config);
 #define EXTI_LINE_STROBE2 EXTI_Line7
 
 // Return the interrupt flag status for each pulse
-inline PulseInputs get_afg1_pulse_interrupts() {
+static inline PulseInputs get_afg1_pulse_interrupts() {
   PulseInputs pulse_inputs = {};
   pulse_inputs.start  = EXTI_GetFlagStatus(EXTI_LINE_START1)  == SET;
   pulse_inputs.stop   = EXTI_GetFlagStatus(EXTI_LINE_STOP1)   == SET;
@@ -109,7 +109,7 @@ inline PulseInputs get_afg1_pulse_interrupts() {
 }
 
 // Return the interrupt flag status for each pulse
-inline PulseInputs get_afg2_pulse_interrupts() {
+static inline PulseInputs get_afg2_pulse_interrupts() {
   PulseInputs pulse_inputs = {};
   pulse_inputs.start  = EXTI_GetFlagStatus(EXTI_LINE_START2)  == SET;
   pulse_inputs.stop   = EXTI_GetFlagStatus(EXTI_LINE_STOP2)   == SET;
@@ -118,7 +118,7 @@ inline PulseInputs get_afg2_pulse_interrupts() {
 }
 
 // Return the current level of pulse inputs direct from the gpio pins
-inline PulseInputs get_afg1_pulse_inputs() {
+static inline PulseInputs get_afg1_pulse_inputs() {
   PulseInputs pulse_inputs = {};
   pulse_inputs.start  = (GPIOB->IDR & GPIO_Pin_8) != 0;  // PB8
   pulse_inputs.stop   = (GPIOB->IDR & GPIO_Pin_0) != 0;  // PB0
@@ -127,7 +127,7 @@ inline PulseInputs get_afg1_pulse_inputs() {
 }
 
 // Return the current level of pulse inputs direct from the gpio pins
-inline PulseInputs get_afg2_pulse_inputs() {
+static inline PulseInputs get_afg2_pulse_inputs() {
   PulseInputs pulse_inputs = {};
   pulse_inputs.start  = (GPIOB->IDR & GPIO_Pin_6) != 0;  // PB6
   pulse_inputs.stop   = (GPIOB->IDR & GPIO_Pin_1) != 0;  // PB1
