@@ -76,6 +76,40 @@ test: | $(BUILD_DIR)
 	$(HOST_CC) $(TEST_CFLAGS) $(TEST_SRC) $(TEST_LIBS) -o $(BUILD_DIR)/run_tests
 	./$(BUILD_DIR)/run_tests
 
+# ---- User manual (PDF) ------------------------------------------------------
+# Renders the docs/ markdown into build/MARF-Manual.pdf with pandoc + a LaTeX
+# engine (tectonic by default). Inter-file .md links are flattened to plain text
+# so they read cleanly in the single combined document.
+.PHONY: manual
+MANUAL_SRCS = \
+  docs/01-overview.md \
+  docs/02-installation-and-flashing.md \
+  docs/03-calibration.md \
+  docs/04-front-panel-reference.md \
+  docs/05-programming-steps.md \
+  docs/06-running-and-clocking.md \
+  docs/07-saving-and-loading.md \
+  docs/08-section-shift.md \
+  docs/09-pulse-tricks.md \
+  docs/10-troubleshooting.md
+MANUAL_PDF      ?= $(BUILD_DIR)/MARF-Manual.pdf
+MANUAL_DATE     ?= $(shell date +%Y-%m-%d)
+MANUAL_VERSION  ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
+PANDOC_PDF_ENGINE ?= tectonic
+
+manual: | $(BUILD_DIR)
+	awk 'FNR==1 && NR!=1 {printf "\n\\newpage\n\n"} {print}' $(MANUAL_SRCS) \
+	  | sed -E 's@\[([^]]+)\]\((\./)?[0-9][^)]*\.md[^)]*\)@\1@g' \
+	  | pandoc --from markdown \
+	      --pdf-engine=$(PANDOC_PDF_ENGINE) \
+	      --toc --toc-depth=2 \
+	      --metadata title="MARF — Multiple Arbitrary Function Generator" \
+	      --metadata subtitle="User Manual ($(MANUAL_VERSION))" \
+	      --metadata date="$(MANUAL_DATE)" \
+	      -V geometry:margin=1in -V colorlinks=true -V linkcolor=blue \
+	      -o $(MANUAL_PDF) -
+	@echo "Wrote $(MANUAL_PDF)"
+
 $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 

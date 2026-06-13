@@ -41,6 +41,14 @@ jobs:
       - name: Report size
         run: arm-none-eabi-size build/MARF.elf
 
+      - name: Build user manual (PDF)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pandoc texlive-xetex texlive-latex-recommended \
+            texlive-fonts-recommended lmodern
+          make manual PANDOC_PDF_ENGINE=xelatex
+
       - name: Name the artifacts
         id: name
         run: |
@@ -54,6 +62,7 @@ jobs:
           echo "base=${BASE}" >> "$GITHUB_OUTPUT"
           cp build/MARF.hex "build/${BASE}.hex"
           cp build/MARF.bin "build/${BASE}.bin"
+          cp build/MARF-Manual.pdf "build/${BASE}-manual.pdf"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -62,6 +71,7 @@ jobs:
           path: |
             build/${{ steps.name.outputs.base }}.hex
             build/${{ steps.name.outputs.base }}.bin
+            build/${{ steps.name.outputs.base }}-manual.pdf
             build/MARF.elf
             build/MARF.map
           if-no-files-found: error
@@ -73,4 +83,5 @@ jobs:
           files: |
             build/${{ steps.name.outputs.base }}.hex
             build/${{ steps.name.outputs.base }}.bin
+            build/${{ steps.name.outputs.base }}-manual.pdf
           generate_release_notes: true

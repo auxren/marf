@@ -3,6 +3,12 @@
 This repo contains source code for the Buchla 248r module, originally produced 
 by the Electric Music Store and subsequently improved by SA Modular.
 
+## Documentation
+
+A full user manual lives in [`docs/`](docs/README.md). A combined **PDF**
+(`*-manual.pdf`) is attached to each [release](https://github.com/auxren/marf/releases),
+or build it locally with `make manual`.
+
 ## Installation
 
 1.  Obtain an ST-Link STM32 programmer (v2 recommended, available on Amazon for less than $20).
