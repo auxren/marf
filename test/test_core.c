@@ -153,6 +153,17 @@ static void test_per_sequence_scale(void) {
   CHECK(root_from_slider(4095) == 11);
 }
 
+static void test_override_wins(void) {
+  printf("test_override_wins\n");
+  clear_steps();
+  steps[0].b.VoltageSource = 1;     /* external source */
+  steps[0].b.FullRange = 1;
+  /* override (Turing / normalled external) is used regardless of source */
+  CHECK_NEAR(GetStepVoltage(0, 0, SCALE_CHROMATIC, 0, 2000, 1), 2000.0, 0.5);
+  /* without override, external source reads add_data (0 by default) */
+  CHECK_NEAR(GetStepVoltage(0, 0, SCALE_CHROMATIC, 0, 0, 0), 0.0, 0.5);
+}
+
 static void test_get_next_step_loop_to_zero(void) {
   printf("test_get_next_step_loop_to_zero\n");
   clear_steps();
@@ -170,6 +181,7 @@ int main(void) {
   test_get_next_step_loop_to_zero();
   test_step_voltage_scale_quantize();
   test_per_sequence_scale();
+  test_override_wins();
   run_storage_tests();
   run_scales_tests();
   run_turing_tests();

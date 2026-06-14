@@ -166,6 +166,9 @@ void ControllerMainLoop() {
     // Quantize-held + slider selects the sequence's scale/root
     ControllerProcessScaleSelect(&switches);
 
+    // Sense CV presence on the external inputs (for external-normal mode).
+    SenseExternalInputs();
+
     // Source-External + Quantize chord toggles Turing mode; external inputs
     // clock the per-stage shift registers.
     ControllerProcessTuring(&switches);
@@ -379,6 +382,10 @@ void LoadCianiPreset(void) {
   afg_scale[0] = afg_scale[1] = SCALE_CHROMATIC;
   afg_root[0] = afg_root[1] = 0;
   turing_enabled[0] = turing_enabled[1] = 0;
+
+  // Soft-normal the external input: plays this internal sequence standalone,
+  // and follows a CV patched into external input A when one appears.
+  external_normal[0] = external_normal[1] = 1;
 
   pin_all_sliders();                     // hold the preset until sliders are moved
   AfgReset(AFG1);

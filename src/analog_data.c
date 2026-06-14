@@ -2,6 +2,27 @@
 
 #include <stm32f4xx.h>
 #include "dip_config.h"
+#include "delays.h"
+
+// CV-presence state for the four external inputs.
+volatile uint8_t external_present[4] = { 0, 0, 0, 0 };
+volatile uint8_t external_normal[2] = { 0, 0 };
+
+#define EXTERNAL_PRESENT_THRESHOLD 100    // ADC counts (~0.25 V) above idle
+#define EXTERNAL_PRESENT_TIMEOUT_MS 1500  // stay "present" through brief 0 V dips
+
+void SenseExternalInputs(void) {
+  static uint32_t last_active[4] = { 0, 0, 0, 0 };
+  uint32_t now = get_millis();
+  for (uint8_t k = 0; k < 4; k++) {
+    if (add_data[k] > EXTERNAL_PRESENT_THRESHOLD) {
+      external_present[k] = 1;
+      last_active[k] = now;
+    } else if (now - last_active[k] > EXTERNAL_PRESENT_TIMEOUT_MS) {
+      external_present[k] = 0;
+    }
+  }
+}
 
 // Additional analog data
 volatile uint16_t add_data[8];
