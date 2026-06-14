@@ -16,6 +16,7 @@
 #include "watchdog.h"
 #include "scales.h"
 #include "turing.h"
+#include "styles.h"
 
 // Step selected for editing (0-31)
 volatile uint8_t edit_mode_step_num = 0;
@@ -174,8 +175,8 @@ void ControllerMainLoop() {
     ControllerProcessTuring(&switches);
     ControllerProcessTuringClocks();
 
-    // Stop + Sustain + First + Last chord loads the Ciani preset.
-    ControllerProcessCiani(&switches);
+    // Stop + Sustain + First + Last chord cycles through the style presets.
+    ControllerProcessStyleCycle(&switches);
 
     // Update panel state
     UpdateModeSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_section, edit_mode_step_num);
@@ -331,71 +332,60 @@ void ControllerProcessTuringClocks(void) {
   }
 }
 
-// "Ciani mode" preset: her "Vertical Sequencer".
-// Reproduces Suzanne Ciani's documented patch (1976 NEA report, Musical
-// Illustration 3 / Diagram 3): each of the 16 stages has an octave offset (the
-// limited-range Voltage0/2/4/6/8 switches) and one of four base pitches (Rows
-// A-D), quantized and stepped at a fast rate, looped, with a pulse at stage 16.
-// Arpeggiating chord tones across ~4 octaves gives her "harp-like" texture.
-void LoadCianiPreset(void) {
-  // Per-stage octave (0->Voltage0 .. 4->Voltage8) and row (0=A 1=B 2=C 3=D),
-  // straight from the illustration's Range/Row table.
-  static const uint8_t vs_oct[16] = { 0, 1, 0, 2, 3, 4, 2, 4, 3, 0, 1, 1, 0, 2, 4, 2 };
-  static const uint8_t vs_row[16] = { 2, 2, 3, 2, 2, 0, 3, 1, 3, 1, 0, 2, 3, 3, 0, 1 };
-  // Base pitch per row as a within-octave slider value: A=0, B=4, C=7, D=9
-  // semitones (a C6-ish chord), i.e. semitone/12 * 4095 (independent of V/oct).
-  static const uint16_t row_v[4] = { 0, 1365, 2389, 3071 };
+// Program the sequencer from a style preset (see styles.c). Degrees are
+// semitones relative to the style's root; quantize snaps them into its scale.
+void LoadStyle(uint8_t index) {
+  if (index >= STYLE_COUNT) index = 0;
+  const Style *sty = &styles[index];
   uint8_t max = get_max_step();
+  uint8_t len = sty->length;
+  if (len < 2) len = 2;
+  if (len > 16) len = 16;
 
   InitProgram();                         // clear to defaults first
 
   for (uint8_t s = 0; s <= max; s++) {
-    uint8_t i = s & 15;
     volatile uStep *st = &steps[s];
+    int v = (int) ((float) (sty->root + sty->degree[s % len]) * semitone_offset + 0.5f);
+    if (v < 0) v = 0;
+    if (v > 4095) v = 4095;
+    sliders[s].VLevel = (uint16_t) v;
+    sliders[s].TLevel = sty->time_level;
 
-    sliders[s].VLevel = row_v[vs_row[i]]; // base pitch within the octave
-    sliders[s].TLevel = 1024;             // brisk arpeggio tempo
-
-    st->b.Quantize = 1;                   // quantized pitches (the Ciani technique)
-    st->b.VoltageSource = 0;              // internal slider
-    st->b.Sloped = 0;                     // stepped
+    st->b.Quantize = 1;
+    st->b.VoltageSource = 0;             // internal slider
+    st->b.FullRange = 1;
+    st->b.Sloped = (sty->flags & STYLE_SLOPED) ? 1 : 0;
     st->b.TimeSource = 0;
-    st->b.FullRange = 0;                  // limited range -> octave switches active
-    st->b.Voltage0 = (vs_oct[i] == 0);
-    st->b.Voltage2 = (vs_oct[i] == 1);
-    st->b.Voltage4 = (vs_oct[i] == 2);
-    st->b.Voltage6 = (vs_oct[i] == 3);
-    st->b.Voltage8 = (vs_oct[i] == 4);
-    st->b.TimeRange_p03 = 0;              // fast time range (~0.09 s/stage)
-    st->b.TimeRange_p3 = 1;
-    st->b.TimeRange_3 = 0;
-    st->b.TimeRange_30 = 0;
+    st->b.TimeRange_p03 = (sty->time_range == 1);
+    st->b.TimeRange_p3  = (sty->time_range == 2);
+    st->b.TimeRange_3   = (sty->time_range == 3);
+    st->b.TimeRange_30  = (sty->time_range == 4);
+    if (s < 16) {
+      st->b.OutputPulse1 = (sty->pulse1 >> s) & 1u;
+      st->b.OutputPulse2 = (sty->pulse2 >> s) & 1u;
+    }
   }
 
-  steps[0].b.CycleFirst = 1;             // loop the 16 stages
-  steps[(max >= 15) ? 15 : max].b.CycleLast = 1;
+  steps[0].b.CycleFirst = 1;             // loop the style's length
+  steps[((len - 1) <= max) ? (len - 1) : max].b.CycleLast = 1;
 
-  steps[0].b.OutputPulse1 = 1;           // downbeat
-  if (max >= 15) steps[15].b.OutputPulse2 = 1;  // her pulse at stage 16
-
-  // Chromatic quantize keeps the exact chord-tone pitches set above.
-  afg_scale[0] = afg_scale[1] = SCALE_CHROMATIC;
-  afg_root[0] = afg_root[1] = 0;
+  afg_scale[0] = afg_scale[1] = sty->scale;
+  afg_root[0] = afg_root[1] = sty->root;
   turing_enabled[0] = turing_enabled[1] = 0;
-
-  // Soft-normal the external input: plays this internal sequence standalone,
-  // and follows a CV patched into external input A when one appears.
-  external_normal[0] = external_normal[1] = 1;
+  external_normal[0] = external_normal[1] = (sty->flags & STYLE_EXTNORMAL) ? 1 : 0;
 
   pin_all_sliders();                     // hold the preset until sliders are moved
   AfgReset(AFG1);
   AfgReset(AFG2);
 }
 
-// Stop + Sustain + First + Last held together for ~0.8 s loads the Ciani preset.
-void ControllerProcessCiani(uButtons * key) {
+// Stop + Sustain + First + Last held together for ~0.8 s loads the next style,
+// cycling through the roster. The loaded style number is shown on the step LEDs.
+void ControllerProcessStyleCycle(uButtons * key) {
   static uint8_t state = 0;
   static uint32_t start = 0;
+  static uint8_t idx = 0;
 
   uint8_t chord = !key->b.StopOn && !key->b.SustainOn &&
                   !key->b.FirstOn && !key->b.LastOn;
@@ -403,9 +393,11 @@ void ControllerProcessCiani(uButtons * key) {
   if (chord) {
     if (state == 0) { state = 1; start = get_millis(); }
     else if (state == 1 && (get_millis() - start) > 800) {
-      LoadCianiPreset();
-      RunLoadProgramAnimation();
+      LoadStyle(idx);
+      StepLedsLightSingleStep(idx & 15);   // show which style loaded
+      delay_ms(700);
       display_mode = DISPLAY_MODE_VIEW_1;
+      idx = (uint8_t) ((idx + 1) % STYLE_COUNT);
       state = 2;
     }
   } else {

@@ -52,9 +52,9 @@ void ControllerProcessTuring(uButtons * key);
 
 void ControllerProcessTuringClocks(void);
 
-void ControllerProcessCiani(uButtons * key);
+void ControllerProcessStyleCycle(uButtons * key);
 
-void LoadCianiPreset(void);
+void LoadStyle(uint8_t index);
 
 void ControllerProcessStageAddressSwitches(uButtons * key);
 
