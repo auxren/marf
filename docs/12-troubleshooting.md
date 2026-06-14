@@ -26,10 +26,13 @@ Recalibrate ([Calibration](03-calibration.md)) and confirm the V/oct
 [DIP switches](04-front-panel-reference.md#dip-switches) match your system
 (1 V, 1.2 V or 2 V per octave).
 
-**My saved programs disappeared after updating the firmware.**
-This firmware uses a new, checksummed storage format and does not read programs
-or calibration written by older firmware (they are safely ignored, not
-mis‑loaded). **Recalibrate and re‑save** your programs after updating.
+**My saved programs / calibration were ignored after updating the firmware.**
+This firmware uses a checksummed, versioned storage format and ignores data
+written by **older (pre‑3.0)** firmware (safely, not mis‑loaded). The first time
+you move onto 3.0, **recalibrate and re‑save** your programs. Updating between
+**3.0+** builds keeps your calibration (its format is frozen); only re‑save
+programs if a release notes a program‑format change. Flashing never erases the
+EEPROM — only running the calibration procedure does.
 
 **Panel controls or external inputs behave erratically.**
 The module relies on calibration to read its controls. If you have never

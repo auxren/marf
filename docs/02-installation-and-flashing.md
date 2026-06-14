@@ -22,14 +22,19 @@ the SWD header with an ST‑Link programmer.
    firmware image to flash (address `0x08000000`).
 5. Power off, disconnect the ST‑Link, and reseat the module in the case.
 6. Power back on.
-7. **Run the calibration procedure.** After flashing, the stored calibration is
-   no longer valid and the module *must* be recalibrated — see
-   [Calibration](03-calibration.md).
+7. **Calibrate if needed.** Calibration lives in the external EEPROM, so
+   flashing does not erase it. Coming from **older (pre‑3.0) firmware** the
+   stored calibration is in an incompatible format and you *must* recalibrate —
+   see [Calibration](03-calibration.md). Updating between **3.0+** builds keeps
+   your calibration, so this step is then optional.
 
-> **Memory note:** this firmware stores programs and calibration in a new,
-> checksummed format. Programs and calibration saved by older firmware are not
-> read back (they are safely ignored), so plan to recalibrate and re‑save your
-> programs after updating.
+> **Memory note:** this firmware stores programs and calibration in a
+> checksummed, versioned format. Data saved by **older (pre‑3.0)** firmware is
+> not read back (it is safely ignored), so the first time you move onto 3.0,
+> plan to recalibrate and re‑save your programs. From **3.0 onward the
+> calibration format is frozen** — later updates read it back and need no
+> recalibration. (Saved programs may still need re‑saving if the *program*
+> format is revised; calibration is independent.)
 
 ## Building from source
 

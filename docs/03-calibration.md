@@ -43,9 +43,25 @@ subsequent power‑up the firmware verifies it; if the calibration data is missi
 or corrupt, the module falls back to a safe uncalibrated (unity) scaling so it
 still runs, but you should recalibrate for correct behaviour.
 
+## Calibration survives firmware updates
+
+Calibration is stored in the module's external EEPROM, **not** in the chip that
+holds the firmware, so flashing new firmware does not erase it. From **3.0
+onward the calibration format is frozen**: updating to any later 3.0+ build
+reads your existing calibration back on boot, so **you do not need to
+recalibrate after a routine firmware update.**
+
+The module verifies the stored calibration at every power‑up. If it is missing
+or in an incompatible format, the module falls back to a safe uncalibrated
+(unity) scaling so it still runs — that fallback (controls suddenly tracking
+wrong) is your cue that a recalibration is needed.
+
 ## When to recalibrate
 
-- After flashing or updating the firmware.
+- The **first time** you move onto this firmware from an older version (pre‑3.0
+  / v2.66), whose calibration is in an incompatible format.
 - After any of the recommended hardware modifications that affect input scaling.
 - If panel controls or external inputs track incorrectly (e.g. pitch is off
-  across the range).
+  across the range) — the uncalibrated fallback described above.
+
+A routine **3.0 → later‑3.0** update does **not** need a recalibration.
