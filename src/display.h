@@ -32,6 +32,13 @@ extern uint32_t steps_leds_lit;
 // an indicator (e.g. blink the voltage-source LED in Turing mode).
 extern uLeds mode_leds_lit;
 
+// When set, the voltage-source mode LED "breathes" (PWM via TIM14) to indicate
+// Turing mode. Set by the controller from the displayed sequence's state.
+extern volatile uint8_t mode_led_breathe;
+
+// Start the mode-LED PWM timer (TIM14). Call once at boot.
+void ModeLedPwmInit(void);
+
 // Display modes
 #define DISPLAY_MODE_VIEW_1       0
 #define DISPLAY_MODE_VIEW_2       1

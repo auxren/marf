@@ -20,6 +20,60 @@ uint32_t steps_leds_lit = 0xFFFFFFFF;
 
 uLeds mode_leds_lit;
 
+// ---- Mode-LED software PWM (for the Turing "breathing" indicator) ----------
+// When mode_led_breathe is set, a fast TIM14 ISR drives the mode LED shift
+// register and PWMs the voltage-source LED's duty cycle so it breathes (it
+// stays lit, pulsing between ~25% and 100% brightness). FlushLedUpdates hands
+// the ISR the latest mode-LED state; when not breathing the main loop sends the
+// mode LEDs itself as usual.
+volatile uint8_t mode_led_breathe = 0;
+static volatile uLeds mode_led_snapshot;
+static volatile uint8_t mode_led_snap_seq = 0;
+
+void ModeLedPwmInit(void) {
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM14, ENABLE);
+  TIM14->PSC = 83;            // 84 MHz / 84 = 1 MHz
+  TIM14->ARR = 499;           // 1 MHz / 500 = 2 kHz tick (8-step PWM -> 250 Hz)
+  TIM14->CNT = 0;
+  TIM14->SR  = (uint16_t) ~TIM_IT_Update;
+  TIM14->DIER = TIM_DIER_UIE;
+  TIM14->CR1 |= TIM_CR1_CEN;
+  // Below the audio (1) and ADC (0) IRQs so it can never delay them.
+  NVIC_SetPriority(TIM8_TRG_COM_TIM14_IRQn, 3);
+  NVIC_EnableIRQ(TIM8_TRG_COM_TIM14_IRQn);
+}
+
+void TIM8_TRG_COM_TIM14_IRQHandler(void) {
+  static uint8_t phase = 0;
+  static uint16_t frame = 0;
+  static uint8_t brightness = 4;
+  static uint8_t last_v = 0xFF;
+  static uint8_t last_seq = 0xFF;
+
+  if (!(TIM14->SR & TIM_IT_Update)) return;
+  TIM14->SR = (uint16_t) ~TIM_IT_Update;
+
+  if (!mode_led_breathe) { last_v = 0xFF; return; }
+
+  phase = (phase + 1) & 7;                  // 8-step PWM frame
+  if (phase == 0) {
+    frame++;
+    // Triangle breathe over ~1.5 s; duty 2..8 of 8 (never fully off).
+    uint16_t t = frame % 376;
+    uint16_t tri = (t < 188) ? t : (376 - t);
+    brightness = (uint8_t) (2 + (uint32_t) tri * 6u / 188u);
+  }
+
+  uint8_t v = (phase < brightness) ? 0 : 1;  // active low: 0 = lit
+  if (v != last_v || mode_led_snap_seq != last_seq) {
+    uLeds out = mode_led_snapshot;
+    out.b.VoltageSource = v;
+    LEDS_modes_SendStruct(&out);
+    last_v = v;
+    last_seq = mode_led_snap_seq;
+  }
+}
+
 void DisplayAllInitialize() {
   steps_leds_lit = 0xFFFFFFFF;
   mode_leds_lit.value[0] = 0xFF;
@@ -183,7 +237,14 @@ void FlushLedUpdates() {
   }
   steps_leds_lit = 0xFFFFFFFF;
 
-  LEDS_modes_SendStruct(&mode_leds_lit);
+  if (mode_led_breathe) {
+    // The TIM14 ISR drives the mode LEDs (breathing the voltage-source LED);
+    // just hand it the latest state.
+    mode_led_snapshot = mode_leds_lit;
+    mode_led_snap_seq++;
+  } else {
+    LEDS_modes_SendStruct(&mode_leds_lit);
+  }
   mode_leds_lit.value[0] = 0xFF;
   mode_leds_lit.value[1] = 0xFF;
   mode_leds_lit.value[2] = 0xFF;

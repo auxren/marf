@@ -497,13 +497,8 @@ void TIM8_UP_TIM13_IRQHandler(void) {
   }
 }
 
-// Timer 14 IRQ. No longer used.
-void TIM8_TRG_COM_TIM14_IRQHandler(void) {
-  if(TIM_GetITStatus(TIM14, TIM_IT_Update) != RESET) {
-    TIM_Cmd(TIM14, DISABLE);
-    TIM_ClearITPendingBit(TIM14, TIM_IT_Update);
-  }
-}
+// Timer 14 IRQ now drives the mode-LED PWM (TIM8_TRG_COM_TIM14_IRQHandler is
+// defined in display.c).
 
 // Timer Interrupt handler for start scan section 1
 // This is only used when timer is started by sustain or enable mode
@@ -638,6 +633,7 @@ int main(void) {
   mInterruptInit();
   InternalDACInit();
   DisplayAllInitialize();
+  ModeLedPwmInit();
   turing_machines_init();
 
   // Settle down

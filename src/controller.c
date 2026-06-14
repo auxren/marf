@@ -184,15 +184,12 @@ void ControllerMainLoop() {
       steps_leds_lit = 0xFFFFFFFF & ~(1UL << scale_select_value);
     }
 
-    // Blink the voltage-source LED while Turing mode is on for the displayed
-    // sequence. (A true brightness "breathe" needs a faster PWM refresh -- a
-    // later refinement; this blink is the first-pass indicator.)
+    // Breathe the voltage-source LED while Turing mode is on for the displayed
+    // sequence (driven by the TIM14 PWM ISR).
     {
       uint8_t disp_afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
                           display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
-      if (turing_enabled[disp_afg]) {
-        mode_leds_lit.b.VoltageSource = ((get_millis() / 400) & 1) ? 1 : 0; // 0 = lit
-      }
+      mode_led_breathe = turing_enabled[disp_afg];
     }
 
 
@@ -677,6 +674,7 @@ void ControllerLoadProgramLoop() {
   uint32_t now = 0;
   previous_switches.value = HC165_ReadSwitches();
 
+  mode_led_breathe = 0;   // this loop sends the mode LEDs directly
   StepLedsLightSingleStep(0);
 
   while (1) {
@@ -767,6 +765,7 @@ void ControllerSaveProgramLoop() {
   uint32_t now = 0;
   previous_switches.value = HC165_ReadSwitches();
 
+  mode_led_breathe = 0;   // this loop sends the mode LEDs directly
   StepLedsLightSingleStep(0);
 
   while (1) {
