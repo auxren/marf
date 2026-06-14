@@ -233,7 +233,8 @@ void ControllerMainLoop() {
 void ControllerProcessScaleSelect(uButtons * key) {
   static uint8_t active = 0;
   static uint8_t showing_root = 0;   // step LEDs show root (vs scale) when set
-  static uint16_t snap_v[32], snap_t[32];
+  static uint16_t snap_v[32], snap_t[32];  // live slider positions at entry
+  static uint8_t moved_v[32], moved_t[32]; // which sliders were used to select
 
   uint8_t quantize_held   = !key->b.OutputQuantize;
   uint8_t source_ext_held = !key->b.SourceExternal;
@@ -244,38 +245,55 @@ void ControllerProcessScaleSelect(uButtons * key) {
                    display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
 
     if (!active) {
-      // Entering: snapshot every slider so we can restore the ones we move.
+      // Entering: freeze slider commits so moving a slider can't change any
+      // stage's output, and snapshot the live positions to detect movement.
       active = 1;
       showing_root = 0;
+      scale_select_freeze = 1;
       for (uint8_t i = 0; i <= max; i++) {
-        snap_v[i] = sliders[i].VLevel;
-        snap_t[i] = sliders[i].TLevel;
+        snap_v[i] = slider_raw_v[i];
+        snap_t[i] = slider_raw_t[i];
+        moved_v[i] = 0;
+        moved_t[i] = 0;
       }
     }
 
-    // Any voltage slider moved past the threshold picks the scale; any time
-    // slider picks the root. The step LEDs follow whichever was last moved.
+    // A voltage slider moved past the threshold picks the scale; a time slider
+    // picks the root. The step LEDs follow whichever was last moved.
     for (uint8_t i = 0; i <= max; i++) {
-      int dv = (int) sliders[i].VLevel - (int) snap_v[i];
-      int dt = (int) sliders[i].TLevel - (int) snap_t[i];
+      int dv = (int) slider_raw_v[i] - (int) snap_v[i];
+      int dt = (int) slider_raw_t[i] - (int) snap_t[i];
       if (dv < 0) dv = -dv;
       if (dt < 0) dt = -dt;
       if (dv > SCALE_SELECT_MOVE_THRESHOLD) {
-        afg_scale[afg] = scale_from_slider(sliders[i].VLevel);
+        afg_scale[afg] = scale_from_slider(slider_raw_v[i]);
         showing_root = 0;
+        moved_v[i] = 1;
       }
       if (dt > SCALE_SELECT_MOVE_THRESHOLD) {
-        afg_root[afg] = root_from_slider(sliders[i].TLevel);
+        afg_root[afg] = root_from_slider(slider_raw_t[i]);
         showing_root = 1;
+        moved_t[i] = 1;
       }
     }
 
     scale_select_value = showing_root ? afg_root[afg] : afg_scale[afg];
     scale_select_active = 1;
   } else if (active) {
-    // Releasing: leave the sliders alone so they immediately resume normal
-    // control (the moved slider simply sets its step's voltage/time from its
-    // current position -- no pinning, no need to sweep it back through).
+    // Releasing: unfreeze, and pin the sliders we moved so each stage stays at
+    // the value it had before the gesture (the physical slider is now elsewhere,
+    // and the stage holds until that slider is moved back through its value).
+    scale_select_freeze = 0;
+    for (uint8_t i = 0; i <= max; i++) {
+      if (moved_v[i]) {
+        voltage_slider_pins.high |= (1UL << i);
+        voltage_slider_pins.low  |= (1UL << i);
+      }
+      if (moved_t[i]) {
+        time_slider_pins.high |= (1UL << i);
+        time_slider_pins.low  |= (1UL << i);
+      }
+    }
     active = 0;
     scale_select_active = 0;
   }

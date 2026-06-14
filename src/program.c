@@ -13,9 +13,19 @@ volatile StepSliders sliders[32];
 volatile PinnedSliders voltage_slider_pins;
 volatile PinnedSliders time_slider_pins;
 
+// Live (raw) slider positions, updated even while the committed sliders[] values
+// are frozen. Used by the scale-select gesture to read the physical slider
+// without disturbing the stage's voltage/time.
+volatile uint16_t slider_raw_v[32];
+volatile uint16_t slider_raw_t[32];
+
+// When set, slider readings are tracked into slider_raw_* but NOT committed to
+// sliders[] (so holding Quantize to pick a scale doesn't move any stage).
+volatile uint8_t scale_select_freeze = 0;
+
 void InitProgram() {
   uStep clear_step = {{ 0x00, 0x00, 0x00 }};
-  clear_step.b.TimeRange_30 = 1;
+  clear_step.b.TimeRange_3 = 1;   // default to the 3 s range (was 30 s)
   clear_step.b.FullRange = 1;
 
   StepSliders clear_slider;
@@ -134,6 +144,9 @@ void WriteVoltageSlider(uint8_t slider_num, uint32_t new_adc_reading) {
   uint16_t adc_reading = (uint16_t) (new_adc_reading & 0xfff);
   uint16_t smoothed = apply_voltage_smoother(adc_reading << 4, &voltage_smoothers[slider_num]);
 
+  slider_raw_v[slider_num] = smoothed;     // always track the live position
+  if (scale_select_freeze) return;          // frozen: don't commit or unpin
+
   if (smoothed >= sliders[slider_num].VLevel) {
     voltage_slider_pins.high &= ~(1UL << slider_num);
   }
@@ -151,6 +164,9 @@ void WriteTimeSlider(uint8_t slider_num, uint32_t new_adc_reading) {
 
   uint16_t adc_reading = (uint16_t) (new_adc_reading & 0xfff) << 4;
   uint16_t smoothed = apply_voltage_smoother(adc_reading, &time_smoothers[slider_num]);
+
+  slider_raw_t[slider_num] = smoothed;     // always track the live position
+  if (scale_select_freeze) return;          // frozen: don't commit or unpin
 
   if (smoothed >> 4 >= sliders[slider_num].TLevel >> 4) {
     time_slider_pins.high &= ~(1UL << slider_num);

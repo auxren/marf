@@ -77,6 +77,11 @@ extern volatile StepSliders sliders[32];
 extern volatile PinnedSliders voltage_slider_pins;
 extern volatile PinnedSliders time_slider_pins;
 
+// Live (raw) slider positions and the scale-select freeze flag (see program.c).
+extern volatile uint16_t slider_raw_v[32];
+extern volatile uint16_t slider_raw_t[32];
+extern volatile uint8_t scale_select_freeze;
+
 void InitProgram();
 
 static inline uint8_t get_max_step() {

@@ -79,10 +79,14 @@ static void test_step_width(void) {
   clear_steps();
 
   /* Full slider on the 30s range, x1 multiplier -> 30 s * 32 kHz = 960000 */
+  steps[0].b.TimeRange_3 = 0;
+  steps[0].b.TimeRange_30 = 1;
   sliders[0].TLevel = 4095;
   CHECK_NEAR((double) GetStepWidth(0, 0, 1.0f), 960000.0, 1.0);
 
   /* Minimum slider -> floor of 2 s = 64000 ticks */
+  steps[1].b.TimeRange_3 = 0;
+  steps[1].b.TimeRange_30 = 1;
   sliders[1].TLevel = 0;
   CHECK_NEAR((double) GetStepWidth(0, 1, 1.0f), 64000.0, 1.0);
 
