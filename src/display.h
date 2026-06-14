@@ -84,6 +84,9 @@ void RunClearAnimation();
 // Triple-flash all step leds to signal a refused / empty action
 void RunErrorAnimation();
 
+// Chase the mode leds to acknowledge entering Turing mode
+void RunTuringEnterAnimation(void);
+
 // Flash leds for calibration mode
 void RunCalibrationAnimation();
 

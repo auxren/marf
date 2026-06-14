@@ -168,9 +168,11 @@ void ControllerMainLoop() {
     SenseExternalInputs();
 
     // Source-External + Quantize chord toggles Turing mode; external inputs
-    // clock the per-stage shift registers.
+    // clock the per-stage shift registers; Source-External + slider configures
+    // each stage's clock/length while in Turing mode.
     ControllerProcessTuring(&switches);
     ControllerProcessTuringClocks();
+    ControllerProcessTuringConfig(&switches);
 
     // Update panel state
     UpdateModeSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_section, edit_mode_step_num);
@@ -327,6 +329,10 @@ void ControllerProcessTuring(uButtons * key) {
       uint8_t afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
                      display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
       turing_enabled[afg] ^= 1;
+      if (turing_enabled[afg]) {
+        mode_led_breathe = 0;          // avoid PWM contention during the animation
+        RunTuringEnterAnimation();
+      }
       state = 2;
     }
   } else {
@@ -348,11 +354,79 @@ void ControllerProcessTuringClocks(void) {
     prev[k] = v;
     if (rising) {
       for (uint8_t s = 0; s < TURING_NUM_STAGES; s++) {
-        if (get_step_programming(0, s).b.TuringClock == k) {
-          turing_clock(&turing_machines[s], sliders[s].VLevel);
+        uStep st = get_step_programming(0, s);
+        if (st.b.TuringClock == k) {
+          turing_set_length(&turing_machines[s], st.b.TuringLength + 2);  // 2..16
+          turing_clock(&turing_machines[s], sliders[s].VLevel);           // big knob
         }
       }
     }
+  }
+}
+
+// Per-stage Turing config gesture (only in Turing mode for the displayed
+// sequence). Holding Source-External (without Quantize) and moving a voltage
+// slider sets which of the four external jacks (0-3) clocks that stage; moving a
+// time slider sets that stage's loop length (2-16). The step LEDs show the value.
+// Sliders are frozen during the gesture (so the probability / duration don't
+// change) and the moved ones are pinned on release.
+void ControllerProcessTuringConfig(uButtons * key) {
+  static uint8_t active = 0;
+  static uint16_t snap_v[32], snap_t[32];
+  static uint8_t moved_v[32], moved_t[32];
+
+  uint8_t source_ext_held = !key->b.SourceExternal;
+  uint8_t quantize_held   = !key->b.OutputQuantize;
+  uint8_t max = get_max_step();
+  uint8_t disp_afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
+                      display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
+
+  if (source_ext_held && !quantize_held && turing_enabled[disp_afg]) {
+    if (!active) {
+      active = 1;
+      scale_select_freeze = 1;
+      for (uint8_t i = 0; i <= max; i++) {
+        snap_v[i] = slider_raw_v[i];
+        snap_t[i] = slider_raw_t[i];
+        moved_v[i] = 0;
+        moved_t[i] = 0;
+      }
+    }
+    for (uint8_t i = 0; i <= max; i++) {
+      int dv = (int) slider_raw_v[i] - (int) snap_v[i];
+      int dt = (int) slider_raw_t[i] - (int) snap_t[i];
+      if (dv < 0) dv = -dv;
+      if (dt < 0) dt = -dt;
+      if (dv > SCALE_SELECT_MOVE_THRESHOLD) {
+        uint8_t clk = (uint8_t) (((uint32_t) slider_raw_v[i] * 4) / 4096);
+        if (clk > 3) clk = 3;
+        steps[i].b.TuringClock = clk;
+        scale_select_value = clk;            // show clock 0-3 on step LEDs
+        moved_v[i] = 1;
+      }
+      if (dt > SCALE_SELECT_MOVE_THRESHOLD) {
+        uint8_t len = (uint8_t) (((uint32_t) slider_raw_t[i] * 15) / 4096);  // 0..14
+        if (len > 14) len = 14;
+        steps[i].b.TuringLength = len;
+        scale_select_value = (uint8_t) (len + 1);  // show length-1 (1..15) on step LEDs
+        moved_t[i] = 1;
+      }
+    }
+    scale_select_active = 1;
+  } else if (active) {
+    scale_select_freeze = 0;
+    for (uint8_t i = 0; i <= max; i++) {
+      if (moved_v[i]) {
+        voltage_slider_pins.high |= (1UL << i);
+        voltage_slider_pins.low  |= (1UL << i);
+      }
+      if (moved_t[i]) {
+        time_slider_pins.high |= (1UL << i);
+        time_slider_pins.low  |= (1UL << i);
+      }
+    }
+    active = 0;
+    scale_select_active = 0;
   }
 }
 

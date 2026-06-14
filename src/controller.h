@@ -52,6 +52,8 @@ void ControllerProcessTuring(uButtons * key);
 
 void ControllerProcessTuringClocks(void);
 
+void ControllerProcessTuringConfig(uButtons * key);
+
 void ControllerProcessStageAddressSwitches(uButtons * key);
 
 void ControllerProcessNavigationSwitches(uButtons* key);

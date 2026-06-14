@@ -227,6 +227,23 @@ void RunErrorAnimation() {
   }
 }
 
+// Chase the Quantize -> Sloped -> Full Range -> External mode LEDs a couple of
+// times to acknowledge entering Turing mode.
+void RunTuringEnterAnimation(void) {
+  uLeds a;
+  for (uint8_t c = 0; c < 2; c++) {
+    for (uint8_t i = 0; i < 4; i++) {
+      a.value[0] = 0xFF; a.value[1] = 0xFF; a.value[2] = 0xFF; a.value[3] = 0xFF;
+      if (i == 0)      a.b.Quantization = 0;   // active low: 0 = lit
+      else if (i == 1) a.b.Integration = 0;    // Sloped
+      else if (i == 2) a.b.VoltageFull = 0;    // Full Range
+      else             a.b.VoltageSource = 0;  // External
+      LEDS_modes_SendStruct(&a);
+      delay_ms(90);
+    }
+  }
+}
+
 // Actually shift the lit leds out via the two shift registers
 // and then reset everything.
 void FlushLedUpdates() {
