@@ -5,3 +5,4 @@ build/
 build-v1.6/
 *.log
 /.settings/language.settings.xml
+dist/

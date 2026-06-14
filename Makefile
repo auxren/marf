@@ -102,11 +102,13 @@ MANUAL_SRCS = \
   docs/03-calibration.md \
   docs/04-front-panel-reference.md \
   docs/05-programming-steps.md \
-  docs/06-running-and-clocking.md \
-  docs/07-saving-and-loading.md \
-  docs/08-section-shift.md \
-  docs/09-pulse-tricks.md \
-  docs/10-troubleshooting.md
+  docs/06-scales.md \
+  docs/07-shift-register.md \
+  docs/08-running-and-clocking.md \
+  docs/09-saving-and-loading.md \
+  docs/10-section-shift.md \
+  docs/11-pulse-tricks.md \
+  docs/12-troubleshooting.md
 MANUAL_PDF      ?= $(BUILD_DIR)/MARF-Manual.pdf
 MANUAL_DATE     ?= $(shell date +%Y-%m-%d)
 MANUAL_VERSION  ?= $(shell git describe --tags --always 2>/dev/null || echo dev)

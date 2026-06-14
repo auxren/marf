@@ -1,4 +1,4 @@
-# 9. Pulse tricks
+# 11. Pulse tricks
 
 The generators process Start, Stop and Strobe together, so **simultaneous**
 pulses have useful combined meanings.

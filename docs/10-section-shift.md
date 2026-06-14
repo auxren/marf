@@ -1,4 +1,4 @@
-# 8. Section shift (un‑expanded units)
+# 10. Section shift (un‑expanded units)
 
 In normal operation both generators use the **same** stage programming — the
 same 16 stages — exactly as the original 200‑series module does. On an

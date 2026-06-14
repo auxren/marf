@@ -14,7 +14,11 @@ or build it locally with `make manual`.
 1.  Obtain an ST-Link STM32 programmer (v2 recommended, available on Amazon for less than $20).
 2.  Download [STM32CubeProg](https://www.st.com/en/development-tools/stm32cubeprog.html) from [www.st.com](https://www.st.com).
     It is available for most platforms.
-3.  Download and unzip the latest firmware file [marf-v2-66-2022-09-05.hex.zip](https://github.com/wir35/marf/releases/download/marf-v2.66-2022-09-05/marf-v2-66-2022-09-05.hex.zip)
+3.  Download the latest firmware `.hex` from this repo's
+    [Releases](https://github.com/auxren/marf/releases). Use the standard image
+    for the SAModular/EMS **v2** board; a separate `*-v1.6-no-strobe.hex` is
+    provided for the original **v1.6** board (see
+    [Hardware revisions](docs/02-installation-and-flashing.md#hardware-revisions-v2-vs-v16)).
 4.  Flash the new firmware.
     1.  Power down the case.
     2.  Remove the module, leaving the power cable connected, and attach the S- Link ribbon cable.
@@ -101,6 +105,20 @@ value will always unstick it.
 5.  Press Clear switch _up_ again briefly to load the program.
 6.  Leds will flash upwards when the program is loaded.
 
+#### Scales & Quantizing
+
+Each sequence has its own **scale** and **root** for the quantizer (default
+Chromatic). Hold the **Quantize** switch and move a **voltage** slider to pick
+the scale, or a **time** slider to pick the root, for the displayed sequence.
+See [Scales & quantizing](docs/06-scales.md).
+
+#### Shift‑Register (Turing) Mode
+
+Hold **Source External + Quantize** for ~0.8 s to toggle a per‑stage looping
+shift‑register voltage generator for the displayed sequence. The four external
+inputs become clocks, and each external‑source stage produces its own evolving,
+quantizable CV. See [Shift‑register mode](docs/07-shift-register.md).
+
 #### Pulse Tricks
 
 Note these useful behaviors.
@@ -120,6 +138,16 @@ for a comprehensive description of the recommended changes.
 ## Version History
 
 This module's firmware has had a wild ride through a few generations.
+
+### 3.0 line (this repo)
+
+Building on v2.66, the firmware in this repository adds reliability fixes (an
+independent watchdog, accurate cycle‑counter timing delays), checksummed/
+versioned EEPROM storage, and new musical features driven entirely from the
+existing panel: per‑sequence [scales and roots](docs/06-scales.md), a per‑stage
+[shift‑register (Turing) mode](docs/07-shift-register.md), and soft‑normalled
+external inputs. One source tree builds for both the **v2** and the original
+**v1.6** boards. See the [user manual](docs/README.md) for full details.
 
 ### v2.66
 

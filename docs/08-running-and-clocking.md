@@ -1,4 +1,4 @@
-# 6. Running & clocking
+# 8. Running & clocking
 
 Each generator advances through its stages under the control of its **Start**,
 **Stop** and **Strobe** pulse inputs and its **Stage Address** CV, plus the
@@ -23,7 +23,7 @@ A generator is always in one of these states:
 | **Stop** | Stops a running generator. |
 | **Strobe** | Immediately jumps to the stage selected by the **Stage Address** CV. |
 
-Simultaneous combinations are meaningful — see [Pulse tricks](09-pulse-tricks.md).
+Simultaneous combinations are meaningful — see [Pulse tricks](11-pulse-tricks.md).
 The panel **Advance** button is equivalent to a simultaneous Start + Stop
 (advance one stage); the panel **Pulse Select** button is equivalent to a Strobe.
 

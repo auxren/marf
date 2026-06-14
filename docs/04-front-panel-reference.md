@@ -24,7 +24,7 @@ Much of the panel acts on the **currently focused stage**. Focus follows the
 | **Pulse Select** (strobe) | Strobes: immediately jumps to the stage selected by the **Stage Address** CV input. |
 | **Advance** | Manually advances one stage (equivalent to a simultaneous Start + Stop pulse). |
 | **Continuous Select** | While held/engaged, the generator's stage follows the **Stage Address** CV continuously (it does not run on its own clock). Releasing returns to the previous mode. |
-| **Display** | Selects this generator for viewing/editing (see above). Also used in [section‑shift](08-section-shift.md) combinations. |
+| **Display** | Selects this generator for viewing/editing (see above). Also used in [section‑shift](10-section-shift.md) combinations. |
 
 ## Stage No Left / Right (navigation)
 
@@ -32,8 +32,8 @@ Much of the panel acts on the **currently focused stage**. Focus follows the
   generator at stage 1.
 - In Edit mode they scroll the edited stage left/right; **hold** to repeat and
   scroll quickly. The selection wraps around.
-- Used in [section‑shift](08-section-shift.md) and
-  [save/load](07-saving-and-loading.md) selection.
+- Used in [section‑shift](10-section-shift.md) and
+  [save/load](09-saving-and-loading.md) selection.
 
 ## Clear switch (up / down)
 
@@ -41,7 +41,7 @@ A momentary switch with up and down positions:
 
 | Action | Result |
 |--------|--------|
-| **Brief Clear Up** | Enter **Load** mode ([Saving & loading](07-saving-and-loading.md)). |
+| **Brief Clear Up** | Enter **Load** mode ([Saving & loading](09-saving-and-loading.md)). |
 | **Brief Clear Down** | Enter **Save** mode. |
 | **Hold Clear Up or Down** | **Clear** the program: resets all stages to defaults and stops both generators (step LEDs flash). |
 
@@ -55,21 +55,42 @@ choice. See [Programming a step](05-programming-steps.md) for musical detail.
   full voltage range with no octave restriction.
 - **Pulse 1 On/Off**, **Pulse 2 On/Off** — enable/disable each programmed pulse
   output on this stage.
-- **Quantize / Continuous** — quantize the stage voltage to the nearest semitone
-  (tracking the V/oct DIP setting) or leave it continuous.
+- **Quantize / Continuous** — quantize the stage voltage to the nearest note in
+  the sequence's [scale](06-scales.md) (tracking the V/oct DIP setting) or leave
+  it continuous. *Holding* Quantize turns the sliders into scale/root selectors
+  — see [hold combinations](#hold-combinations) below.
 - **Sloped / Stepped** — glide (slew) to this stage's level, or jump to it.
 - **Source External / Internal** — take the stage voltage from an external input
   (which input is chosen by the stage's voltage slider position) or from the
-  stage's slider.
+  stage's slider. With [shift‑register mode](07-shift-register.md) on, an
+  external‑source stage reads its own register instead.
 - **Stop On/Off**, **Sustain On/Off**, **Enable On/Off** — set the stage's
-  operating mode (see [Running & clocking](06-running-and-clocking.md)). These
+  operating mode (see [Running & clocking](08-running-and-clocking.md)). These
   are mutually exclusive; turning one on clears the others.
 - **First On/Off**, **Last On/Off** — mark the start/end of a loop
-  ([Loops](06-running-and-clocking.md#loops)).
+  ([Loops](08-running-and-clocking.md#loops)).
 - **Time Source External / Internal** — take the stage time from an external
   input or from the stage's time slider.
 - **Time Range 1 / 2 / 3 / 4** — choose the stage's time range (see
   [Time](05-programming-steps.md#time)).
+
+## Hold combinations
+
+A few **switch‑held + slider** gestures reprogram the *displayed* sequence
+(choose it with **Display 1 / Display 2**). While a gesture is held, the sliders
+act as selectors and **do not change any stage's output**; the step LEDs show the
+value, and any slider you move is pinned on release.
+
+| Hold | Then | Does |
+|------|------|------|
+| **Quantize** | move a **voltage** slider | select the sequence's [scale](06-scales.md) |
+| **Quantize** | move a **time** slider | select the [root](06-scales.md) |
+| **Source External + Quantize** | hold ~0.8 s | toggle [shift‑register mode](07-shift-register.md) (chase animation confirms) |
+| **Source External** (mode on) | move a **voltage** slider | set a stage's [clock input](07-shift-register.md#configuring-a-stage-clock--length) |
+| **Source External** (mode on) | move a **time** slider | set a stage's [register length](07-shift-register.md#configuring-a-stage-clock--length) |
+
+When shift‑register mode is on, the focused stage's **Source (External)** LED
+**breathes** (slow fade) if that stage is set to External.
 
 ## Sliders & knobs
 
@@ -84,7 +105,7 @@ choice. See [Programming a step](05-programming-steps.md) for musical detail.
 ## Inputs
 
 - **Start / Stop / Strobe** (per generator) — pulse inputs; see
-  [Running & clocking](06-running-and-clocking.md).
+  [Running & clocking](08-running-and-clocking.md).
 - **Stage Address** CV (per generator) — selects a stage for strobing and for
   continuous Stage Address mode.
 - **External inputs A–D** — four CV inputs usable as the voltage or time source

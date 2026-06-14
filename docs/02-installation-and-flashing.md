@@ -65,7 +65,7 @@ pin assignments — DIP-switch pins and pulse-input wiring — and are described
   START pulse inputs are not wired to interrupt-capable pins, so this build
   drops them (matching the historical `MARF_v1.6_no_strobe_mod.hex`).
 
-> **⚠️ The v1.6 build is reverse-engineered from the original v1 firmware and is
+> **Warning: the v1.6 build is reverse-engineered from the original v1 firmware and is
 > UNVERIFIED on real v1 hardware.** Treat it as a candidate to confirm on a v1
 > module, not a tested release. **Do not flash the v1.6 image to a v2 board** —
 > the DIP and pulse pins differ. If unsure which board you have, use the default

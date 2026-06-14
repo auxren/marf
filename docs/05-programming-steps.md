@@ -13,7 +13,10 @@ an **external input**:
 - **Source Internal** — the slider sets the level.
 - **Source External** — the level is read from one of the four external inputs
   (**A–D**). With external source selected, the **voltage slider position
-  chooses which input** is used.
+  chooses which input** is used. External‑source stages are **soft‑normalled**:
+  if nothing is patched to the chosen input, the stage falls back to its own
+  slider value. With [shift‑register mode](07-shift-register.md) on, an
+  external‑source stage instead reads its own looping register.
 
 ### Range and octave
 
@@ -25,17 +28,15 @@ an **external input**:
 
 ### Quantize
 
-- **Quantize** snaps the stage output to the nearest **semitone** (12‑tone
-  equal temperament), tracking the volts‑per‑octave set by the DIP switches.
+- **Quantize** snaps the stage output to the nearest note in the sequence's
+  active **[scale](06-scales.md)**, tracking the volts‑per‑octave set by the DIP
+  switches. By default the scale is **Chromatic** (every semitone, 12‑tone equal
+  temperament).
 - **Continuous** leaves the voltage unquantized (smooth).
 
 Quantizing applies after range/octave scaling, so a quantized limited‑range
-stage gives clean semitone steps within its octave.
-
-> *Note:* the firmware contains a scale‑aware quantizer engine, but there is no
-> panel control to choose a scale yet, so quantizing currently snaps to the full
-> chromatic scale (every semitone). This manual will be updated when scale
-> selection is exposed.
+stage gives clean in‑scale steps within its octave. To pick a musical scale and
+root for the sequence, see **[Scales & quantizing](06-scales.md)**.
 
 ### Integration: sloped vs stepped
 
@@ -54,9 +55,12 @@ then scaled by the generator's **Time Multiply** control.
 | Time Range | Approx. full‑scale stage time (×1 multiplier) |
 |------------|-----------------------------------------------|
 | 4 | ~2–30 s |
-| 3 | ~0.2–3 s |
+| 3 | ~0.2–3 s *(default on a cleared program)* |
 | 2 | ~0.02–0.3 s |
 | 1 | ~0.002–0.03 s |
+
+A freshly **cleared** program starts every stage in **Range 3** (a musically
+useful ~3 s maximum) rather than the slow 30 s range.
 
 The **Time Multiply** knob scales all of that generator's stage times together
 (roughly ×0.5 to ×4), so you can stretch or compress a whole sequence without
@@ -85,7 +89,7 @@ clears the others). With all of them **off**, the stage is a normal timed stage.
 - **Sustain** — the generator **holds** on this stage while **Start** is high
   and continues when it goes low.
 
-See [Running & clocking](06-running-and-clocking.md) for exactly how these
+See [Running & clocking](08-running-and-clocking.md) for exactly how these
 interact with the pulse inputs.
 
 ## Loops (First / Last)

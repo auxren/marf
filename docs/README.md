@@ -3,9 +3,9 @@
 User manual for the Buchla 248r MARF running the open‑source firmware in this
 repository.
 
-> These instructions describe the behaviour of **this firmware** (v2.66 and
-> later). Where the firmware differs from Buchla's original 248 manual, this
-> manual is authoritative for the module as it actually behaves.
+> These instructions describe the behaviour of **this firmware** (v2.66 and the
+> later 3.0‑line additions). Where the firmware differs from Buchla's original
+> 248 manual, this manual is authoritative for the module as it actually behaves.
 
 ## Contents
 
@@ -14,11 +14,13 @@ repository.
 3. [Calibration](03-calibration.md) — **required** after flashing
 4. [Front‑panel reference](04-front-panel-reference.md) — every control and jack
 5. [Programming a step](05-programming-steps.md) — voltage, time, pulses, modes
-6. [Running & clocking](06-running-and-clocking.md) — start/stop/strobe/advance, modes, loops
-7. [Saving & loading programs](07-saving-and-loading.md) — the 16 memory slots
-8. [Section shift](08-section-shift.md) — reaching steps 17–32 without an expander
-9. [Pulse tricks](09-pulse-tricks.md) — useful pulse‑input behaviours
-10. [Troubleshooting](10-troubleshooting.md) — LED signals, recovery, common issues
+6. [Scales & quantizing](06-scales.md) — per‑sequence scales and roots
+7. [Shift‑register (Turing) mode](07-shift-register.md) — looping per‑stage CV generators
+8. [Running & clocking](08-running-and-clocking.md) — start/stop/strobe/advance, modes, loops
+9. [Saving & loading programs](09-saving-and-loading.md) — the 16 memory slots
+10. [Section shift](10-section-shift.md) — reaching steps 17–32 without an expander
+11. [Pulse tricks](11-pulse-tricks.md) — useful pulse‑input behaviours
+12. [Troubleshooting](12-troubleshooting.md) — LED signals, recovery, common issues
 
 A combined **PDF** of this manual (`MARF-Manual.pdf`) is attached to each
 [release](https://github.com/auxren/marf/releases). To build it yourself:

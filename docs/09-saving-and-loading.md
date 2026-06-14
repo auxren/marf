@@ -1,9 +1,11 @@
-# 7. Saving & loading programs
+# 9. Saving & loading programs
 
 The module stores **16 programs**. A program captures the full stage
-programming **and** all slider positions, so a recalled program restores your
-whole patch. Saving and loading happen **without stopping** the generators —
-sequences keep playing throughout.
+programming **and** all slider positions — including each sequence's
+[scale and root](06-scales.md) and every stage's
+[shift‑register clock and length](07-shift-register.md) — so a recalled program
+restores your whole patch. Saving and loading happen **without stopping** the
+generators — sequences keep playing throughout.
 
 Each stored program is written with a checksum and a format version, so the
 module can tell a real program from an empty, corrupt or older‑format slot and
