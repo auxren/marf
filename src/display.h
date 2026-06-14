@@ -87,6 +87,9 @@ void RunErrorAnimation();
 // Chase the mode leds to acknowledge entering Turing mode
 void RunTuringEnterAnimation(void);
 
+// ~10 second random twinkle light show shown while randomizing the program
+void RunRandomizeAnimation(void);
+
 // Flash leds for calibration mode
 void RunCalibrationAnimation();
 

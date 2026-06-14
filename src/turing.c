@@ -17,6 +17,11 @@ static uint32_t rng_next(void) {
   return x;
 }
 
+// Public access to the shared PRNG (used by the randomize feature).
+uint32_t marf_rand(void) {
+  return rng_next();
+}
+
 void turing_set_length(TuringMachine *t, uint8_t length) {
   if (length < TURING_MIN_LENGTH) length = TURING_MIN_LENGTH;
   if (length > TURING_MAX_LENGTH) length = TURING_MAX_LENGTH;

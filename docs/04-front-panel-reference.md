@@ -20,7 +20,7 @@ Much of the panel acts on the **currently focused stage**. Focus follows the
 
 | Control | Firmware behaviour |
 |---------|--------------------|
-| **Reset** | Jumps the generator to stage 1 (the first stage). Has no effect while in continuous Stage Address mode. |
+| **Reset** | Jumps the generator to stage 1 (the first stage). Has no effect while in continuous Stage Address mode. **Holding *both* Reset buttons (AFG 1 + AFG 2) for >1 s [randomizes the whole program](#randomize).** |
 | **Pulse Select** (strobe) | Strobes: immediately jumps to the stage selected by the **Stage Address** CV input. |
 | **Advance** | Manually advances one stage (equivalent to a simultaneous Start + Stop pulse). |
 | **Continuous Select** | While held/engaged, the generator's stage follows the **Stage Address** CV continuously (it does not run on its own clock). Releasing returns to the previous mode. |
@@ -91,6 +91,24 @@ value, and any slider you move is pinned on release.
 
 When shift‑register mode is on, the focused stage's **Source (External)** LED
 **breathes** (slow fade) if that stage is set to External.
+
+## Randomize
+
+**Hold both Stage Address *Reset* buttons (AFG 1 and AFG 2) together for more
+than one second** to randomize the entire program. Every stage gets:
+
+- random **voltage** and **time** slider values (pinned, like a loaded program —
+  move a slider through its value to take manual control again);
+- a random **voltage range/octave**, and random **Quantize**, **Sloped/Stepped**
+  and **Pulse 1/2** states;
+- a random **time range**;
+
+and the sequence is given a **random loop length** (a First marker on stage 1
+and a Last marker on a random stage). Voltage and time **sources stay Internal**
+(nothing needs to be patched) and **Stop/Sustain/Enable stay off**, so the result
+plays immediately. A ~10‑second twinkling LED show runs while it happens. Both
+generators reset to stage 1 afterward. (Scales/roots and shift‑register settings
+are left as they were.)
 
 ## Sliders & knobs
 

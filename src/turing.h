@@ -32,6 +32,9 @@ typedef struct {
 // Seed the shared PRNG (e.g. from the DWT cycle counter at boot).
 void turing_seed(uint32_t seed);
 
+// Public access to the shared xorshift32 PRNG.
+uint32_t marf_rand(void);
+
 // Initialise a machine: clamp length to 2..16 and fill with random bits.
 void turing_init(TuringMachine *t, uint8_t length);
 

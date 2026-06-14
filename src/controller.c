@@ -174,6 +174,9 @@ void ControllerMainLoop() {
     ControllerProcessTuringClocks();
     ControllerProcessTuringConfig(&switches);
 
+    // Holding both Stage Address Reset buttons for >1s randomizes the program.
+    ControllerProcessRandomize(&switches);
+
     // Update panel state
     UpdateModeSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_section, edit_mode_step_num);
     display_update_flags.b.MainDisplay = 0;
@@ -333,6 +336,30 @@ void ControllerProcessTuring(uButtons * key) {
         mode_led_breathe = 0;          // avoid PWM contention during the animation
         RunTuringEnterAnimation();
       }
+      state = 2;
+    }
+  } else {
+    state = 0;
+  }
+}
+
+// Holding BOTH Stage Address Reset buttons for >1 s randomizes the whole
+// program (slider values, voltage ranges, quantize/slope/pulses, time ranges
+// and a random loop length) and plays a ~10 s "randomizing" light show.
+void ControllerProcessRandomize(uButtons * key) {
+  static uint8_t state = 0;        // 0 idle, 1 timing, 2 fired (await release)
+  static uint32_t start = 0;
+
+  uint8_t both_reset = !key->b.StageAddress1Reset && !key->b.StageAddress2Reset;
+
+  if (both_reset) {
+    if (state == 0) { state = 1; start = get_millis(); }
+    else if (state == 1 && (get_millis() - start) > 1000) {
+      turing_seed(DWT->CYCCNT);     // fresh entropy from the cycle counter
+      RandomizeProgram();
+      RunRandomizeAnimation();
+      AfgReset(AFG1);               // start the new sequence cleanly from step 1
+      AfgReset(AFG2);
       state = 2;
     }
   } else {

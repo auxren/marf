@@ -6,6 +6,9 @@
 #include "leds_step.h"
 #include "program.h"
 #include "afg.h"
+#include "delays.h"
+#include "watchdog.h"
+#include "turing.h"   // marf_rand()
 
 // Flags which can be set by anything to update the led display
 volatile uDisplayUpdateFlag display_update_flags;
@@ -208,6 +211,37 @@ void RunClearAnimation() {
       delay_ms(60);
     }
   }
+}
+
+// ~10 second "randomizing settings" light show: the step and mode LEDs blink
+// and twinkle randomly, with occasional full-panel flashes. The watchdog is
+// refreshed each frame so the long blocking loop doesn't trigger a reset.
+void RunRandomizeAnimation(void) {
+  for (uint16_t frame = 0; frame < 200; frame++) {   // 200 * ~50ms ~= 10 s
+    uint32_t a = marf_rand();
+    uint32_t b = marf_rand();
+
+    // Twinkle: random on/off per LED, with a varying density (ANDing two draws
+    // thins it out) and an occasional all-on sparkle flash.
+    uint32_t steps_pattern = ((frame & 0x1F) == 0) ? 0xFFFFFFFF : (a & (a >> 1));
+
+    if (Is_Expander_Present()) {
+      LED_STEP_SendWordExpanded(steps_pattern);
+    } else {
+      LED_STEP_SendWord((uint16_t) (steps_pattern & 0xFFFF));
+    }
+
+    uLeds m;
+    m.value[0] = (unsigned char) b;
+    m.value[1] = (unsigned char) (b >> 8);
+    m.value[2] = (unsigned char) (b >> 16);
+    m.value[3] = (unsigned char) (b >> 24);
+    LEDS_modes_SendStruct(&m);
+
+    WatchdogRefresh();
+    delay_ms(50);
+  }
+  // The main loop redraws the normal LED state on its next pass.
 }
 
 // Quick triple flash of all step leds to signal a refused or empty action

@@ -11,6 +11,7 @@
 #include "analog_data.h"
 #include "dip_config.h"
 #include "scales.h"
+#include "turing.h"
 
 /* ---- tiny test framework ------------------------------------------------- */
 int g_run = 0, g_fail = 0;   // shared with other test_*.c units
@@ -175,6 +176,34 @@ static void test_get_next_step_loop_to_zero(void) {
   CHECK(GetNextStep(0, 7) == 0);
 }
 
+static void test_randomize_program(void) {
+  printf("test_randomize_program\n");
+  has_expander = 0;                 /* 16 steps */
+  turing_seed(0xC0FFEEu);
+  RandomizeProgram();
+
+  uint8_t firsts = 0, lasts = 0;
+  for (uint8_t i = 0; i <= 15; i++) {
+    int vr = steps[i].b.FullRange + steps[i].b.Voltage0 + steps[i].b.Voltage2
+           + steps[i].b.Voltage4 + steps[i].b.Voltage6 + steps[i].b.Voltage8;
+    CHECK(vr == 1);                 /* exactly one voltage range/octave */
+    int tr = steps[i].b.TimeRange_p03 + steps[i].b.TimeRange_p3
+           + steps[i].b.TimeRange_3 + steps[i].b.TimeRange_30;
+    CHECK(tr == 1);                 /* exactly one time range */
+    CHECK(steps[i].b.VoltageSource == 0);   /* sources kept internal */
+    CHECK(steps[i].b.TimeSource == 0);
+    CHECK(steps[i].b.OpModeSTOP == 0 && steps[i].b.OpModeSUSTAIN == 0
+          && steps[i].b.OpModeENABLE == 0); /* op modes off */
+    firsts += steps[i].b.CycleFirst;
+    lasts  += steps[i].b.CycleLast;
+  }
+  CHECK(steps[0].b.CycleFirst == 1);        /* loop starts at step 1 */
+  CHECK(firsts == 1);
+  CHECK(lasts == 1);                        /* exactly one (random) loop end */
+  CHECK(voltage_slider_pins.high == 0xFFFFFFFF);  /* sliders pinned */
+  CHECK(time_slider_pins.low == 0xFFFFFFFF);
+}
+
 int main(void) {
   test_step_voltage_full_range();
   test_step_voltage_quantize();
@@ -186,6 +215,7 @@ int main(void) {
   test_step_voltage_scale_quantize();
   test_per_sequence_scale();
   test_override_wins();
+  test_randomize_program();
   run_storage_tests();
   run_scales_tests();
   run_turing_tests();

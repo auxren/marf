@@ -6,6 +6,7 @@
 #include "HC165.h"
 #include "afg.h"
 #include "scales.h"
+#include "turing.h"   // marf_rand()
 
 // Main step programming
 volatile uStep steps[32];
@@ -37,6 +38,57 @@ void InitProgram() {
     sliders[s] = clear_slider;
   };
   unpin_all_sliders();
+}
+
+// Randomize the program: every active stage gets random slider values, a random
+// voltage range/octave, random quantize/slope/pulse states and a random time
+// range, and the sequence gets a random loop length (First on stage 1, Last on a
+// random stage). Voltage and time sources are kept Internal (so nothing needs to
+// be patched) and Stop/Sustain/Enable are left off so it just plays. Sliders are
+// pinned to their new values (like a program load) so the physical positions
+// don't immediately override them. The PRNG should be reseeded by the caller.
+void RandomizeProgram(void) {
+  uint8_t max = get_max_step();                 // 15, or 31 with an expander
+  uint8_t last_step = 1 + (marf_rand() % max);  // random sequence length
+
+  for (uint8_t i = 0; i <= max; i++) {
+    uStep s = {{ 0, 0, 0 }};
+    uint32_t r = marf_rand();
+
+    // Voltage range / octave: exactly one of Full / 0 / 2 / 4 / 6 / 8.
+    switch (r % 6) {
+      case 0:  s.b.FullRange = 1; break;
+      case 1:  s.b.Voltage0  = 1; break;
+      case 2:  s.b.Voltage2  = 1; break;
+      case 3:  s.b.Voltage4  = 1; break;
+      case 4:  s.b.Voltage6  = 1; break;
+      default: s.b.Voltage8  = 1; break;
+    }
+    s.b.Quantize     = (r >> 3) & 1;
+    s.b.Sloped       = (r >> 4) & 1;
+    s.b.OutputPulse1 = (r >> 5) & 1;
+    s.b.OutputPulse2 = (r >> 6) & 1;
+
+    // Time range: exactly one of the four.
+    switch ((r >> 8) & 3) {
+      case 0:  s.b.TimeRange_p03 = 1; break;
+      case 1:  s.b.TimeRange_p3  = 1; break;
+      case 2:  s.b.TimeRange_3   = 1; break;
+      default: s.b.TimeRange_30  = 1; break;
+    }
+
+    // Keep sources internal and op-modes off; mark the random loop length.
+    s.b.VoltageSource = 0;
+    s.b.TimeSource    = 0;
+    s.b.CycleFirst    = (i == 0)         ? 1 : 0;
+    s.b.CycleLast     = (i == last_step) ? 1 : 0;
+
+    steps[i] = s;
+    sliders[i].VLevel = marf_rand() & 0x0FFF;
+    sliders[i].TLevel = marf_rand() & 0x0FFF;
+  }
+
+  pin_all_sliders();
 }
 
 float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root,

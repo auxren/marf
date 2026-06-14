@@ -50,6 +50,9 @@ void ControllerProcessScaleSelect(uButtons * key);
 
 void ControllerProcessTuring(uButtons * key);
 
+// Holding both Stage Address Reset buttons >1s randomizes the program.
+void ControllerProcessRandomize(uButtons * key);
+
 void ControllerProcessTuringClocks(void);
 
 void ControllerProcessTuringConfig(uButtons * key);
