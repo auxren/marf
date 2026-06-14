@@ -80,13 +80,13 @@ with specific stages.
 
 ### Per‑step pulse width (gate length)
 
-Each stage's Pulse 1 / Pulse 2 outputs have a programmable **width** — from a
-short trigger (~1 % of the step) up to a near‑full gate (~99 %, always dropping
-low again so it can re‑trigger). Set it by **holding the Time Source switch up
-(External) and moving that step's time slider**; the step LEDs show the width as
-a bar. The width is saved with the program and is included when you
-[randomize](04-front-panel-reference.md#randomize). (The "all pulses" reference
-stays a short sync trigger.)
+Each stage's pulse outputs (Pulse 1, Pulse 2 **and** the "all pulses" reference)
+have a programmable **width** — from a short trigger (~1 % of the step) up to a
+near‑full gate (~99 %, always dropping low again so it can re‑trigger). Set it by
+**holding the Time Source switch down (Internal) and moving that step's time
+slider**; the step LEDs show the width as a bar. The width is saved with the
+program and is included when you
+[randomize](04-front-panel-reference.md#randomize).
 
 ## Operating mode (Stop / Sustain / Enable)
 

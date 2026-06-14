@@ -325,22 +325,16 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
 
   outputs.voltage = afg->step_level;
 
-  // The "all pulses" reference stays a short sync trigger on every step change.
-  outputs.all_pulses = (afg->step_cnt <= PULSE_ACTIVE_STEP_WIDTH) ? 1 : 0;
-
-  // The programmable pulses last a per-step fraction of the step time (a gate).
+  // All three pulse outputs last a per-step fraction of the step time (a gate).
   // PulseWidth 0..15 maps to ~1%..99% of the step, never shorter than the sync
   // trigger so it always fires and always returns low (so it can re-trigger).
   uint32_t pw_percent = 1u + ((uint32_t) step.b.PulseWidth * 98u) / 15u;
   uint32_t pulse_ticks = (uint32_t) (((uint64_t) afg->step_width * pw_percent) / 100u);
   if (pulse_ticks < PULSE_ACTIVE_STEP_WIDTH) pulse_ticks = PULSE_ACTIVE_STEP_WIDTH;
-  if (afg->step_cnt <= pulse_ticks) {
-    outputs.pulse1 = step.b.OutputPulse1;
-    outputs.pulse2 = step.b.OutputPulse2;
-  } else {
-    outputs.pulse1 = 0;
-    outputs.pulse2 = 0;
-  }
+  uint8_t pulses_on = (afg->step_cnt <= pulse_ticks) ? 1 : 0;
+  outputs.all_pulses = pulses_on;
+  outputs.pulse1 = pulses_on ? step.b.OutputPulse1 : 0;
+  outputs.pulse2 = pulses_on ? step.b.OutputPulse2 : 0;
 
   return outputs;
 };

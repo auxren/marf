@@ -192,6 +192,11 @@ void ControllerMainLoop() {
     // Holding both Stage Address Reset buttons for >1s randomizes the program.
     ControllerProcessRandomize(&switches);
 
+    // Safety net: if no slider gesture is active, never leave slider commits
+    // frozen (guards against a gesture being interrupted mid-hold and leaving
+    // the sliders unresponsive).
+    if (!scale_select_active) scale_select_freeze = 0;
+
     // Update panel state
     UpdateModeSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_section, edit_mode_step_num);
     display_update_flags.b.MainDisplay = 0;
@@ -490,15 +495,16 @@ void ControllerProcessTuringConfig(uButtons * key) {
   }
 }
 
-// Per-step pulse-width gesture. Holding the Time Source switch up (External) --
+// Per-step pulse-width gesture. Holding the Time Source switch DOWN (Internal) --
 // with Quantize and Source-External NOT held -- turns the time sliders into
 // pulse-width selectors: moving a time slider sets that step's pulse/gate length
 // (0..15 -> ~1%..99% of the step). The step LEDs show a filled bar of the value.
-// Time sliders are frozen during the gesture (so step times don't change) and
-// the moved ones are pinned on release. Holding the switch shouldn't permanently
-// flip the focused step's Time Source: its pre-gesture state is restored on
-// release if the gesture was actually used (a slider moved). A plain flip with
-// no slider move still programs Time Source normally.
+// (Down/Internal is used so the harmless default time source is what the held
+// switch would set.) Time sliders are frozen during the gesture (so step times
+// don't change) and the moved ones are pinned on release. Holding the switch
+// shouldn't permanently change the focused step's Time Source: its pre-gesture
+// state is restored on release if the gesture was actually used (a slider
+// moved). A plain flip with no slider move still programs Time Source normally.
 void ControllerProcessPulseWidth(uButtons * key) {
   static uint8_t active = 0;
   static uint16_t snap_t[32];
@@ -506,10 +512,10 @@ void ControllerProcessPulseWidth(uButtons * key) {
   static uint8_t saved_focus_idx = 0;
   static uint8_t saved_timesource = 0;
 
-  uint8_t time_ext_held = !key->b.TimeSourceExternal;
+  uint8_t time_int_held = !key->b.TimeSourceInternal;
   uint8_t max = get_max_step();
 
-  if (time_ext_held && key->b.OutputQuantize && key->b.SourceExternal) {
+  if (time_int_held && key->b.OutputQuantize && key->b.SourceExternal) {
     if (!active) {
       active = 1;
       scale_select_freeze = 1;
