@@ -116,6 +116,9 @@ void ControllerMainLoop() {
   // Time at which the display was updated
   uint32_t leds_update_time = 0;
 
+  // Latched while the pulse-width chord is engaged (until both switches release).
+  uint8_t pulse_width_engaged = 0;
+
   // Down counter to debounce switches
   uint16_t switch_debounce_counter = KEY_DEBOUNCE_COUNT;
 
@@ -173,7 +176,14 @@ void ControllerMainLoop() {
     uint8_t turing_chord = !switches.b.OutputQuantize && !switches.b.SourceExternal;
     uint8_t pulse_width_chord = !switches.b.TimeSourceExternal && !switches.b.TimeRange1
                                 && switches.b.OutputQuantize && switches.b.SourceExternal;
-    if (!turing_chord && !pulse_width_chord) {
+    // Once the pulse-width chord is seen, stay "engaged" (suppressing programming)
+    // until BOTH chord switches are released. They are momentary, so one can slip
+    // during the hold; without this latch the still-held .03/Time-Source switch
+    // would stamp every step that plays past while running.
+    uint8_t pw_either_held = !switches.b.TimeSourceExternal || !switches.b.TimeRange1;
+    if (pulse_width_chord) pulse_width_engaged = 1;
+    else if (!pw_either_held) pulse_width_engaged = 0;
+    if (!turing_chord && !pulse_width_engaged) {
       ControllerApplyProgrammingSwitches(&switches);
     }
 
@@ -526,6 +536,7 @@ void ControllerProcessPulseWidth(uButtons * key) {
   static uint8_t active = 0;
   static uint8_t pending_restore = 0;
   static uint16_t snap_t[32];
+  static uint16_t last_t[32];         // last-loop positions, to spot the moving one
   static uint8_t moved_t[32];
   static uint8_t clean_idx = 0;
   static uStep   clean_step;          // focused step's clean Time Source/Range
@@ -554,17 +565,26 @@ void ControllerProcessPulseWidth(uButtons * key) {
       active = 1;
       scale_select_freeze = 1;
       scale_select_value = steps[focus_idx].b.PulseWidth;  // seed the bar
-      for (uint8_t i = 0; i <= max; i++) { snap_t[i] = slider_raw_t[i]; moved_t[i] = 0; }
+      for (uint8_t i = 0; i <= max; i++) {
+        snap_t[i] = slider_raw_t[i];
+        last_t[i] = slider_raw_t[i];
+        moved_t[i] = 0;
+      }
     }
     for (uint8_t i = 0; i <= max; i++) {
-      int dt = (int) slider_raw_t[i] - (int) snap_t[i];
+      int dt = (int) slider_raw_t[i] - (int) snap_t[i];   // moved since entry?
       if (dt < 0) dt = -dt;
+      int dl = (int) slider_raw_t[i] - (int) last_t[i];   // moving right now?
+      if (dl < 0) dl = -dl;
+      last_t[i] = slider_raw_t[i];
       if (dt > SCALE_SELECT_MOVE_THRESHOLD) {
         uint8_t pw = (uint8_t) (((uint32_t) slider_raw_t[i] * 16u) / 4096u);
         if (pw > 15) pw = 15;
         steps[i].b.PulseWidth = pw;
-        scale_select_value = pw;       // shown as a bar
         moved_t[i] = 1;
+        // The bar follows the slider being moved *now*, so adjusting a different
+        // stage isn't masked by a higher-index slider moved earlier.
+        if (dl > 8) scale_select_value = pw;
       }
     }
     scale_select_binary = 0;
