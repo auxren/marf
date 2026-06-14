@@ -184,12 +184,27 @@ void ControllerMainLoop() {
       steps_leds_lit = 0xFFFFFFFF & ~(1UL << scale_select_value);
     }
 
-    // Breathe the voltage-source LED while Turing mode is on for the displayed
-    // sequence (driven by the TIM14 PWM ISR).
+    // Breathe the voltage-source LED only when Turing mode is on AND the
+    // focused stage is set to External (so it actually uses its Turing machine).
+    // An Internal stage shows its normal (off) LED and plays its slider voltage.
     {
-      uint8_t disp_afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
-                          display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
-      mode_led_breathe = turing_enabled[disp_afg];
+      AfgControllerState a1 = AfgGetControllerState(AFG1);
+      AfgControllerState a2 = AfgGetControllerState(AFG2);
+      uint8_t disp_afg, f_step, f_section;
+      if (display_mode == DISPLAY_MODE_VIEW_2 || display_mode == DISPLAY_MODE_EDIT_2) {
+        disp_afg = AFG2;
+      } else {
+        disp_afg = AFG1;
+      }
+      if (display_mode == DISPLAY_MODE_VIEW_1) {
+        f_step = a1.step_num; f_section = a1.section;
+      } else if (display_mode == DISPLAY_MODE_VIEW_2) {
+        f_step = a2.step_num; f_section = a2.section;
+      } else {  // EDIT_1 / EDIT_2
+        f_step = edit_mode_step_num; f_section = edit_mode_section;
+      }
+      uStep fs = get_step_programming(f_section, f_step);
+      mode_led_breathe = turing_enabled[disp_afg] && fs.b.VoltageSource;
     }
 
 
