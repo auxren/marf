@@ -328,44 +328,55 @@ void ControllerProcessTuringClocks(void) {
   }
 }
 
-// "Ciani mode" preset.
-// Sets the module up after Suzanne Ciani's Buchla performance patch (1976 NEA
-// report, Musical Illustration 1): a 16-stage quantized melodic row, stage 1 at
-// 0 V (the "home" note), looped, stepped, with rhythmic pulses on the downbeat
-// and the 11th stage, quantized to a pentatonic scale for instant musicality.
+// "Ciani mode" preset: her "Vertical Sequencer".
+// Reproduces Suzanne Ciani's documented patch (1976 NEA report, Musical
+// Illustration 3 / Diagram 3): each of the 16 stages has an octave offset (the
+// limited-range Voltage0/2/4/6/8 switches) and one of four base pitches (Rows
+// A-D), quantized and stepped at a fast rate, looped, with a pulse at stage 16.
+// Arpeggiating chord tones across ~4 octaves gives her "harp-like" texture.
 void LoadCianiPreset(void) {
-  // A bouncing ~2-octave contour in semitones (up then back down).
-  static const uint8_t degree[16] = { 0, 3, 6, 9, 12, 15, 18, 21, 24, 21, 17, 14, 10, 7, 4, 2 };
+  // Per-stage octave (0->Voltage0 .. 4->Voltage8) and row (0=A 1=B 2=C 3=D),
+  // straight from the illustration's Range/Row table.
+  static const uint8_t vs_oct[16] = { 0, 1, 0, 2, 3, 4, 2, 4, 3, 0, 1, 1, 0, 2, 4, 2 };
+  static const uint8_t vs_row[16] = { 2, 2, 3, 2, 2, 0, 3, 1, 3, 1, 0, 2, 3, 3, 0, 1 };
+  // Base pitch per row as a within-octave slider value: A=0, B=4, C=7, D=9
+  // semitones (a C6-ish chord), i.e. semitone/12 * 4095 (independent of V/oct).
+  static const uint16_t row_v[4] = { 0, 1365, 2389, 3071 };
   uint8_t max = get_max_step();
 
   InitProgram();                         // clear to defaults first
 
   for (uint8_t s = 0; s <= max; s++) {
-    float v = (float) degree[s & 15] * semitone_offset;
-    if (v > 4095.0f) v = 4095.0f;
-    sliders[s].VLevel = (uint16_t) v;
-    sliders[s].TLevel = 2048;            // steady, moderate tempo
+    uint8_t i = s & 15;
+    volatile uStep *st = &steps[s];
 
-    steps[s].b.Quantize = 1;             // quantized pitches (the Ciani technique)
-    steps[s].b.VoltageSource = 0;        // internal slider
-    steps[s].b.FullRange = 1;
-    steps[s].b.Sloped = 0;               // stepped
-    steps[s].b.TimeSource = 0;
-    steps[s].b.TimeRange_p03 = 0;        // ~0.16 s per stage (range 2)
-    steps[s].b.TimeRange_p3 = 1;
-    steps[s].b.TimeRange_3 = 0;
-    steps[s].b.TimeRange_30 = 0;
+    sliders[s].VLevel = row_v[vs_row[i]]; // base pitch within the octave
+    sliders[s].TLevel = 1024;             // brisk arpeggio tempo
+
+    st->b.Quantize = 1;                   // quantized pitches (the Ciani technique)
+    st->b.VoltageSource = 0;              // internal slider
+    st->b.Sloped = 0;                     // stepped
+    st->b.TimeSource = 0;
+    st->b.FullRange = 0;                  // limited range -> octave switches active
+    st->b.Voltage0 = (vs_oct[i] == 0);
+    st->b.Voltage2 = (vs_oct[i] == 1);
+    st->b.Voltage4 = (vs_oct[i] == 2);
+    st->b.Voltage6 = (vs_oct[i] == 3);
+    st->b.Voltage8 = (vs_oct[i] == 4);
+    st->b.TimeRange_p03 = 0;              // fast time range (~0.09 s/stage)
+    st->b.TimeRange_p3 = 1;
+    st->b.TimeRange_3 = 0;
+    st->b.TimeRange_30 = 0;
   }
-
-  sliders[0].VLevel = 0;                 // stage 1 = 0 V "home" note
 
   steps[0].b.CycleFirst = 1;             // loop the 16 stages
   steps[(max >= 15) ? 15 : max].b.CycleLast = 1;
 
-  steps[0].b.OutputPulse1 = 1;           // downbeat pulse
-  if (max >= 10) steps[10].b.OutputPulse2 = 1;  // the documented 11th-stage emphasis
+  steps[0].b.OutputPulse1 = 1;           // downbeat
+  if (max >= 15) steps[15].b.OutputPulse2 = 1;  // her pulse at stage 16
 
-  afg_scale[0] = afg_scale[1] = SCALE_PENTATONIC_MAJOR;
+  // Chromatic quantize keeps the exact chord-tone pitches set above.
+  afg_scale[0] = afg_scale[1] = SCALE_CHROMATIC;
   afg_root[0] = afg_root[1] = 0;
   turing_enabled[0] = turing_enabled[1] = 0;
 
