@@ -19,9 +19,17 @@ static int q(uint8_t scale, int root, int s) {
 
 static void test_masks(void) {
   printf("test_masks\n");
+  CHECK(SCALE_COUNT == 35);
   CHECK(scale_mask(SCALE_CHROMATIC) == 0x0FFF);
   CHECK(scale_mask(SCALE_MAJOR) == 0x0AB5);
   CHECK(scale_mask(SCALE_OCTAVE) == 0x0001);
+  /* spot-check several of the expanded scales */
+  CHECK(scale_mask(SCALE_WHOLE_TONE) == 0x0555);
+  CHECK(scale_mask(SCALE_DIMINISHED) == 0x0B6D);
+  CHECK(scale_mask(SCALE_RAGA_TODI) == 0x09CB);
+  CHECK(scale_mask(SCALE_5TH) == 0x0081);
+  /* every scale must include the root (semitone 0) */
+  for (uint8_t sc = 0; sc < SCALE_COUNT; sc++) CHECK(scale_mask(sc) & 1u);
 }
 
 static void test_chromatic_identity(void) {

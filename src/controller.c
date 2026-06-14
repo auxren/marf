@@ -27,7 +27,10 @@ volatile ControllerJobFlags controller_job_flags;
 // Set while the scale-select gesture is active, so the main loop shows the
 // scale number on the step LEDs instead of the normal step display.
 volatile uint8_t scale_select_active = 0;
-volatile uint8_t scale_select_value = 0;   // 0..SCALE_COUNT-1
+volatile uint8_t scale_select_value = 0;   // value to show on the step LEDs
+// When set, scale_select_value is shown in binary across the 16 step LEDs (read
+// as hex nibbles) instead of a single lit LED, so scale numbers past 16 fit.
+volatile uint8_t scale_select_binary = 0;
 
 // On units whose Pulse 1/2 channels are physically reversed, the panel programs
 // and outputs the wrong pulse. Set during calibration and stored in the cal
@@ -189,10 +192,16 @@ void ControllerMainLoop() {
     UpdateStepSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_step_num);
     display_update_flags.b.StepsDisplay = 0;
 
-    // While selecting a scale, show the scale number on the step LEDs instead
+    // While selecting a scale/root, show the value on the step LEDs instead
     // (this overrides the normal step display until the gesture is released).
+    // Scale numbers can exceed 16, so they are shown in binary across the 16
+    // step LEDs (read as hex nibbles); roots and Turing values stay single-LED.
     if (scale_select_active) {
-      steps_leds_lit = 0xFFFFFFFF & ~(1UL << scale_select_value);
+      if (scale_select_binary) {
+        steps_leds_lit = 0xFFFFFFFFu & ~((uint32_t) scale_select_value);
+      } else {
+        steps_leds_lit = 0xFFFFFFFFu & ~(1UL << scale_select_value);
+      }
     }
 
     // Breathe the voltage-source LED only when Turing mode is on AND the
@@ -300,7 +309,13 @@ void ControllerProcessScaleSelect(uButtons * key) {
       }
     }
 
-    scale_select_value = showing_root ? afg_root[afg] : afg_scale[afg];
+    if (showing_root) {
+      scale_select_value = afg_root[afg];          // 0..11, single LED
+      scale_select_binary = 0;
+    } else {
+      scale_select_value = afg_scale[afg] + 1;      // 1-based scale number, in hex/binary
+      scale_select_binary = 1;
+    }
     scale_select_active = 1;
   } else if (active) {
     // Releasing: unfreeze, and pin the sliders we moved so each stage stays at
@@ -445,6 +460,7 @@ void ControllerProcessTuringConfig(uButtons * key) {
         moved_t[i] = 1;
       }
     }
+    scale_select_binary = 0;   // Turing values are small -> single LED
     scale_select_active = 1;
   } else if (active) {
     scale_select_freeze = 0;

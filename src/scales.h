@@ -20,19 +20,45 @@
 // slider (voltage -> scale, time -> root) and are saved with the program.
 // ---------------------------------------------------------------------------
 
+// Order matches the on-panel scale list (1-based number = enum + 1). Some
+// legacy aliases (SCALE_MAJOR = Ionian, SCALE_NATURAL_MINOR = Aeolian) are kept
+// for the host tests.
 typedef enum {
-  SCALE_CHROMATIC = 0,
-  SCALE_MAJOR,
-  SCALE_NATURAL_MINOR,
-  SCALE_HARMONIC_MINOR,
-  SCALE_DORIAN,
-  SCALE_PHRYGIAN,
-  SCALE_MIXOLYDIAN,
-  SCALE_LYDIAN,
-  SCALE_PENTATONIC_MAJOR,
-  SCALE_PENTATONIC_MINOR,
-  SCALE_WHOLE_TONE,
-  SCALE_OCTAVE,
+  SCALE_CHROMATIC = 0,           //  1
+  SCALE_MAJOR,                   //  2  Ionian
+  SCALE_DORIAN,                  //  3
+  SCALE_PHRYGIAN,                //  4
+  SCALE_LYDIAN,                  //  5
+  SCALE_MIXOLYDIAN,              //  6
+  SCALE_NATURAL_MINOR,           //  7  Aeolian
+  SCALE_LOCRIAN,                 //  8
+  SCALE_HARMONIC_MINOR,          //  9
+  SCALE_MELODIC_MINOR,           // 10
+  SCALE_MAJOR_BLUES,             // 11
+  SCALE_MINOR_BLUES,             // 12
+  SCALE_DIMINISHED,              // 13
+  SCALE_COMBINATION_DIMINISHED,  // 14
+  SCALE_PENTATONIC_MAJOR,        // 15
+  SCALE_PENTATONIC_MINOR,        // 16
+  SCALE_RAGA_BHAIRAV,            // 17
+  SCALE_RAGA_GAMANASRAMA,        // 18
+  SCALE_RAGA_TODI,               // 19
+  SCALE_ARABIAN,                 // 20
+  SCALE_SPANISH,                 // 21
+  SCALE_GYPSY,                   // 22
+  SCALE_EGYPTIAN,                // 23
+  SCALE_HAWAIIAN,                // 24
+  SCALE_BALINESE_PELOG,          // 25
+  SCALE_JAPANESE_MIYAKOBUSHI,    // 26
+  SCALE_RYUKU,                   // 27
+  SCALE_CHINESE,                 // 28
+  SCALE_BASS_LINE,               // 29
+  SCALE_WHOLE_TONE,              // 30
+  SCALE_MINOR_3RD,               // 31
+  SCALE_MAJOR_3RD,               // 32
+  SCALE_4TH,                     // 33
+  SCALE_5TH,                     // 34
+  SCALE_OCTAVE,                  // 35
   SCALE_COUNT
 } ScaleId;
 

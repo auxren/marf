@@ -31,8 +31,11 @@ Hold the **Quantize** switch and use the sliders as selectors for the
 
 While you hold Quantize:
 
-- The step LEDs show the **number** of whichever you last moved (scale index, or
-  root 0–11), so you can read your selection without a screen.
+- The step LEDs show the **number** of whichever you last moved. The **root**
+  (0–11) is shown as a single lit LED. The **scale number** (1–35) is shown in
+  **binary across the 16 step LEDs** — read the LEDs in groups of four as **hex**
+  digits (e.g. scale 17 lights LEDs 1 and 5 = `0x11`; scale 35 = `0x23`). This is
+  how more than 16 scales fit on 16 LEDs.
 - Slider movement during the gesture **does not change any stage's output** —
   the sliders are frozen as selectors. On release, any slider you moved is
   **pinned** so its stage keeps the value it had before; the slider takes over
@@ -42,24 +45,47 @@ While you hold Quantize:
   [shift‑register mode](07-shift-register.md).
 
 The slider sweeps the whole list: at minimum you get **Chromatic / root 0**, and
-sweeping up steps through the scales (or the twelve roots) in the order below.
+sweeping up steps through the 35 scales (or the twelve roots) in the order below.
 
 ## The scales
 
-| # | Scale | Notes (semitones from root) |
-|---|-------|------------------------------|
-| 0 | **Chromatic** (default) | all 12 |
-| 1 | **Major** | 0 2 4 5 7 9 11 |
-| 2 | **Minor** (natural) | 0 2 3 5 7 8 10 |
-| 3 | **Harmonic Minor** | 0 2 3 5 7 8 11 |
-| 4 | **Dorian** | 0 2 3 5 7 9 10 |
-| 5 | **Phrygian** | 0 1 3 5 7 8 10 |
-| 6 | **Mixolydian** | 0 2 4 5 7 9 10 |
-| 7 | **Lydian** | 0 2 4 6 7 9 11 |
-| 8 | **Pentatonic Major** | 0 2 4 7 9 |
-| 9 | **Pentatonic Minor** | 0 3 5 7 10 |
-| 10 | **Whole Tone** | 0 2 4 6 8 10 |
-| 11 | **Octave** | 0 (root octaves only) |
+| # | Scale | Intervals |
+|---|-------|-----------|
+| 1 | **Chromatic** (default) | 1 2♭ 2 3♭ 3 4 5♭ 5 6♭ 6 7♭ 7 |
+| 2 | **Ionian** (Major) | 1 2 3 4 5 6 7 |
+| 3 | **Dorian** | 1 2 3♭ 4 5 6 7♭ |
+| 4 | **Phrygian** | 1 2♭ 3♭ 4 5 6♭ 7♭ |
+| 5 | **Lydian** | 1 2 3 4♯ 5 6 7 |
+| 6 | **Mixolydian** | 1 2 3 4 5 6 7♭ |
+| 7 | **Aeolian** (Minor) | 1 2 3♭ 4 5 6♭ 7♭ |
+| 8 | **Locrian** | 1 2♭ 3♭ 4 5♭ 6♭ 7♭ |
+| 9 | **Harmonic Minor** | 1 2 3♭ 4 5 6♭ 7 |
+| 10 | **Melodic Minor** | 1 2 3♭ 4 5 6 7 |
+| 11 | **Major Blues** | 1 2 3♭ 3 5 6 |
+| 12 | **Minor Blues** | 1 3♭ 4 5♭ 5 7♭ |
+| 13 | **Diminished** | 1 2 3♭ 4 4♯ 5♯ 6 7 |
+| 14 | **Combination Diminished** | 1 2♭ 3♭ 3 4♯ 5 6 7♭ |
+| 15 | **Major Pentatonic** | 1 2 3 5 6 |
+| 16 | **Minor Pentatonic** | 1 3♭ 4 5 7♭ |
+| 17 | **Raga Bhairav** | 1 2♭ 3 4 5 6♭ 7 |
+| 18 | **Raga Gamanasrama** | 1 2♭ 3 4♯ 5 6 7 |
+| 19 | **Raga Todi** | 1 2♭ 3♭ 4♯ 5 6♭ 7 |
+| 20 | **Arabian** | 1 2 3 4 5♭ 6♭ 7♭ |
+| 21 | **Spanish** | 1 2♭ 3♭ 3 4 5 6♭ 7♭ |
+| 22 | **Gypsy** | 1 2 3♭ 4♯ 5 6♭ 7 |
+| 23 | **Egyptian** | 1 2 4 5 7♭ |
+| 24 | **Hawaiian** | 1 2 3♭ 5 6 |
+| 25 | **Balinese Pelog** | 1 2♭ 3♭ 5 6♭ |
+| 26 | **Japanese Miyakobushi** | 1 2♭ 4 5 6♭ |
+| 27 | **Ryuku** | 1 3 4 5 7 |
+| 28 | **Chinese** | 1 2 4♯ 5 7 |
+| 29 | **Bass Line** | 1 5 7♭ |
+| 30 | **Whole Tone** | 1 2 3 5♭ 6♭ 7♭ |
+| 31 | **Minor 3rd Interval** | 1 3♭ 5♭ 6 |
+| 32 | **Major 3rd Interval** | 1 3 6♭ |
+| 33 | **4th Interval** | 1 4 7♭ |
+| 34 | **5th Interval** | 1 5 |
+| 35 | **Octave** | 1 (root octaves only) |
 
 The **root** (0–11) transposes the scale's pattern: root 0 is the unquantized
 reference note, root 7 puts the scale a fifth up, and so on.

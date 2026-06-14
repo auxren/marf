@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 #define MARF_STORAGE_MAGIC    0x4652414Du  // 'MARF'
-#define MARF_PROGRAM_VERSION  2   // v2: added per-sequence scale/root
+#define MARF_PROGRAM_VERSION  3   // v3: expanded/reordered scale list (35 scales)
 #define MARF_CAL_VERSION      1
 
 // ---- Saved program --------------------------------------------------------
