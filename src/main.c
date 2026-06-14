@@ -23,6 +23,7 @@
 #include "controller.h"
 #include "cycle_counter.h"
 #include "eprom.h"
+#include "presets.h"
 #include "constants.h"
 #include "watchdog.h"
 #include "turing.h"
@@ -652,6 +653,11 @@ int main(void) {
   } else {
     ControllerLoadCalibration();
   }
+
+  // Seed the factory preset bank into any never-saved / erased program slots.
+  // User-saved slots are preserved. Runs after calibration (which may erase the
+  // chip) so a fresh module always boots with playable presets.
+  PopulateFactoryPresets();
 
   // Start the watchdog only now that init (and any calibration, which does a
   // multi-second full-chip erase) is done. The refresh lives in the run loop.

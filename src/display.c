@@ -151,11 +151,17 @@ void UpdateModeSectionLeds(AfgControllerState afg1, AfgControllerState afg2, uin
     mode_leds_lit.b.Seq2Stop &= 0;
   };
 
+  // The Display LED of the shown AFG is steady when it is on stages 1-16 and
+  // BLINKS when it is shifted to stages 17-32 -- so you can see at a glance which
+  // bank the displayed sequence is playing. ~2 Hz blink off the millisecond clock.
+  uint8_t shift_blink_off = ((get_millis() >> 8) & 1) == 0;   // half-period ~256 ms
   if ((display_mode == DISPLAY_MODE_VIEW_1) || (display_mode == DISPLAY_MODE_EDIT_1) ) {
-    DISPLAY_LED_I_ON;
+    uint8_t sec = (display_mode == DISPLAY_MODE_EDIT_1) ? edit_mode_section : afg1.section;
+    if (sec && shift_blink_off) { DISPLAY_LED_I_OFF; } else { DISPLAY_LED_I_ON; }
     DISPLAY_LED_II_OFF;
   } else if ((display_mode == DISPLAY_MODE_VIEW_2) || (display_mode == DISPLAY_MODE_EDIT_2) ) {
-    DISPLAY_LED_II_ON;
+    uint8_t sec = (display_mode == DISPLAY_MODE_EDIT_2) ? edit_mode_section : afg2.section;
+    if (sec && shift_blink_off) { DISPLAY_LED_II_OFF; } else { DISPLAY_LED_II_ON; }
     DISPLAY_LED_I_OFF;
   };
 

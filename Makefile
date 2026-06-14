@@ -81,8 +81,9 @@ v16:
 # toolchain needed). Run with: make test
 HOST_CC    ?= cc
 TEST_SRC    = test/test_core.c test/test_storage.c test/test_scales.c test/test_turing.c \
-              test/test_support.c \
-              src/program.c src/analog_data.c src/storage.c src/scales.c src/turing.c
+              test/test_presets.c test/test_support.c \
+              src/program.c src/analog_data.c src/storage.c src/scales.c src/turing.c \
+              src/presets.c
 TEST_CFLAGS = -std=c11 -Wall -Itest/shim -I$(SRC_DIR)
 # Link libraries must come AFTER the sources (GNU ld is order-sensitive).
 TEST_LIBS   = -lm

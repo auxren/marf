@@ -16,6 +16,18 @@ banks of 16 stages, giving you access to stages **17–32** without an expander.
 
 (Hold the Display button for that generator and tap the Stage No direction.)
 
+## Telling which bank a generator is on
+
+The **Display LED** of the generator you're viewing shows its bank at a glance:
+
+- **Steady** — that generator is on stages **1–16**.
+- **Blinking** (~2 Hz) — that generator is **shifted to stages 17–32**.
+
+Switch between **Display 1** and **Display 2** to read each generator's bank. A
+generator's shift is also **saved with the program**, so loading a patch (or a
+factory preset) restores each generator to the bank it was on — the blinking
+Display LED then tells you which sequences are on the upper bank.
+
 ## What shifts and what doesn't
 
 - The **stage programming** that the generator reads shifts to the other bank.

@@ -85,10 +85,11 @@ extern volatile uint8_t scale_select_freeze;
 
 void InitProgram();
 
-// Randomize all active stages (slider values, voltage range, quantize/slope/
-// pulses, time range) and pick a random loop length. Caller should reseed the
-// PRNG (turing_seed) first for variety.
-void RandomizeProgram(void);
+// Randomize one 16-step block (section 0 = stages 1-16, 1 = stages 17-32):
+// slider values, voltage range, quantize/slope/pulses, time range, and a random
+// loop length within the block. The other block (the other AFG) is left
+// untouched. Caller should reseed the PRNG (turing_seed) first for variety.
+void RandomizeProgram(uint8_t section);
 
 static inline uint8_t get_max_step() {
   return Is_Expander_Present() ? 31 : 15;

@@ -79,19 +79,23 @@ void InitProgram() {
   ClearSliderCalibration();   // passthrough until a two-point cal is loaded
 }
 
-// Randomize the program: every active stage gets random slider values, a random
-// voltage range/octave, random quantize/slope/pulse states and a random time
-// range, and the sequence gets a random loop length (First on stage 1, Last on a
-// random stage). Voltage and time sources are kept Internal (so nothing needs to
-// be patched) and Stop/Sustain/Enable are left off so it just plays. Sliders are
-// pinned to their new values (like a program load) so the physical positions
-// don't immediately override them. The PRNG should be reseeded by the caller.
-void RandomizeProgram(void) {
-  uint8_t max = get_max_step();                 // 15, or 31 with an expander
-  uint8_t last_step = 1 + (marf_rand() % max);  // random sequence length
+// Randomize one 16-step block (`section` 0 -> stages 1-16, 1 -> stages 17-32):
+// every stage in that block gets random slider values, a random voltage
+// range/octave, random quantize/slope/pulse states and a random time range, and
+// the block gets a random loop length (First on its first stage, Last on a
+// random stage within the block). Voltage and time sources are kept Internal (so
+// nothing needs to be patched) and Stop/Sustain/Enable are left off so it just
+// plays. Only this block's sliders are pinned (like a program load) so the
+// physical positions don't immediately override them -- the other block (the
+// other AFG) is left completely untouched. The PRNG should be reseeded by the
+// caller.
+void RandomizeProgram(uint8_t section) {
+  uint8_t base = (section & 1) << 4;             // 0 or 16
+  uint8_t last_off = 1 + (marf_rand() % 15);     // 1..15: loop length within block
 
-  for (uint8_t i = 0; i <= max; i++) {
-    uStep s = {{ 0, 0, 0 }};
+  for (uint8_t off = 0; off < 16; off++) {
+    uint8_t i = base + off;
+    uStep s = {{ 0, 0, 0, 0 }};
     uint32_t r = marf_rand();
 
     // Voltage range / octave: exactly one of Full / 0 / 2 / 4 / 6 / 8.
@@ -119,15 +123,19 @@ void RandomizeProgram(void) {
     // Keep sources internal and op-modes off; mark the random loop length.
     s.b.VoltageSource = 0;
     s.b.TimeSource    = 0;
-    s.b.CycleFirst    = (i == 0)         ? 1 : 0;
-    s.b.CycleLast     = (i == last_step) ? 1 : 0;
+    s.b.CycleFirst    = (off == 0)        ? 1 : 0;
+    s.b.CycleLast     = (off == last_off) ? 1 : 0;
 
     steps[i] = s;
     sliders[i].VLevel = marf_rand() & 0x0FFF;
     sliders[i].TLevel = marf_rand() & 0x0FFF;
-  }
 
-  pin_all_sliders();
+    // Pin just this block's sliders to their new values.
+    voltage_slider_pins.high |= (1UL << i);
+    voltage_slider_pins.low  |= (1UL << i);
+    time_slider_pins.high    |= (1UL << i);
+    time_slider_pins.low     |= (1UL << i);
+  }
 }
 
 float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root,

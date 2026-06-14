@@ -23,6 +23,9 @@ typedef struct {
 
   // Optional two-point (min/max) slider + input calibration (StoredTwoPointCal)
   MemoryRange twopoint_cal_data;
+
+  // Factory preset bookkeeping (StoredFactory): which slots the factory bank owns
+  MemoryRange factory_data;
 } EpromMemory;
 
 extern EpromMemory eprom_memory;

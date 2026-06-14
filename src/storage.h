@@ -19,9 +19,12 @@
 // ---------------------------------------------------------------------------
 
 #define MARF_STORAGE_MAGIC    0x4652414Du  // 'MARF'
-#define MARF_PROGRAM_VERSION  3   // v3: expanded/reordered scale list (35 scales)
+#define MARF_PROGRAM_VERSION  4   // v4: store each AFG's section (stage shift)
 #define MARF_CAL_VERSION      1
 #define MARF_TWOPOINT_VERSION 1   // optional two-point (min/max) slider + input cal
+#define MARF_FACTORY_REC_VER  1   // record format of the factory-bank bookkeeping
+#define MARF_FACTORY_BANK_VER 3   // factory preset *content* generation; bump to
+                                  // re-seed every factory-owned slot on next boot
 
 // ---- Saved program --------------------------------------------------------
 typedef struct {
@@ -29,7 +32,8 @@ typedef struct {
   StepSliders sliders[32];
   uint8_t    scale[2];   // per-AFG quantizer scale
   uint8_t    root[2];    // per-AFG quantizer root
-} ProgramPayload;  // 260 bytes
+  uint8_t    section[2]; // per-AFG stage shift (0 = stages 1-16, 1 = 17-32)
+} ProgramPayload;  // 262 bytes
 
 typedef struct {
   uint32_t magic;
@@ -70,6 +74,23 @@ typedef struct {
   uint16_t crc;        // CRC-16/CCITT over payload
   TwoPointCalPayload payload;
 } StoredTwoPointCal;
+
+// ---- Factory preset bookkeeping (optional, separate record) ---------------
+// Tracks which program slots are owned by the factory preset bank (so a bank
+// update can refresh them) versus saved by the user (left untouched forever),
+// plus which bank generation is currently loaded. Its own small record at the
+// EEPROM tail, so it never touches the frozen calibration format.
+typedef struct {
+  uint16_t bank_version;   // MARF_FACTORY_BANK_VER that last seeded the slots
+  uint16_t owned_mask;     // bit i set => slot i currently holds a factory preset
+} FactoryPayload;
+
+typedef struct {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t crc;        // CRC-16/CCITT over payload
+  FactoryPayload payload;
+} StoredFactory;
 
 // ---------------------------------------------------------------------------
 // FROZEN CALIBRATION FORMAT (goal: no recalibration from 3.0 onward).
@@ -116,10 +137,12 @@ uint16_t marf_crc16(const void *data, uint32_t len);
 void marf_stored_program_finalize(StoredProgram *s);
 void marf_stored_cal_finalize(StoredCal *s);
 void marf_stored_twopoint_finalize(StoredTwoPointCal *s);
+void marf_stored_factory_finalize(StoredFactory *s);
 
 // Return 1 if magic, version and CRC all check out.
 int marf_stored_program_valid(const StoredProgram *s);
 int marf_stored_cal_valid(const StoredCal *s);
 int marf_stored_twopoint_valid(const StoredTwoPointCal *s);
+int marf_stored_factory_valid(const StoredFactory *s);
 
 #endif

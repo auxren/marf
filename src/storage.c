@@ -47,3 +47,15 @@ int marf_stored_twopoint_valid(const StoredTwoPointCal *s) {
   if (s->version != MARF_TWOPOINT_VERSION) return 0;
   return s->crc == marf_crc16(&s->payload, sizeof(s->payload));
 }
+
+void marf_stored_factory_finalize(StoredFactory *s) {
+  s->magic = MARF_STORAGE_MAGIC;
+  s->version = MARF_FACTORY_REC_VER;
+  s->crc = marf_crc16(&s->payload, sizeof(s->payload));
+}
+
+int marf_stored_factory_valid(const StoredFactory *s) {
+  if (s->magic != MARF_STORAGE_MAGIC) return 0;
+  if (s->version != MARF_FACTORY_REC_VER) return 0;
+  return s->crc == marf_crc16(&s->payload, sizeof(s->payload));
+}

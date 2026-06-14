@@ -18,6 +18,7 @@ int g_run = 0, g_fail = 0;   // shared with other test_*.c units
 void run_storage_tests(void);
 void run_scales_tests(void);
 void run_turing_tests(void);
+void run_presets_tests(void);
 #define CHECK(cond) do { \
     g_run++; \
     if (!(cond)) { g_fail++; printf("  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond); } \
@@ -178,12 +179,20 @@ static void test_get_next_step_loop_to_zero(void) {
 
 static void test_randomize_program(void) {
   printf("test_randomize_program\n");
-  has_expander = 0;                 /* 16 steps */
+
+  /* Randomize only block/section 1 (stages 17-32). Mark block 0 first so we can
+   * prove it is left completely untouched. */
+  for (uint8_t i = 0; i < 16; i++) {
+    steps[i] = (uStep){{ 0xAA, 0xBB, 0xCC, 0xDD }};
+    sliders[i].VLevel = 1111; sliders[i].TLevel = 2222;
+  }
+  unpin_all_sliders();
+
   turing_seed(0xC0FFEEu);
-  RandomizeProgram();
+  RandomizeProgram(1);
 
   uint8_t firsts = 0, lasts = 0;
-  for (uint8_t i = 0; i <= 15; i++) {
+  for (uint8_t i = 16; i <= 31; i++) {
     int vr = steps[i].b.FullRange + steps[i].b.Voltage0 + steps[i].b.Voltage2
            + steps[i].b.Voltage4 + steps[i].b.Voltage6 + steps[i].b.Voltage8;
     CHECK(vr == 1);                 /* exactly one voltage range/octave */
@@ -197,11 +206,17 @@ static void test_randomize_program(void) {
     firsts += steps[i].b.CycleFirst;
     lasts  += steps[i].b.CycleLast;
   }
-  CHECK(steps[0].b.CycleFirst == 1);        /* loop starts at step 1 */
+  CHECK(steps[16].b.CycleFirst == 1);       /* loop starts at block's stage 1 */
   CHECK(firsts == 1);
   CHECK(lasts == 1);                        /* exactly one (random) loop end */
-  CHECK(voltage_slider_pins.high == 0xFFFFFFFF);  /* sliders pinned */
-  CHECK(time_slider_pins.low == 0xFFFFFFFF);
+
+  /* Block 0 (the other AFG) is untouched, and only block 1 is pinned. */
+  for (uint8_t i = 0; i < 16; i++) {
+    CHECK(sliders[i].VLevel == 1111 && sliders[i].TLevel == 2222);
+    CHECK((voltage_slider_pins.high & (1UL << i)) == 0);
+  }
+  CHECK((voltage_slider_pins.high & 0xFFFF0000UL) == 0xFFFF0000UL);  /* block 1 pinned */
+  CHECK((time_slider_pins.low     & 0xFFFF0000UL) == 0xFFFF0000UL);
 }
 
 static void test_twopoint_input_cal(void) {
@@ -254,6 +269,7 @@ int main(void) {
   run_storage_tests();
   run_scales_tests();
   run_turing_tests();
+  run_presets_tests();
 
   printf("\n%d checks, %d failed\n", g_run, g_fail);
   return g_fail ? 1 : 0;

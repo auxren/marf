@@ -122,10 +122,11 @@ meant to behave.
 - [ ] **N10** — Toggling the mode **off** restores normal external-input behaviour.
 
 ## N2. Randomize (3.0)
-- [ ] **N2.1** — Hold **both Stage Address Reset buttons (AFG 1 + AFG 2)** for >1 s → a ~2 s twinkling LED show plays.
-- [ ] **N2.2** — Afterward the program is randomized: every stage has random slider levels, voltage range/octave, quantize/slope/pulse states, pulse width, and time range (never the slow 30 s range).
-- [ ] **N2.3** — The sequence has a random loop length (First on stage 1, Last on a random stage) and **plays immediately** (sources stayed Internal, no Stop/Sustain/Enable).
-- [ ] **N2.4** — Sliders are **pinned** to the random values until moved through them. Both AFGs reset to stage 1.
+- [ ] **N2.1** — Select an AFG (**Display 1** or **Display 2**), then hold **both Stage Address Reset buttons (AFG 1 + AFG 2)** for >1 s → a ~2 s twinkling LED show plays.
+- [ ] **N2.2** — Afterward the displayed AFG's stages are randomized: every stage has random slider levels, voltage range/octave, quantize/slope/pulse states, pulse width, and time range (never the slow 30 s range).
+- [ ] **N2.3** — The block has a random loop length (First on its first stage, Last on a random stage) and **plays immediately** (sources stayed Internal, no Stop/Sustain/Enable).
+- [ ] **N2.4** — Sliders are **pinned** to the random values until moved through them. The displayed AFG resets to its first stage.
+- [ ] **N2.5** — **Only the displayed AFG is affected**: randomize AFG 1, switch to Display 2, confirm AFG 2 is unchanged; then randomize AFG 2 and confirm AFG 1 is still as it was. Each AFG randomizes independently (AFG 1 = stages 1–16, AFG 2 = stages 17–32).
 
 ## N3. Per-step pulse width (3.0)
 - [ ] **N3.1** — Hold the chord **Time Source up (External) + Time Range 1 (.03) up** and move a step's **time slider** → step LEDs show a **bar**; that step's pulse outputs (Pulse 1/2 and ALL) get wider/narrower (gate ~1%–99% of the step).
@@ -146,14 +147,18 @@ meant to behave.
 - [ ] **P5** — All **16 slots** are independently usable.
 - [ ] **P6** — Loading an **empty/never-saved** slot → quick **triple flash**, nothing loaded (current patch untouched).
 - [ ] **P7** — After a load, sliders are **pinned** to stored values until moved through them.
-- [ ] **P8** — A recalled program restores **scale/root** and each stage's **shift-register clock/length**.
+- [ ] **P8** — A recalled program restores **scale/root**, each AFG's **stage shift (section)** and each stage's **shift-register clock/length**.
 - [ ] **P9** — Save and load happen **without stopping** the running sequences.
+- [ ] **P10** — **Factory presets**: on a fresh chip, every never-saved slot loads a playable sequence (I Feel Love, Berlin School, Halloween, Stranger Things, Bach, Reich phasing, polymeter, acid, On the Run, TEE, Cars, Blue Monday, Blade Runner, Glass, drift, harmony). Each plays immediately with nothing patched. Every preset is **two-part**: AFG 1 on stages 1–16, AFG 2 on 17–32.
+- [ ] **P10b** — **Saved stage shift**: loading a preset restores **AFG 2 to stages 17–32** and AFG 1 to 1–16 (the shift is saved in the program) — starting both AFGs plays the full arrangement with no manual shift. Saving a patch with AFG 2 shifted and reloading restores that shift. (16-slider board; expander leaves sections alone.)
+- [ ] **P11** — A factory slot you **save over** keeps your version permanently (it's now user-owned); it is **not** re-seeded by a bank update. A slot you **clear** is re-seeded at the next boot. A firmware update with a new bank refreshes the factory-owned slots only, leaving user saves intact.
 
 ## Q. Section shift (unexpanded only — DIP 4 off)
 - [ ] **Q1** — **Display 1 + Stage No Right** moves AFG 1 to stages **17–32**.
 - [ ] **Q2** — **Display 1 + Stage No Left** moves AFG 1 back to **1–16**.
 - [ ] **Q3** — **Display 2 + Stage No Right / Left** does the same for AFG 2.
 - [ ] **Q4** — In the 17–32 bank, switch programming is independent but slider *levels* are still the physical 1–16 sliders.
+- [ ] **Q5** — **Shift indicator**: the viewed generator's **Display LED is steady** on stages 1–16 and **blinks (~2 Hz)** when shifted to 17–32. Switching Display 1/2 reads each generator; loading a two-part preset shows AFG 2's Display LED blinking.
 
 ## R. Expander (DIP 4 on, expander attached)
 - [ ] **R1** — Stage count is a full **32** with their own sliders read directly.

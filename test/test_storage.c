@@ -25,8 +25,8 @@ static void test_crc16_known(void) {
 
 static void test_layout_sizes(void) {
   printf("test_layout_sizes\n");
-  CHECK(sizeof(ProgramPayload) == 260);   /* 128 steps + 128 sliders + 4 scale/root */
-  CHECK(sizeof(StoredProgram) == 268);    /* 8-byte header + payload */
+  CHECK(sizeof(ProgramPayload) == 264);   /* 128 steps + 128 sliders + 4 scale/root + 2 section + 2 pad */
+  CHECK(sizeof(StoredProgram) == 272);    /* 8-byte header + payload */
 }
 
 static void test_program_roundtrip(void) {

@@ -12,6 +12,7 @@
 #include "MAX5135.h"
 #include "delays.h"
 #include "eprom.h"
+#include "presets.h"
 #include "analog_data.h"
 #include "watchdog.h"
 #include "scales.h"
@@ -395,9 +396,12 @@ void ControllerProcessTuring(uButtons * key) {
   }
 }
 
-// Holding BOTH Stage Address Reset buttons for >1 s randomizes the whole
-// program (slider values, voltage ranges, quantize/slope/pulses, time ranges
-// and a random loop length) and plays a ~2 s "randomizing" light show.
+// Holding BOTH Stage Address Reset buttons for >1 s randomizes the stage block
+// of the currently displayed AFG (slider values, voltage ranges, quantize/slope/
+// pulses, time ranges and a random loop length) and plays a ~2 s "randomizing"
+// light show. Only the displayed AFG's stages are touched, so AFG 1 (stages
+// 1-16) and AFG 2 (stages 17-32) can each be randomized independently -- switch
+// the display to the AFG you want to roll, then hold both resets.
 void ControllerProcessRandomize(uButtons * key) {
   static uint8_t state = 0;        // 0 idle, 1 timing, 2 fired (await release)
   static uint32_t start = 0;
@@ -407,11 +411,15 @@ void ControllerProcessRandomize(uButtons * key) {
   if (both_reset) {
     if (state == 0) { state = 1; start = get_millis(); }
     else if (state == 1 && (get_millis() - start) > 1000) {
+      // Randomize the block the displayed AFG is showing (its current section).
+      uint8_t disp_afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
+                          display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
+      uint8_t section = AfgGetControllerState(disp_afg).section;
+
       turing_seed(DWT->CYCCNT);     // fresh entropy from the cycle counter
-      RandomizeProgram();
+      RandomizeProgram(section);
       RunRandomizeAnimation();
-      AfgReset(AFG1);               // start the new sequence cleanly from step 1
-      AfgReset(AFG2);
+      AfgReset(disp_afg);           // restart just that sequence from its step 1
       state = 2;
     }
   } else {
@@ -1065,6 +1073,16 @@ void ControllerLoadProgramLoop() {
             afg_root[a]  = (rt < 12) ? rt : 0;
           }
 
+          // Restore each AFG's saved stage shift (section). The factory presets
+          // are two-part and save AFG 2 on stages 17-32, so loading one and
+          // starting both generators plays the whole arrangement with no manual
+          // shift. (Sections only apply on a 16-slider board; with the expander
+          // all 32 stages share one section, so leave the shift alone.)
+          if (!Is_Expander_Present()) {
+            AfgSetSection(AFG1, saved_program.payload.section[0] & 1);
+            AfgSetSection(AFG2, saved_program.payload.section[1] & 1);
+          }
+
           // Pin sliders and reset to step 1
           pin_all_sliders();
           AfgReset(AFG1);
@@ -1144,11 +1162,13 @@ void ControllerSaveProgramLoop() {
         memcpy((void *) saved_program.payload.sliders, (void *) sliders, sizeof(sliders));
         controller_job_flags.inhibit_adc = 0;
 
-        // Capture per-sequence scale/root
+        // Capture per-sequence scale/root and each AFG's stage shift (section)
         for (uint8_t a = 0; a < 2; a++) {
           saved_program.payload.scale[a] = afg_scale[a];
           saved_program.payload.root[a]  = afg_root[a];
         }
+        saved_program.payload.section[0] = AfgGetControllerState(AFG1).section;
+        saved_program.payload.section[1] = AfgGetControllerState(AFG2).section;
 
         // Stamp magic/version/CRC, then write the record to the EPROM
         marf_stored_program_finalize(&saved_program);
@@ -1156,6 +1176,9 @@ void ControllerSaveProgramLoop() {
             eprom_memory.programs[program_num].start,
             (unsigned char *) &saved_program,
             eprom_memory.programs[program_num].size);
+
+        // This slot is now the user's: protect it from factory bank updates.
+        FactoryMarkUserSave(program_num);
 
         // Run cute animation
         RunSaveProgramAnimation();

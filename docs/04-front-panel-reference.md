@@ -20,7 +20,7 @@ Much of the panel acts on the **currently focused stage**. Focus follows the
 
 | Control | Firmware behaviour |
 |---------|--------------------|
-| **Reset** | Jumps the generator to stage 1 (the first stage). Has no effect while in continuous Stage Address mode. **Holding *both* Reset buttons (AFG 1 + AFG 2) for >1 s [randomizes the whole program](#randomize).** |
+| **Reset** | Jumps the generator to stage 1 (the first stage). Has no effect while in continuous Stage Address mode. **Holding *both* Reset buttons (AFG 1 + AFG 2) for >1 s [randomizes the displayed sequence](#randomize).** |
 | **Pulse Select** (strobe) | Strobes: immediately jumps to the stage selected by the **Stage Address** CV input. |
 | **Advance** | Manually advances one stage (equivalent to a simultaneous Start + Stop pulse). |
 | **Continuous Select** | While held/engaged, the generator's stage follows the **Stage Address** CV continuously (it does not run on its own clock). Releasing returns to the previous mode. |
@@ -96,20 +96,24 @@ When shift‑register mode is on, the focused stage's **Source (External)** LED
 ## Randomize
 
 **Hold both Stage Address *Reset* buttons (AFG 1 and AFG 2) together for more
-than one second** to randomize the entire program. Every stage gets:
+than one second** to randomize the **currently displayed** sequence. Pick which
+one to roll with **Display 1 / Display 2** first: randomizing only affects the
+displayed AFG's stages (AFG 1 → stages 1–16, AFG 2 → stages 17–32), so the two
+sequences can be randomized **independently** and the one you're not looking at
+is left untouched. Every stage in that block gets:
 
 - random **voltage** and **time** slider values (pinned, like a loaded program —
   move a slider through its value to take manual control again);
 - a random **voltage range/octave**, and random **Quantize**, **Sloped/Stepped**
   and **Pulse 1/2** states;
-- a random **time range**;
+- a random **time range** and **pulse width**;
 
-and the sequence is given a **random loop length** (a First marker on stage 1
-and a Last marker on a random stage). Voltage and time **sources stay Internal**
-(nothing needs to be patched) and **Stop/Sustain/Enable stay off**, so the result
-plays immediately. A ~2‑second twinkling LED show runs while it happens. Both
-generators reset to stage 1 afterward. (Scales/roots and shift‑register settings
-are left as they were.)
+and the block is given a **random loop length** (a First marker on its first
+stage and a Last marker on a random stage within it). Voltage and time **sources
+stay Internal** (nothing needs to be patched) and **Stop/Sustain/Enable stay
+off**, so the result plays immediately. A ~2‑second twinkling LED show runs while
+it happens. The displayed generator resets to its first stage afterward.
+(Scales/roots and shift‑register settings are left as they were.)
 
 ## Sliders & knobs
 
