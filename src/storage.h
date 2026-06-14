@@ -21,6 +21,7 @@
 #define MARF_STORAGE_MAGIC    0x4652414Du  // 'MARF'
 #define MARF_PROGRAM_VERSION  3   // v3: expanded/reordered scale list (35 scales)
 #define MARF_CAL_VERSION      1
+#define MARF_TWOPOINT_VERSION 1   // optional two-point (min/max) slider + input cal
 
 // ---- Saved program --------------------------------------------------------
 typedef struct {
@@ -50,6 +51,25 @@ typedef struct {
   uint16_t crc;        // CRC-16/CCITT over payload
   CalPayload payload;
 } StoredCal;
+
+// ---- Two-point calibration (optional, separate record) --------------------
+// Per-slider and per-input min/max captured by the two-pass calibration. Kept
+// in its own EEPROM record so the frozen StoredCal above is never touched: if
+// this record is absent or invalid the firmware falls back to the legacy
+// gain-only input cal and raw (uncalibrated) sliders -- i.e. exactly the older
+// behaviour. This record may grow/version freely; it never forces a recal.
+typedef struct {
+  uint16_t v_min[32], v_max[32];   // voltage slider raw readings at min / max
+  uint16_t t_min[32], t_max[32];   // time slider raw readings at min / max
+  uint16_t adc2_min[8], adc2_max[8]; // the 8 input/knob channels at min / max
+} TwoPointCalPayload;
+
+typedef struct {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t crc;        // CRC-16/CCITT over payload
+  TwoPointCalPayload payload;
+} StoredTwoPointCal;
 
 // ---------------------------------------------------------------------------
 // FROZEN CALIBRATION FORMAT (goal: no recalibration from 3.0 onward).
@@ -95,9 +115,11 @@ uint16_t marf_crc16(const void *data, uint32_t len);
 // Stamp magic/version and compute the CRC over the current payload.
 void marf_stored_program_finalize(StoredProgram *s);
 void marf_stored_cal_finalize(StoredCal *s);
+void marf_stored_twopoint_finalize(StoredTwoPointCal *s);
 
 // Return 1 if magic, version and CRC all check out.
 int marf_stored_program_valid(const StoredProgram *s);
 int marf_stored_cal_valid(const StoredCal *s);
+int marf_stored_twopoint_valid(const StoredTwoPointCal *s);
 
 #endif

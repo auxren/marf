@@ -24,6 +24,44 @@ volatile uint16_t slider_raw_t[32];
 // sliders[] (so holding Quantize to pick a scale doesn't move any stage).
 volatile uint8_t scale_select_freeze = 0;
 
+// Per-slider two-point calibration: calibrated = (raw - off) * scale, clamped.
+// Defaults (off 0, scale 1) are passthrough = raw, i.e. today's behaviour.
+#define SLIDER_CAL_MIN_SPAN 1000
+static float slider_v_off[32], slider_v_scale[32];
+static float slider_t_off[32], slider_t_scale[32];
+
+static inline uint16_t slider_cal_apply(float off, float scale, uint16_t raw) {
+  if (scale <= 0.0f) return raw;                 // safety / passthrough
+  float v = ((float) raw - off) * scale;
+  if (v < 0.0f) v = 0.0f;
+  if (v > 4095.0f) v = 4095.0f;
+  return (uint16_t) (v + 0.5f);
+}
+
+// Reset slider calibration to passthrough (raw 0..4095).
+void ClearSliderCalibration(void) {
+  for (uint8_t i = 0; i < 32; i++) {
+    slider_v_off[i] = 0.0f; slider_v_scale[i] = 1.0f;
+    slider_t_off[i] = 0.0f; slider_t_scale[i] = 1.0f;
+  }
+}
+
+// Apply two-point slider calibration from captured min/max. A slider whose span
+// is implausibly small falls back to passthrough so a botched pass can't kill it.
+void SetSliderCalibration(const uint16_t *v_min, const uint16_t *v_max,
+                          const uint16_t *t_min, const uint16_t *t_max) {
+  for (uint8_t i = 0; i < 32; i++) {
+    int vs = (int) v_max[i] - (int) v_min[i];
+    if (vs >= SLIDER_CAL_MIN_SPAN) {
+      slider_v_off[i] = (float) v_min[i]; slider_v_scale[i] = 4095.0f / (float) vs;
+    } else { slider_v_off[i] = 0.0f; slider_v_scale[i] = 1.0f; }
+    int ts = (int) t_max[i] - (int) t_min[i];
+    if (ts >= SLIDER_CAL_MIN_SPAN) {
+      slider_t_off[i] = (float) t_min[i]; slider_t_scale[i] = 4095.0f / (float) ts;
+    } else { slider_t_off[i] = 0.0f; slider_t_scale[i] = 1.0f; }
+  }
+}
+
 void InitProgram() {
   uStep clear_step = {{ 0x00, 0x00, 0x00 }};
   clear_step.b.TimeRange_3 = 1;   // default to the 3 s range (was 30 s)
@@ -38,6 +76,7 @@ void InitProgram() {
     sliders[s] = clear_slider;
   };
   unpin_all_sliders();
+  ClearSliderCalibration();   // passthrough until a two-point cal is loaded
 }
 
 // Randomize the program: every active stage gets random slider values, a random
@@ -69,12 +108,11 @@ void RandomizeProgram(void) {
     s.b.OutputPulse1 = (r >> 5) & 1;
     s.b.OutputPulse2 = (r >> 6) & 1;
 
-    // Time range: exactly one of the four.
-    switch ((r >> 8) & 3) {
+    // Time range: one of the three faster ranges (never the slow 30 s range).
+    switch ((r >> 8) % 3) {
       case 0:  s.b.TimeRange_p03 = 1; break;
       case 1:  s.b.TimeRange_p3  = 1; break;
-      case 2:  s.b.TimeRange_3   = 1; break;
-      default: s.b.TimeRange_30  = 1; break;
+      default: s.b.TimeRange_3   = 1; break;
     }
 
     // Keep sources internal and op-modes off; mark the random loop length.
@@ -195,6 +233,7 @@ void WriteVoltageSlider(uint8_t slider_num, uint32_t new_adc_reading) {
 
   uint16_t adc_reading = (uint16_t) (new_adc_reading & 0xfff);
   uint16_t smoothed = apply_voltage_smoother(adc_reading << 4, &voltage_smoothers[slider_num]);
+  smoothed = slider_cal_apply(slider_v_off[slider_num], slider_v_scale[slider_num], smoothed);
 
   slider_raw_v[slider_num] = smoothed;     // always track the live position
   if (scale_select_freeze) return;          // frozen: don't commit or unpin
@@ -216,6 +255,7 @@ void WriteTimeSlider(uint8_t slider_num, uint32_t new_adc_reading) {
 
   uint16_t adc_reading = (uint16_t) (new_adc_reading & 0xfff) << 4;
   uint16_t smoothed = apply_voltage_smoother(adc_reading, &time_smoothers[slider_num]);
+  smoothed = slider_cal_apply(slider_t_off[slider_num], slider_t_scale[slider_num], smoothed);
 
   slider_raw_t[slider_num] = smoothed;     // always track the live position
   if (scale_select_freeze) return;          // frozen: don't commit or unpin

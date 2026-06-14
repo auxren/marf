@@ -1,12 +1,16 @@
 # 3. Calibration
 
 **Calibration is required** after flashing the firmware. Because of the
-module's hardware design, the firmware needs to learn the full‑scale reading of
-each panel control and external input; without calibration, panel controls and
-external inputs will not behave correctly.
+module's hardware design, the firmware needs to learn the reading of each panel
+control and external input; without calibration, panel controls and external
+inputs will not behave correctly.
+
+Calibration is **two‑pass** (a high point and a low point), which lets the
+firmware learn both the **range and offset** of every slider, knob and input —
+so the sliders use their full travel and the inputs track accurately.
 
 You will need a **calibrated 10 V source** (a precise, known voltage) to apply
-to the external inputs.
+to the external inputs (and 0 V / unpatched for the low pass).
 
 ## DIP switches first
 
@@ -26,21 +30,24 @@ If neither switch 1 nor 2 is on, the module uses 2 V/octave.
 
 1. **Hold down Stage Address 1 *Advance*** while powering the module on. The
    module enters calibration mode — you will see the Run/Wait/Stop LEDs cycling.
-2. **Turn all pots to maximum.** (Slider positions do not matter for
-   calibration.)
-3. **Apply a calibrated 10 V source to all four external inputs.**
-4. *(Optional — pulse LED swap.)* Some hardware revisions have the Pulse 1 / 2
+   (Display LED **I** indicates the high pass.)
+2. **High pass — set everything to maximum:** turn all **knobs and sliders** to
+   max, and **apply a calibrated 10 V source to all four external inputs.**
+3. *(Optional — pulse LED swap.)* Some hardware revisions have the Pulse 1 / 2
    LEDs reversed. If yours does, select **Pulse 2 up** to swap them (the lit LED
    moves to Pulse 2). Select **Pulse 1 up** to swap back to normal. Skip this if
    your pulse LEDs already read correctly.
-5. *(Optional — pulse channel swap.)* Some units have the Pulse 1 / 2
+4. *(Optional — pulse channel swap.)* Some units have the Pulse 1 / 2
    *switches and output jacks* reversed (the Pulse 1 switch programs Pulse 2 and
    the pulse comes out the Pulse 2 jack, etc.). If yours does, select **Time
    Source External up** to swap the pulse channels (both switches and outputs);
    select **Time Source Internal up** to leave them normal. This is independent
-   of the LED swap above. Skip it if your pulse switches and jacks already
-   match.
-6. **Press Stage Address 2 *Advance*** to save the calibration.
+   of the LED swap above. Skip it if your pulse switches and jacks already match.
+5. **Press Stage Address 1 *Advance*** to capture the high point. Display LED
+   **II** now indicates the low pass.
+6. **Low pass — set everything to minimum:** turn all **knobs and sliders** to
+   min, and apply **0 V** (or unpatch) the four external inputs.
+7. **Press Stage Address 2 *Advance*** to capture the low point and save.
 
 > **This erases the entire EEPROM, including all saved programs.** Calibrate
 > before you store programs you care about.

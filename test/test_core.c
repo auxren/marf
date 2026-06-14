@@ -204,6 +204,39 @@ static void test_randomize_program(void) {
   CHECK(time_slider_pins.low == 0xFFFFFFFF);
 }
 
+static void test_twopoint_input_cal(void) {
+  printf("test_twopoint_input_cal\n");
+  uint16_t mn[8], mx[8];
+  for (int i = 0; i < 8; i++) { mn[i] = 200; mx[i] = 4000; }
+  SetTwoPointInputCalibration(mn, mx);
+  add_data[0] = 200;  CHECK_NEAR(read_calibrated_add_data_float(0), 0.0, 1.0);
+  add_data[0] = 4000; CHECK_NEAR(read_calibrated_add_data_float(0), 4095.0, 1.0);
+  add_data[0] = 2100; CHECK_NEAR(read_calibrated_add_data_float(0),
+                                 (2100.0 - 200.0) * 4095.0 / (4000.0 - 200.0), 1.0);
+  add_data[0] = 50;   CHECK(read_calibrated_add_data_float(0) == 0.0);   /* clamp low */
+  /* span too small -> falls back to gain-only (off 0); external_cal defaults to 1 */
+  mn[1] = 2000; mx[1] = 2400;
+  SetTwoPointInputCalibration(mn, mx);
+  add_data[1] = 1500; CHECK_NEAR(read_calibrated_add_data_float(1), 1500.0 * external_cal[1], 1.0);
+}
+
+static void test_twopoint_slider_cal(void) {
+  printf("test_twopoint_slider_cal\n");
+  uint16_t vmn[32], vmx[32], tmn[32], tmx[32];
+  for (int i = 0; i < 32; i++) { vmn[i] = 300; vmx[i] = 3900; tmn[i] = 300; tmx[i] = 3900; }
+  SetSliderCalibration(vmn, vmx, tmn, tmx);
+  unpin_all_sliders();
+  scale_select_freeze = 0;
+  for (int n = 0; n < 100; n++) WriteVoltageSlider(0, 3900);
+  CHECK(sliders[0].VLevel >= 4080);                 /* max -> full scale */
+  for (int n = 0; n < 100; n++) WriteVoltageSlider(0, 300);
+  CHECK(sliders[0].VLevel <= 15);                   /* min -> zero */
+  /* passthrough after clear */
+  ClearSliderCalibration();
+  for (int n = 0; n < 100; n++) WriteVoltageSlider(0, 2000);
+  CHECK_NEAR((double) sliders[0].VLevel, 2000.0, 30.0);
+}
+
 int main(void) {
   test_step_voltage_full_range();
   test_step_voltage_quantize();
@@ -216,6 +249,8 @@ int main(void) {
   test_per_sequence_scale();
   test_override_wins();
   test_randomize_program();
+  test_twopoint_input_cal();
+  test_twopoint_slider_cal();
   run_storage_tests();
   run_scales_tests();
   run_turing_tests();

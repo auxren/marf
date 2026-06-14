@@ -45,6 +45,13 @@ void SenseExternalInputs(void);
 // Calibration scalers for external inputs, precomputed in setup
 extern float external_cal[8];
 
+// Two-point (offset + gain) correction: calibrated = (raw - off) * scale.
+extern float external_off[8];
+extern float external_scale[8];
+
+// Upgrade the 8 input/knob channels to two-point cal from captured min/max.
+void SetTwoPointInputCalibration(const uint16_t *adc2_min, const uint16_t *adc2_max);
+
 // Precomputed magic numbers for voltage scaling
 // In the context of 12 bit range / 0.0 - 4095.0
 
@@ -86,12 +93,15 @@ static inline uint16_t apply_voltage_smoother(uint16_t new_reading, volatile uin
   return *state >> 4;
 }
 
-static inline uint16_t read_calibrated_add_data_uint16(uint8_t d) {
-  return (uint16_t) ((float) add_data[d] * external_cal[d] + 0.5);
+static inline float read_calibrated_add_data_float(uint8_t d) {
+  float v = ((float) add_data[d] - external_off[d]) * external_scale[d];
+  if (v < 0.0f) v = 0.0f;
+  if (v > 4095.0f) v = 4095.0f;
+  return v;
 }
 
-static inline float read_calibrated_add_data_float(uint8_t d) {
-  return ((float) add_data[d]) * external_cal[d];
+static inline uint16_t read_calibrated_add_data_uint16(uint8_t d) {
+  return (uint16_t) (read_calibrated_add_data_float(d) + 0.5f);
 }
 
 void WriteOtherCv(uint8_t cv_num, uint32_t new_adc_reading);

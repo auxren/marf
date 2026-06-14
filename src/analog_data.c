@@ -32,6 +32,17 @@ volatile uint16_t cal_constants[8] = {0xFFF, 0xFFF, 0xFFF, 0xFFF, 0xFFF, 0xFFF, 
 // Calibration scalers for external inputs, precomputed in setup
 float external_cal[8] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 
+// Two-point (offset + gain) correction applied at read time:
+//   calibrated = (raw - external_off) * external_scale
+// Defaults (off 0, scale = external_cal) reproduce the legacy gain-only cal, so
+// behaviour is unchanged until SetTwoPointInputCalibration() supplies a min.
+float external_off[8]   = {0, 0, 0, 0, 0, 0, 0, 0};
+float external_scale[8] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+// Minimum plausible span (max-min) for a two-point channel; below this the
+// captured calibration is treated as bogus and that channel falls back.
+#define TWOPOINT_MIN_SPAN 1000
+
 PulseInputs PULSE_INPUTS_NONE = { 0, 0, 0 };
 
 // Precomputed magic numbers for voltage scaling
@@ -86,6 +97,24 @@ void PrecomputeCalibration(void) {
       cal_constants[i] = 4095;
     }
     external_cal[i] = 4095.0 / (float) cal_constants[i];
+    // Default the two-point correction to the legacy gain-only behaviour.
+    external_off[i]   = 0.0f;
+    external_scale[i] = external_cal[i];
+  }
+}
+
+// Upgrade the 8 input/knob channels to two-point (offset + gain) from captured
+// min/max. Any channel with too small a span keeps the legacy gain-only cal.
+void SetTwoPointInputCalibration(const uint16_t *adc2_min, const uint16_t *adc2_max) {
+  for (uint8_t i = 0; i < 8; i++) {
+    int span = (int) adc2_max[i] - (int) adc2_min[i];
+    if (span >= TWOPOINT_MIN_SPAN) {
+      external_off[i]   = (float) adc2_min[i];
+      external_scale[i] = 4095.0f / (float) span;
+    } else {
+      external_off[i]   = 0.0f;
+      external_scale[i] = external_cal[i];
+    }
   }
 }
 

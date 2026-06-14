@@ -714,88 +714,116 @@ void ControllerCheckClear() {
   }
 }
 
+// Advance the ADC mux one step (used while scanning during calibration).
+static void cal_scan_step(void) {
+  if (controller_job_flags.adc_mux_shift_out) {
+    controller_job_flags.inhibit_adc = 1;
+    if (Is_Expander_Present()) {
+      controller_job_flags.adc_pot_sel = AdcMuxAdvanceExpanded(controller_job_flags.adc_pot_sel);
+    } else {
+      controller_job_flags.adc_pot_sel = AdcMuxAdvance(controller_job_flags.adc_pot_sel);
+    }
+    controller_job_flags.adc_mux_shift_out = 0;
+    delay_ms(10);
+    controller_job_flags.inhibit_adc = 0;
+  }
+}
+
+// Two-pass calibration. Pass 1 (everything at max, 10 V on the inputs): press
+// Stage Address 1 Advance to capture the high point. Pass 2 (everything at min,
+// 0 V on the inputs): press Stage Address 2 Advance to capture the low point and
+// save. Captures per-slider and per-input min/max for offset+gain correction,
+// plus the legacy gain-only record so old behaviour survives if the new record
+// is ever lost. The pulse LED/channel swap selections happen during pass 1.
 void ControllerCalibrationLoop() {
     uButtons switches;
-    switches.value = HC165_ReadSwitches();
+    uint16_t v_max[32], v_min[32], t_max[32], t_min[32];
+    uint16_t adc2_max[8], adc2_min[8];
+    uint8_t max_captured = 0;
+    uint8_t afg1_released = 0;     // Advance 1 was held to enter; require release
 
+    ClearSliderCalibration();      // capture RAW slider readings during cal
     DISPLAY_LED_I_OFF;
     DISPLAY_LED_II_OFF;
 
-    // Run animation, and continue doing adc reads until stage 2 advance is pressed
-    while (switches.b.StageAddress2Advance) {
+    switches.value = HC165_ReadSwitches();
+
+    while (1) {
       RunCalibrationAnimation();
       switches.value = HC165_ReadSwitches();
 
-      if (!switches.b.Pulse1On) {
-        // Choose normal behavior
-        swapped_pulses = 0;
-      } else if (!switches.b.Pulse2On) {
-        // Choose swapped pulse leds behavior
-        swapped_pulses = 1;
+      // Pass indicator: Display I during max pass, Display II during min pass.
+      if (max_captured) { DISPLAY_LED_I_OFF; DISPLAY_LED_II_ON; }
+      else              { DISPLAY_LED_I_ON;  DISPLAY_LED_II_OFF; }
+
+      // Pulse LED swap selection
+      if (!switches.b.Pulse1On) swapped_pulses = 0;
+      else if (!switches.b.Pulse2On) swapped_pulses = 1;
+      // Pulse channel (switch + output) swap selection
+      if (!switches.b.TimeSourceExternal) swapped_pulse_switches = 1;
+      else if (!switches.b.TimeSourceInternal) swapped_pulse_switches = 0;
+
+      cal_scan_step();
+
+      // Stage Address 1 Advance captures the MAX point (after the boot-hold is
+      // released and re-pressed).
+      if (switches.b.StageAddress1Advance) {
+        afg1_released = 1;
+      } else if (afg1_released && !max_captured) {
+        adc_pause();
+        for (uint8_t i = 0; i < 32; i++) { v_max[i] = slider_raw_v[i]; t_max[i] = slider_raw_t[i]; }
+        for (uint8_t c = 0; c < 8; c++) adc2_max[c] = add_data[c];
+        adc_resume();
+        max_captured = 1;
       }
 
-      // Pulse-SWITCH swap (independent of the LED swap above), for units whose
-      // Pulse 1/2 switch inputs are reversed. Time Source External up = swap,
-      // Time Source Internal up = normal.
-      if (!switches.b.TimeSourceExternal) {
-        swapped_pulse_switches = 1;
-      } else if (!switches.b.TimeSourceInternal) {
-        swapped_pulse_switches = 0;
-      }
+      // Stage Address 2 Advance captures the MIN point and finishes.
+      if (!switches.b.StageAddress2Advance && max_captured) break;
+    }
 
-      // Shift adc mux if time
-      if (controller_job_flags.adc_mux_shift_out) {
-        // Disable conversion during shift
-        controller_job_flags.inhibit_adc = 1;
-        if (Is_Expander_Present()) {
-          // Increment the slider, including expander sliders
-          controller_job_flags.adc_pot_sel = AdcMuxAdvanceExpanded(controller_job_flags.adc_pot_sel);
-        } else {
-          // Increments the slider
-          controller_job_flags.adc_pot_sel = AdcMuxAdvance(controller_job_flags.adc_pot_sel);
-        }
-        controller_job_flags.adc_mux_shift_out = 0;
-        // Wait for settle
-        delay_ms(10);
-        // Reenable conversion again
-        controller_job_flags.inhibit_adc = 0;
-      }
-    } // End read loop
-
-    // Read calibration constants
+    // Capture the MIN point.
     adc_pause();
+    for (uint8_t i = 0; i < 32; i++) { v_min[i] = slider_raw_v[i]; t_min[i] = slider_raw_t[i]; }
+    for (uint8_t c = 0; c < 8; c++) adc2_min[c] = add_data[c];
+
+    // Legacy gain-only record: the max readings of the 8 input/knob channels.
     for (uint8_t c = 0; c < 8 ; c++) {
-      cal_constants[c] = add_data[c];
-      if (cal_constants[c] < 500) {
-        // Capture time: a real full-scale (10v / pot maxed) reading is near
-        // 4095. Anything this low means the input is unpatched or broken, so
-        // store a unity-ish constant rather than a huge scaler.
-        // (See the lower <100 guard in PrecomputeCalibration, which catches
-        // disconnected/garbage values read back from a blank eprom.)
-        cal_constants[c] = 4095;
-      }
-    };
-    // Pack the calibration constants and pulse-led flag into a versioned,
-    // checksummed record.
+      cal_constants[c] = adc2_max[c];
+      if (cal_constants[c] < 500) cal_constants[c] = 4095;
+    }
     StoredCal cal;
     for (uint8_t c = 0; c < 8; c++) cal.payload.cal_constants[c] = cal_constants[c];
     cal.payload.swapped_pulses = swapped_pulses;
     cal.payload.swapped_pulse_switches = swapped_pulse_switches;
     marf_stored_cal_finalize(&cal);
 
+    // Two-point record (per-slider + per-input min/max).
+    StoredTwoPointCal tp;
+    for (uint8_t i = 0; i < 32; i++) {
+      tp.payload.v_min[i] = v_min[i]; tp.payload.v_max[i] = v_max[i];
+      tp.payload.t_min[i] = t_min[i]; tp.payload.t_max[i] = t_max[i];
+    }
+    for (uint8_t c = 0; c < 8; c++) {
+      tp.payload.adc2_min[c] = adc2_min[c]; tp.payload.adc2_max[c] = adc2_max[c];
+    }
+    marf_stored_twopoint_finalize(&tp);
+
     __disable_irq();
-
-    // Erase EPROM
     CAT25512_erase();
-
-    // Store the calibration record to eprom
-    CAT25512_write_block(
-        eprom_memory.analog_cal_data.start,
-        (unsigned char *) &cal,
-        eprom_memory.analog_cal_data.size);
-
+    CAT25512_write_block(eprom_memory.analog_cal_data.start,
+        (unsigned char *) &cal, eprom_memory.analog_cal_data.size);
+    CAT25512_write_block(eprom_memory.twopoint_cal_data.start,
+        (unsigned char *) &tp, eprom_memory.twopoint_cal_data.size);
     __enable_irq();
     adc_resume();
+
+    // Apply immediately (no reboot needed).
+    PrecomputeCalibration();
+    SetTwoPointInputCalibration(adc2_min, adc2_max);
+    SetSliderCalibration(v_min, v_max, t_min, t_max);
+
+    DISPLAY_LED_I_OFF;
+    DISPLAY_LED_II_OFF;
 }
 
 void ControllerLoadCalibration() {
@@ -819,8 +847,24 @@ void ControllerLoadCalibration() {
     swapped_pulse_switches = 0;
   }
 
-  // Precompute scalers from calibration data
+  // Precompute scalers from calibration data (legacy gain-only baseline).
   PrecomputeCalibration();
+
+  // Optional two-point calibration: upgrade inputs to offset+gain and apply
+  // per-slider calibration. Absent/corrupt -> keep the gain-only baseline and
+  // raw (passthrough) sliders, i.e. the older behaviour.
+  StoredTwoPointCal tp;
+  CAT25512_read_block(
+      eprom_memory.twopoint_cal_data.start,
+      (unsigned char *) &tp,
+      eprom_memory.twopoint_cal_data.size);
+  if (marf_stored_twopoint_valid(&tp)) {
+    SetTwoPointInputCalibration(tp.payload.adc2_min, tp.payload.adc2_max);
+    SetSliderCalibration(tp.payload.v_min, tp.payload.v_max,
+                         tp.payload.t_min, tp.payload.t_max);
+  } else {
+    ClearSliderCalibration();
+  }
 }
 
 

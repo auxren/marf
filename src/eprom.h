@@ -20,6 +20,9 @@ typedef struct {
 
   // Analog calibration data + pulse-led-swap flag (versioned StoredCal)
   MemoryRange analog_cal_data;
+
+  // Optional two-point (min/max) slider + input calibration (StoredTwoPointCal)
+  MemoryRange twopoint_cal_data;
 } EpromMemory;
 
 extern EpromMemory eprom_memory;

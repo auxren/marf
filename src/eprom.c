@@ -15,8 +15,9 @@ EpromMemory eprom_memory = {};
 // format (more slots or a larger StoredProgram) can never overwrite calibration
 // -- which keeps the "no recalibration from 3.0 on" promise intact even as the
 // program format evolves. Fails the build if the head region reaches the tail.
-_Static_assert(16 * sizeof(StoredProgram) <= (0xFFFFu - sizeof(StoredCal)),
-               "saved-program region overlaps the calibration record at the EEPROM tail");
+_Static_assert(16 * sizeof(StoredProgram) <=
+                   (0xFFFFu - sizeof(StoredCal) - sizeof(StoredTwoPointCal)),
+               "saved-program region overlaps the calibration records at the EEPROM tail");
 
 void EpromInitializeMemoryLayout() {
   volatile uint16_t start = 0, size = 0; // in bytes
@@ -35,4 +36,10 @@ void EpromInitializeMemoryLayout() {
   start -= size;
   eprom_memory.analog_cal_data.start = start;
   eprom_memory.analog_cal_data.size = size;
+
+  // Optional two-point calibration record, just below the cal record.
+  size = sizeof(StoredTwoPointCal);
+  start -= size;
+  eprom_memory.twopoint_cal_data.start = start;
+  eprom_memory.twopoint_cal_data.size = size;
 }

@@ -107,6 +107,12 @@ void WriteVoltageSlider(uint8_t slider_num, uint32_t new_adc_reading);
 
 void WriteTimeSlider(uint8_t slider_num, uint32_t new_adc_reading);
 
+// Two-point slider calibration. ClearSliderCalibration() = passthrough (raw);
+// SetSliderCalibration() applies captured per-slider min/max (offset + gain).
+void ClearSliderCalibration(void);
+void SetSliderCalibration(const uint16_t *v_min, const uint16_t *v_max,
+                          const uint16_t *t_min, const uint16_t *t_max);
+
 void WriteOtherCv(uint8_t cv_num, uint32_t new_adc_reading);
 
 // Return the voltage for step number in section, quantized (when the step's
