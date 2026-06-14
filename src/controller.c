@@ -223,19 +223,10 @@ void ControllerMainLoop() {
     // step LEDs (read as hex nibbles); roots and Turing values stay single-LED.
     if (scale_select_active) {
       if (scale_select_bar) {
-        // Pulse-width gesture. While the displayed sequence is RUNNING, keep
-        // showing the live step position (the normal playhead from
-        // UpdateStepSectionLeds) so you can watch the stages play; only show the
-        // static width bar when it is stopped.
-        AfgControllerState da = (display_mode == DISPLAY_MODE_VIEW_2 ||
-                                 display_mode == DISPLAY_MODE_EDIT_2)
-                                ? AfgGetControllerState(AFG2)
-                                : AfgGetControllerState(AFG1);
-        if (da.mode != MODE_RUN) {
-          // Filled bar: LEDs 0..value lit. Clamp to 15 so the shift is never >= 32.
-          uint8_t bar = scale_select_value > 15 ? 15 : scale_select_value;
-          steps_leds_lit = 0xFFFFFFFFu & ~(((1UL << (bar + 1)) - 1UL));
-        }
+        // Pulse-width gesture: filled bar, LEDs 0..value lit. Clamp to 15 so the
+        // shift is never >= 32.
+        uint8_t bar = scale_select_value > 15 ? 15 : scale_select_value;
+        steps_leds_lit = 0xFFFFFFFFu & ~(((1UL << (bar + 1)) - 1UL));
       } else if (scale_select_binary) {
         steps_leds_lit = 0xFFFFFFFFu & ~((uint32_t) scale_select_value);
       } else {
