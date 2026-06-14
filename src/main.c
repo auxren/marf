@@ -25,6 +25,7 @@
 #include "eprom.h"
 #include "constants.h"
 #include "watchdog.h"
+#include "turing.h"
 
 // Dip switch state
 volatile uDipConfig dip_config;
@@ -637,6 +638,7 @@ int main(void) {
   mInterruptInit();
   InternalDACInit();
   DisplayAllInitialize();
+  turing_machines_init();
 
   // Settle down
   delay_ms(50);

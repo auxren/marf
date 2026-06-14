@@ -15,6 +15,7 @@
 #include "analog_data.h"
 #include "watchdog.h"
 #include "scales.h"
+#include "turing.h"
 
 // Step selected for editing (0-31)
 volatile uint8_t edit_mode_step_num = 0;
@@ -153,11 +154,20 @@ void ControllerMainLoop() {
     }
 
     // Step programming can be applied continuously to be more responsive,
-    // eg when the clock is running fast.
-    ControllerApplyProgrammingSwitches(&switches);
+    // eg when the clock is running fast. (Suppressed while the Turing chord is
+    // held so entering Turing mode doesn't reprogram the current step.)
+    uint8_t turing_chord = !switches.b.OutputQuantize && !switches.b.SourceExternal;
+    if (!turing_chord) {
+      ControllerApplyProgrammingSwitches(&switches);
+    }
 
     // Quantize-held + slider selects the sequence's scale/root
     ControllerProcessScaleSelect(&switches);
+
+    // Source-External + Quantize chord toggles Turing mode; external inputs
+    // clock the per-stage shift registers.
+    ControllerProcessTuring(&switches);
+    ControllerProcessTuringClocks();
 
     // Update panel state
     UpdateModeSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_section, edit_mode_step_num);
@@ -169,6 +179,17 @@ void ControllerMainLoop() {
     // (this overrides the normal step display until the gesture is released).
     if (scale_select_active) {
       steps_leds_lit = 0xFFFFFFFF & ~(1UL << scale_select_value);
+    }
+
+    // Blink the voltage-source LED while Turing mode is on for the displayed
+    // sequence. (A true brightness "breathe" needs a faster PWM refresh -- a
+    // later refinement; this blink is the first-pass indicator.)
+    {
+      uint8_t disp_afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
+                          display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
+      if (turing_enabled[disp_afg]) {
+        mode_leds_lit.b.VoltageSource = ((get_millis() / 400) & 1) ? 1 : 0; // 0 = lit
+      }
     }
 
 
@@ -254,6 +275,51 @@ void ControllerProcessScaleSelect(uButtons * key) {
     // current position -- no pinning, no need to sweep it back through).
     active = 0;
     scale_select_active = 0;
+  }
+}
+
+// Turing mode enable chord.
+// Holding Source-External AND Quantize together for ~0.8 s toggles Turing mode
+// for the displayed sequence (one toggle per hold). When on, external-source
+// steps take their voltage from this stage's shift register.
+void ControllerProcessTuring(uButtons * key) {
+  static uint8_t state = 0;        // 0 idle, 1 timing, 2 toggled (await release)
+  static uint32_t start = 0;
+
+  uint8_t both_held = !key->b.OutputQuantize && !key->b.SourceExternal;
+
+  if (both_held) {
+    if (state == 0) { state = 1; start = get_millis(); }
+    else if (state == 1 && (get_millis() - start) > 800) {
+      uint8_t afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
+                     display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
+      turing_enabled[afg] ^= 1;
+      state = 2;
+    }
+  } else {
+    state = 0;
+  }
+}
+
+// Clock the per-stage shift registers from the four external inputs.
+// A rising edge on external input k clocks every stage assigned to clock k,
+// with the stage's voltage slider acting as the Turing "big knob".
+void ControllerProcessTuringClocks(void) {
+  static uint16_t prev[4] = { 0, 0, 0, 0 };
+
+  if (!turing_enabled[0] && !turing_enabled[1]) return;
+
+  for (uint8_t k = 0; k < 4; k++) {
+    uint16_t v = add_data[k];
+    uint8_t rising = (prev[k] < 2048) && (v >= 2048);
+    prev[k] = v;
+    if (rising) {
+      for (uint8_t s = 0; s < TURING_NUM_STAGES; s++) {
+        if (get_step_programming(0, s).b.TuringClock == k) {
+          turing_clock(&turing_machines[s], sliders[s].VLevel);
+        }
+      }
+    }
   }
 }
 

@@ -7,6 +7,7 @@
 #include "MAX5135.h"
 #include "program.h"
 #include "scales.h"
+#include "turing.h"
 #include "cycle_counter.h"
 #include "delays.h"
 
@@ -291,7 +292,14 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
 
   // Now set output voltages
   // Compute the current step's programmed voltage output
-  output_voltage = GetStepVoltage(afg->section, afg->step_num, afg_scale[afg_num], afg_root[afg_num]);
+  // When Turing mode is on for this sequence, an external-source step takes its
+  // voltage from this stage's shift register instead of the external input.
+  uint8_t turing_global = afg->step_num + (afg->section << 4);
+  uint8_t use_turing = turing_enabled[afg_num] && step.b.VoltageSource;
+  uint16_t turing_v = use_turing ? turing_value(&turing_machines[turing_global]) : 0;
+  output_voltage = GetStepVoltage(afg->section, afg->step_num,
+                                  afg_scale[afg_num], afg_root[afg_num],
+                                  turing_v, use_turing);
   afg->step_level = output_voltage;
 
   // Set AFG time out value

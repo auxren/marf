@@ -62,3 +62,14 @@ uint16_t turing_value(const TuringMachine *t) {
   uint16_t v = (uint16_t) (t->bits & 0xFFu);
   return (uint16_t) (((uint32_t) v * 4095u) / 255u);
 }
+
+// ---- MARF runtime state ---------------------------------------------------
+TuringMachine turing_machines[TURING_NUM_STAGES];
+volatile uint8_t turing_enabled[2] = { 0, 0 };
+
+void turing_machines_init(void) {
+  turing_seed(0xC0FFEEu);   // re-seeded from the cycle counter by the caller if desired
+  for (uint8_t i = 0; i < TURING_NUM_STAGES; i++) {
+    turing_init(&turing_machines[i], 8);
+  }
+}

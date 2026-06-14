@@ -35,7 +35,8 @@ typedef union
     unsigned int TimeSource:1;
     unsigned int OutputPulse1:1;
     unsigned int OutputPulse2:1;
-    unsigned int Unused:4;
+    unsigned int TuringClock:2;   // which external jack (0-3) clocks this stage's register
+    unsigned int TuringLength:4;  // shift register length, stored as length-2 (0..14 -> 2..16)
   } b;
   unsigned char val[3];
 } uStep;
@@ -99,8 +100,11 @@ void WriteTimeSlider(uint8_t slider_num, uint32_t new_adc_reading);
 void WriteOtherCv(uint8_t cv_num, uint32_t new_adc_reading);
 
 // Return the voltage for step number in section, quantized (when the step's
-// Quantize bit is set) to the given scale/root.
-float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root);
+// Quantize bit is set) to the given scale/root. When use_override is set, an
+// external-source step uses override_value (0..4095) instead of reading an
+// external input -- used to feed in a Turing-machine value.
+float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root,
+                     uint16_t override_value, uint8_t use_override);
 
 // The time multiplier panel is marked for log scale (0.5, 1, 2, 4) but linear pots are used.
 

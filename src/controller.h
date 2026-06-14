@@ -48,6 +48,10 @@ void ControllerApplyProgrammingSwitches(uButtons * key);
 
 void ControllerProcessScaleSelect(uButtons * key);
 
+void ControllerProcessTuring(uButtons * key);
+
+void ControllerProcessTuringClocks(void);
+
 void ControllerProcessStageAddressSwitches(uButtons * key);
 
 void ControllerProcessNavigationSwitches(uButtons* key);

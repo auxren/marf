@@ -44,4 +44,14 @@ void turing_clock(TuringMachine *t, uint16_t change);
 // Current output value, scaled to 0..4095.
 uint16_t turing_value(const TuringMachine *t);
 
+// ---- MARF runtime state ---------------------------------------------------
+// One machine per stage (16, or 32 with an expander), plus a per-sequence
+// enable flag. Defined in turing.c.
+#define TURING_NUM_STAGES 32
+extern TuringMachine turing_machines[TURING_NUM_STAGES];
+extern volatile uint8_t turing_enabled[2];   // per AFG
+
+// Seed the PRNG and initialise every stage machine (default length).
+void turing_machines_init(void);
+
 #endif

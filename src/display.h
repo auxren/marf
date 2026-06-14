@@ -4,6 +4,7 @@
 #include <stm32f4xx.h>
 
 #include "program.h"
+#include "leds_modes.h"
 
 // Union with flags which allows to update different parts of panel
 typedef union {
@@ -26,6 +27,10 @@ extern volatile uDisplayUpdateFlag display_update_flags;
 // Bit mask of lit step LEDs (active low). Exposed so the controller can
 // override the step display (e.g. to show a scale number while selecting).
 extern uint32_t steps_leds_lit;
+
+// Mode/programming LEDs (active low). Exposed so the controller can override
+// an indicator (e.g. blink the voltage-source LED in Turing mode).
+extern uLeds mode_leds_lit;
 
 // Display modes
 #define DISPLAY_MODE_VIEW_1       0

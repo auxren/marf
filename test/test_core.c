@@ -45,10 +45,10 @@ static void test_step_voltage_full_range(void) {
   printf("test_step_voltage_full_range\n");
   clear_steps();
   sliders[0].VLevel = 2048;          /* internal slider, full range, no quantize */
-  CHECK_NEAR(GetStepVoltage(0, 0, SCALE_CHROMATIC, 0), 2048.0, 0.5);
+  CHECK_NEAR(GetStepVoltage(0, 0, SCALE_CHROMATIC, 0, 0, 0), 2048.0, 0.5);
 
   sliders[1].VLevel = 9000;          /* above 12-bit range -> clamps to 4095 */
-  CHECK_NEAR(GetStepVoltage(0, 1, SCALE_CHROMATIC, 0), 4095.0, 0.5);
+  CHECK_NEAR(GetStepVoltage(0, 1, SCALE_CHROMATIC, 0, 0, 0), 4095.0, 0.5);
 }
 
 static void test_step_voltage_quantize(void) {
@@ -57,7 +57,7 @@ static void test_step_voltage_quantize(void) {
   use_1v2_per_octave();
   steps[0].b.Quantize = 1;
   sliders[0].VLevel = 2048;
-  float v = GetStepVoltage(0, 0, SCALE_CHROMATIC, 0);
+  float v = GetStepVoltage(0, 0, SCALE_CHROMATIC, 0, 0, 0);
   /* Output must be an integer number of semitones and within half a semitone. */
   extern float semitone_offset;
   double semis = v / semitone_offset;
@@ -71,7 +71,7 @@ static void test_step_voltage_section_shift(void) {
   /* section 1 reads steps[16+n] programming but slider[n] (physical slider) */
   sliders[0].VLevel = 1000;
   steps[16].b.FullRange = 1;
-  CHECK_NEAR(GetStepVoltage(1, 0, SCALE_CHROMATIC, 0), 1000.0, 0.5);
+  CHECK_NEAR(GetStepVoltage(1, 0, SCALE_CHROMATIC, 0, 0, 0), 1000.0, 0.5);
 }
 
 static void test_step_width(void) {
@@ -123,7 +123,7 @@ static void test_step_voltage_scale_quantize(void) {
   /* Every quantized output must land on a C-major scale degree. */
   for (int vl = 0; vl <= 4095; vl += 137) {
     sliders[0].VLevel = (uint16_t) vl;
-    float v = GetStepVoltage(0, 0, SCALE_MAJOR, 0);
+    float v = GetStepVoltage(0, 0, SCALE_MAJOR, 0, 0, 0);
     int semi = (int) (v / semitone_offset + 0.5f);
     int pc = ((semi % 12) + 12) % 12;
     CHECK((scale_mask(SCALE_MAJOR) >> pc) & 1u);
@@ -138,8 +138,8 @@ static void test_per_sequence_scale(void) {
   extern float semitone_offset;
   steps[0].b.Quantize = 1;
   sliders[0].VLevel = 2048;
-  float a = GetStepVoltage(0, 0, SCALE_MAJOR, 0);          /* AFG I: C major */
-  float b = GetStepVoltage(0, 0, SCALE_NATURAL_MINOR, 9);  /* AFG II: A minor */
+  float a = GetStepVoltage(0, 0, SCALE_MAJOR, 0, 0, 0);          /* AFG I: C major */
+  float b = GetStepVoltage(0, 0, SCALE_NATURAL_MINOR, 9, 0, 0);  /* AFG II: A minor */
   int sa = ((int)(a / semitone_offset + 0.5f) % 12 + 12) % 12;
   int sb = ((int)(b / semitone_offset + 0.5f) % 12 + 12) % 12;
   CHECK((scale_mask(SCALE_MAJOR) >> sa) & 1u);

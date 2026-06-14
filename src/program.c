@@ -29,7 +29,8 @@ void InitProgram() {
   unpin_all_sliders();
 }
 
-float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root) {
+float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root,
+                     uint16_t override_value, uint8_t use_override) {
   float voltage_level = 0.0; // stay in floating point throughout!
   uint8_t ext_ban_num = 0;
   uint8_t slider_num = step_num;
@@ -37,9 +38,14 @@ float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t r
   step_num += section << 4; // section select
 
   if (steps[step_num].b.VoltageSource) {
-    // Step voltage is set externally
-    ext_ban_num = sliders[slider_num].VLevel >> 10;
-    voltage_level = read_calibrated_add_data_float(ext_ban_num);
+    if (use_override) {
+      // Step voltage comes from an internal source (Turing machine)
+      voltage_level = (float) override_value;
+    } else {
+      // Step voltage is set externally
+      ext_ban_num = sliders[slider_num].VLevel >> 10;
+      voltage_level = read_calibrated_add_data_float(ext_ban_num);
+    }
   } else {
     // Step voltage is set by slider
     voltage_level = (float) sliders[slider_num].VLevel;
