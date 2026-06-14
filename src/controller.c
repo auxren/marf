@@ -203,12 +203,12 @@ void ControllerMainLoop() {
 // Holding the Quantize switch (in any view/edit mode) turns the sliders into
 // scale/root selectors for the *displayed* sequence: move any voltage slider to
 // pick the scale, any time slider to pick the root. The step LEDs show the
-// selected scale number. Each touched slider's value is snapshotted on entry
-// and restored + pinned on release, so selecting a scale never reprograms a
-// step's pitch/time. (Source-External must NOT be held -- that chord is
+// number of whichever was last moved. On release the sliders resume normal
+// control immediately. (Source-External must NOT be held -- that chord is
 // reserved for shift-register mode.)
 void ControllerProcessScaleSelect(uButtons * key) {
   static uint8_t active = 0;
+  static uint8_t showing_root = 0;   // step LEDs show root (vs scale) when set
   static uint16_t snap_v[32], snap_t[32];
 
   uint8_t quantize_held   = !key->b.OutputQuantize;
@@ -222,23 +222,31 @@ void ControllerProcessScaleSelect(uButtons * key) {
     if (!active) {
       // Entering: snapshot every slider so we can restore the ones we move.
       active = 1;
+      showing_root = 0;
       for (uint8_t i = 0; i <= max; i++) {
         snap_v[i] = sliders[i].VLevel;
         snap_t[i] = sliders[i].TLevel;
       }
     }
 
-    // Any slider that has been moved past the threshold drives scale/root.
+    // Any voltage slider moved past the threshold picks the scale; any time
+    // slider picks the root. The step LEDs follow whichever was last moved.
     for (uint8_t i = 0; i <= max; i++) {
       int dv = (int) sliders[i].VLevel - (int) snap_v[i];
       int dt = (int) sliders[i].TLevel - (int) snap_t[i];
       if (dv < 0) dv = -dv;
       if (dt < 0) dt = -dt;
-      if (dv > SCALE_SELECT_MOVE_THRESHOLD) afg_scale[afg] = scale_from_slider(sliders[i].VLevel);
-      if (dt > SCALE_SELECT_MOVE_THRESHOLD) afg_root[afg]  = root_from_slider(sliders[i].TLevel);
+      if (dv > SCALE_SELECT_MOVE_THRESHOLD) {
+        afg_scale[afg] = scale_from_slider(sliders[i].VLevel);
+        showing_root = 0;
+      }
+      if (dt > SCALE_SELECT_MOVE_THRESHOLD) {
+        afg_root[afg] = root_from_slider(sliders[i].TLevel);
+        showing_root = 1;
+      }
     }
 
-    scale_select_value = afg_scale[afg];
+    scale_select_value = showing_root ? afg_root[afg] : afg_scale[afg];
     scale_select_active = 1;
   } else if (active) {
     // Releasing: leave the sliders alone so they immediately resume normal
