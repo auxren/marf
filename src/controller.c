@@ -16,7 +16,6 @@
 #include "watchdog.h"
 #include "scales.h"
 #include "turing.h"
-#include "styles.h"
 
 // Step selected for editing (0-31)
 volatile uint8_t edit_mode_step_num = 0;
@@ -29,10 +28,6 @@ volatile ControllerJobFlags controller_job_flags;
 // scale number on the step LEDs instead of the normal step display.
 volatile uint8_t scale_select_active = 0;
 volatile uint8_t scale_select_value = 0;   // 0..SCALE_COUNT-1
-
-// Briefly show the loaded style number on the step LEDs (non-blocking).
-volatile uint8_t style_show_value = 0;
-volatile uint32_t style_show_until = 0;
 
 inline static void adc_pause(void) {
   NVIC_DisableIRQ(ADC_IRQn);
@@ -162,25 +157,20 @@ void ControllerMainLoop() {
     // eg when the clock is running fast. (Suppressed while the Turing chord is
     // held so entering Turing mode doesn't reprogram the current step.)
     uint8_t turing_chord = !switches.b.OutputQuantize && !switches.b.SourceExternal;
-    uint8_t ciani_chord  = !switches.b.StopOn && !switches.b.SustainOn &&
-                           !switches.b.FirstOn && !switches.b.LastOn;
-    if (!turing_chord && !ciani_chord) {
+    if (!turing_chord) {
       ControllerApplyProgrammingSwitches(&switches);
     }
 
     // Quantize-held + slider selects the sequence's scale/root
     ControllerProcessScaleSelect(&switches);
 
-    // Sense CV presence on the external inputs (for external-normal mode).
+    // Sense CV presence on the external inputs (for soft-normalling).
     SenseExternalInputs();
 
     // Source-External + Quantize chord toggles Turing mode; external inputs
     // clock the per-stage shift registers.
     ControllerProcessTuring(&switches);
     ControllerProcessTuringClocks();
-
-    // Stop + Sustain + First + Last chord cycles through the style presets.
-    ControllerProcessStyleCycle(&switches);
 
     // Update panel state
     UpdateModeSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_section, edit_mode_step_num);
@@ -192,11 +182,6 @@ void ControllerMainLoop() {
     // (this overrides the normal step display until the gesture is released).
     if (scale_select_active) {
       steps_leds_lit = 0xFFFFFFFF & ~(1UL << scale_select_value);
-    }
-
-    // Briefly show the loaded style number after a style change.
-    if (get_millis() < style_show_until) {
-      steps_leds_lit = 0xFFFFFFFF & ~(1UL << (style_show_value & 15));
     }
 
     // Blink the voltage-source LED while Turing mode is on for the displayed
@@ -339,81 +324,6 @@ void ControllerProcessTuringClocks(void) {
       }
     }
   }
-}
-
-// Program the sequencer from a style preset (see styles.c). Degrees are
-// semitones relative to the style's root; quantize snaps them into its scale.
-void LoadStyle(uint8_t index) {
-  if (index >= STYLE_COUNT) index = 0;
-  const Style *sty = &styles[index];
-  uint8_t max = get_max_step();
-  uint8_t len = sty->length;
-  if (len < 2) len = 2;
-  if (len > 16) len = 16;
-
-  InitProgram();                         // clear to defaults first
-
-  for (uint8_t s = 0; s <= max; s++) {
-    volatile uStep *st = &steps[s];
-    int v = (int) ((float) (sty->root + sty->degree[s % len]) * semitone_offset + 0.5f);
-    if (v < 0) v = 0;
-    if (v > 4095) v = 4095;
-    sliders[s].VLevel = (uint16_t) v;
-    sliders[s].TLevel = sty->time_level;
-
-    st->b.Quantize = 1;
-    st->b.VoltageSource = 0;             // internal slider
-    st->b.FullRange = 1;
-    st->b.Sloped = (sty->flags & STYLE_SLOPED) ? 1 : 0;
-    st->b.TimeSource = 0;
-    st->b.TimeRange_p03 = (sty->time_range == 1);
-    st->b.TimeRange_p3  = (sty->time_range == 2);
-    st->b.TimeRange_3   = (sty->time_range == 3);
-    st->b.TimeRange_30  = (sty->time_range == 4);
-    if (s < 16) {
-      st->b.OutputPulse1 = (sty->pulse1 >> s) & 1u;
-      st->b.OutputPulse2 = (sty->pulse2 >> s) & 1u;
-    }
-  }
-
-  steps[0].b.CycleFirst = 1;             // loop the style's length
-  steps[((len - 1) <= max) ? (len - 1) : max].b.CycleLast = 1;
-
-  afg_scale[0] = afg_scale[1] = sty->scale;
-  afg_root[0] = afg_root[1] = sty->root;
-  turing_enabled[0] = turing_enabled[1] = 0;
-  external_normal[0] = external_normal[1] = (sty->flags & STYLE_EXTNORMAL) ? 1 : 0;
-
-  pin_all_sliders();                     // hold the preset until sliders are moved
-  AfgReset(AFG1);
-  AfgReset(AFG2);
-}
-
-// A quick tap of the Stop + Sustain + First + Last chord (pressed and released
-// in under a second) cycles to the next style. The loaded style number is shown
-// briefly on the step LEDs. Holding the chord longer does nothing.
-void ControllerProcessStyleCycle(uButtons * key) {
-  static uint8_t chord_was = 0;
-  static uint32_t press_time = 0;
-  static uint8_t idx = 0;
-
-  uint8_t chord = !key->b.StopOn && !key->b.SustainOn &&
-                  !key->b.FirstOn && !key->b.LastOn;
-  uint32_t now = get_millis();
-
-  if (chord && !chord_was) {
-    press_time = now;                     // chord pressed
-  } else if (!chord && chord_was) {
-    // chord released -- a quick tap cycles to the next style
-    if (now - press_time < 1000) {
-      LoadStyle(idx);
-      style_show_value = idx;
-      style_show_until = now + 700;
-      display_mode = DISPLAY_MODE_VIEW_1;
-      idx = (uint8_t) ((idx + 1) % STYLE_COUNT);
-    }
-  }
-  chord_was = chord;
 }
 
 void ControllerApplyProgrammingSwitches(uButtons * key) {

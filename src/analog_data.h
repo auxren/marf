@@ -33,11 +33,10 @@ extern volatile uint16_t cal_constants[8];
 
 // CV-presence sensing on the four external inputs (A-D). external_present[k]
 // latches high when a voltage appears on input k and clears after it stays idle.
-// external_normal[afg]: when set, that sequence follows external input A
-// (quantized/octave-spread per stage) whenever a CV is present there, and falls
-// back to the internal programmed sequence when nothing is patched.
+// Used to soft-normal external-source steps: a step reads its external input
+// when a CV is present, and falls back to its own slider value when nothing is
+// patched there.
 extern volatile uint8_t external_present[4];
-extern volatile uint8_t external_normal[2];
 
 // Update external_present[] from the latest readings. Call from the main loop.
 void SenseExternalInputs(void);

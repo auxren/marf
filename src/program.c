@@ -38,13 +38,18 @@ float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t r
   step_num += section << 4; // section select
 
   if (use_override) {
-    // Voltage supplied by the caller (Turing machine, or a normalled external
-    // input). Octave/range/quantize below still apply on top.
+    // Voltage supplied by the caller (e.g. a Turing machine). Octave/range/
+    // quantize below still apply on top.
     voltage_level = (float) override_value;
   } else if (steps[step_num].b.VoltageSource) {
-    // Step voltage is set externally
+    // External source, soft-normalled: use the external input when a CV is
+    // present, otherwise fall back to this step's slider value.
     ext_ban_num = sliders[slider_num].VLevel >> 10;
-    voltage_level = read_calibrated_add_data_float(ext_ban_num);
+    if (external_present[ext_ban_num]) {
+      voltage_level = read_calibrated_add_data_float(ext_ban_num);
+    } else {
+      voltage_level = (float) sliders[slider_num].VLevel;
+    }
   } else {
     // Step voltage is set by slider
     voltage_level = (float) sliders[slider_num].VLevel;

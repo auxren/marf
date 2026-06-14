@@ -52,10 +52,6 @@ void ControllerProcessTuring(uButtons * key);
 
 void ControllerProcessTuringClocks(void);
 
-void ControllerProcessStyleCycle(uButtons * key);
-
-void LoadStyle(uint8_t index);
-
 void ControllerProcessStageAddressSwitches(uButtons * key);
 
 void ControllerProcessNavigationSwitches(uButtons* key);

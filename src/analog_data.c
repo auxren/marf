@@ -6,7 +6,6 @@
 
 // CV-presence state for the four external inputs.
 volatile uint8_t external_present[4] = { 0, 0, 0, 0 };
-volatile uint8_t external_normal[2] = { 0, 0 };
 
 #define EXTERNAL_PRESENT_THRESHOLD 100    // ADC counts (~0.25 V) above idle
 #define EXTERNAL_PRESENT_TIMEOUT_MS 1500  // stay "present" through brief 0 V dips

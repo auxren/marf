@@ -292,20 +292,12 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
 
   // Now set output voltages
   // Compute the current step's programmed voltage output
-  // Decide whether to override the step's voltage source:
-  //  - Turing mode: an external-source step plays this stage's shift register.
-  //  - External normal: the sequence follows external input A when a CV is
-  //    present there, otherwise plays its internal programmed value.
+  // In Turing mode, an external-source step plays this stage's shift register
+  // instead of its external input. (Other external-source steps are soft-
+  // normalled to their slider value inside GetStepVoltage.)
   uint8_t turing_global = afg->step_num + (afg->section << 4);
-  uint8_t use_override = 0;
-  uint16_t override_v = 0;
-  if (turing_enabled[afg_num] && step.b.VoltageSource) {
-    override_v = turing_value(&turing_machines[turing_global]);
-    use_override = 1;
-  } else if (external_normal[afg_num] && external_present[0]) {
-    override_v = add_data[0];   // external input A, normalled to the sequence
-    use_override = 1;
-  }
+  uint8_t use_override = turing_enabled[afg_num] && step.b.VoltageSource;
+  uint16_t override_v = use_override ? turing_value(&turing_machines[turing_global]) : 0;
   output_voltage = GetStepVoltage(afg->section, afg->step_num,
                                   afg_scale[afg_num], afg_root[afg_num],
                                   override_v, use_override);
