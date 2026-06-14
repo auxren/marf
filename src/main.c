@@ -327,12 +327,16 @@ void TIM4_IRQHandler() {
     } else {
       PULSE_LED_I_ALL_OFF;
     }
-    if (afg1_outputs.pulse1) {
+    // On units with reversed pulse wiring (selected in calibration), swap which
+    // output drives jack 1 vs jack 2 so it matches the switch/LED.
+    uint8_t a1_p1 = swapped_pulse_switches ? afg1_outputs.pulse2 : afg1_outputs.pulse1;
+    uint8_t a1_p2 = swapped_pulse_switches ? afg1_outputs.pulse1 : afg1_outputs.pulse2;
+    if (a1_p1) {
       PULSE_LED_I_1_ON;
     } else {
       PULSE_LED_I_1_OFF;
     }
-    if (afg1_outputs.pulse2) {
+    if (a1_p2) {
       PULSE_LED_I_2_ON;
     } else {
       PULSE_LED_I_2_OFF;
@@ -396,12 +400,14 @@ void TIM5_IRQHandler() {
      } else {
        PULSE_LED_II_ALL_OFF;
      }
-     if (afg2_outputs.pulse1) {
+     uint8_t a2_p1 = swapped_pulse_switches ? afg2_outputs.pulse2 : afg2_outputs.pulse1;
+     uint8_t a2_p2 = swapped_pulse_switches ? afg2_outputs.pulse1 : afg2_outputs.pulse2;
+     if (a2_p1) {
        PULSE_LED_II_1_ON;
      } else {
        PULSE_LED_II_1_OFF;
      }
-     if (afg2_outputs.pulse2) {
+     if (a2_p2) {
        PULSE_LED_II_2_ON;
      } else {
        PULSE_LED_II_2_OFF;

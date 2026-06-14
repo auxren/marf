@@ -12,6 +12,11 @@
 #define CONTROLLER_MODAL_SAVE 2
 #define CONTROLLER_MODAL_SCAN 3
 
+// Set (from the calibration record) on units whose Pulse 1/2 channels are
+// physically reversed: swaps both the pulse switch inputs and the pulse output
+// jacks so the panel matches. See controller.c / main.c.
+extern volatile uint8_t swapped_pulse_switches;
+
 // Controller Job Flags
 // This is state that is passed back and forth between the controller,
 // its main loop, and the few IRQs that need to "do stuff."

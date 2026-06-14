@@ -33,12 +33,13 @@ If neither switch 1 nor 2 is on, the module uses 2 V/octave.
    LEDs reversed. If yours does, select **Pulse 2 up** to swap them (the lit LED
    moves to Pulse 2). Select **Pulse 1 up** to swap back to normal. Skip this if
    your pulse LEDs already read correctly.
-5. *(Optional — pulse SWITCH swap.)* Some units also have the Pulse 1 / 2
-   *switches* reversed (the Pulse 1 switch programs Pulse 2, etc.). If yours
-   does, select **Time Source External up** to swap the pulse switches; select
-   **Time Source Internal up** to leave them normal. This is independent of the
-   LED swap above. Skip it if your pulse switches already program the matching
-   output.
+5. *(Optional — pulse channel swap.)* Some units have the Pulse 1 / 2
+   *switches and output jacks* reversed (the Pulse 1 switch programs Pulse 2 and
+   the pulse comes out the Pulse 2 jack, etc.). If yours does, select **Time
+   Source External up** to swap the pulse channels (both switches and outputs);
+   select **Time Source Internal up** to leave them normal. This is independent
+   of the LED swap above. Skip it if your pulse switches and jacks already
+   match.
 6. **Press Stage Address 2 *Advance*** to save the calibration.
 
 > **This erases the entire EEPROM, including all saved programs.** Calibrate

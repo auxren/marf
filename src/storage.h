@@ -41,7 +41,7 @@ typedef struct {
 typedef struct {
   uint16_t cal_constants[8];
   uint8_t  swapped_pulses;          // swap the Pulse 1/2 LEDs
-  uint8_t  swapped_pulse_switches;  // swap the Pulse 1/2 switch inputs (was reserved)
+  uint8_t  swapped_pulse_switches;  // swap Pulse 1/2 switch inputs + output jacks (was reserved)
 } CalPayload;
 
 typedef struct {

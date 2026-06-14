@@ -29,9 +29,10 @@ volatile ControllerJobFlags controller_job_flags;
 volatile uint8_t scale_select_active = 0;
 volatile uint8_t scale_select_value = 0;   // 0..SCALE_COUNT-1
 
-// On units whose Pulse 1/2 switch inputs are physically reversed, the panel
-// programs the wrong pulse. Set during calibration and stored in the cal
-// record; when set, the Pulse 1/2 switch inputs are swapped before programming.
+// On units whose Pulse 1/2 channels are physically reversed, the panel programs
+// and outputs the wrong pulse. Set during calibration and stored in the cal
+// record; when set, both the Pulse 1/2 switch inputs (controller.c) and the
+// Pulse 1/2 output jacks (main.c) are swapped so the panel matches.
 volatile uint8_t swapped_pulse_switches = 0;
 
 inline static void adc_pause(void) {
