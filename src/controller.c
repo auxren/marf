@@ -157,7 +157,9 @@ void ControllerMainLoop() {
     // eg when the clock is running fast. (Suppressed while the Turing chord is
     // held so entering Turing mode doesn't reprogram the current step.)
     uint8_t turing_chord = !switches.b.OutputQuantize && !switches.b.SourceExternal;
-    if (!turing_chord) {
+    uint8_t ciani_chord  = !switches.b.StopOn && !switches.b.SustainOn &&
+                           !switches.b.FirstOn && !switches.b.LastOn;
+    if (!turing_chord && !ciani_chord) {
       ControllerApplyProgrammingSwitches(&switches);
     }
 
@@ -168,6 +170,9 @@ void ControllerMainLoop() {
     // clock the per-stage shift registers.
     ControllerProcessTuring(&switches);
     ControllerProcessTuringClocks();
+
+    // Stop + Sustain + First + Last chord loads the Ciani preset.
+    ControllerProcessCiani(&switches);
 
     // Update panel state
     UpdateModeSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_section, edit_mode_step_num);
@@ -320,6 +325,73 @@ void ControllerProcessTuringClocks(void) {
         }
       }
     }
+  }
+}
+
+// "Ciani mode" preset.
+// Sets the module up after Suzanne Ciani's Buchla performance patch (1976 NEA
+// report, Musical Illustration 1): a 16-stage quantized melodic row, stage 1 at
+// 0 V (the "home" note), looped, stepped, with rhythmic pulses on the downbeat
+// and the 11th stage, quantized to a pentatonic scale for instant musicality.
+void LoadCianiPreset(void) {
+  // A bouncing ~2-octave contour in semitones (up then back down).
+  static const uint8_t degree[16] = { 0, 3, 6, 9, 12, 15, 18, 21, 24, 21, 17, 14, 10, 7, 4, 2 };
+  uint8_t max = get_max_step();
+
+  InitProgram();                         // clear to defaults first
+
+  for (uint8_t s = 0; s <= max; s++) {
+    float v = (float) degree[s & 15] * semitone_offset;
+    if (v > 4095.0f) v = 4095.0f;
+    sliders[s].VLevel = (uint16_t) v;
+    sliders[s].TLevel = 2048;            // steady, moderate tempo
+
+    steps[s].b.Quantize = 1;             // quantized pitches (the Ciani technique)
+    steps[s].b.VoltageSource = 0;        // internal slider
+    steps[s].b.FullRange = 1;
+    steps[s].b.Sloped = 0;               // stepped
+    steps[s].b.TimeSource = 0;
+    steps[s].b.TimeRange_p03 = 0;        // ~0.16 s per stage (range 2)
+    steps[s].b.TimeRange_p3 = 1;
+    steps[s].b.TimeRange_3 = 0;
+    steps[s].b.TimeRange_30 = 0;
+  }
+
+  sliders[0].VLevel = 0;                 // stage 1 = 0 V "home" note
+
+  steps[0].b.CycleFirst = 1;             // loop the 16 stages
+  steps[(max >= 15) ? 15 : max].b.CycleLast = 1;
+
+  steps[0].b.OutputPulse1 = 1;           // downbeat pulse
+  if (max >= 10) steps[10].b.OutputPulse2 = 1;  // the documented 11th-stage emphasis
+
+  afg_scale[0] = afg_scale[1] = SCALE_PENTATONIC_MAJOR;
+  afg_root[0] = afg_root[1] = 0;
+  turing_enabled[0] = turing_enabled[1] = 0;
+
+  pin_all_sliders();                     // hold the preset until sliders are moved
+  AfgReset(AFG1);
+  AfgReset(AFG2);
+}
+
+// Stop + Sustain + First + Last held together for ~0.8 s loads the Ciani preset.
+void ControllerProcessCiani(uButtons * key) {
+  static uint8_t state = 0;
+  static uint32_t start = 0;
+
+  uint8_t chord = !key->b.StopOn && !key->b.SustainOn &&
+                  !key->b.FirstOn && !key->b.LastOn;
+
+  if (chord) {
+    if (state == 0) { state = 1; start = get_millis(); }
+    else if (state == 1 && (get_millis() - start) > 800) {
+      LoadCianiPreset();
+      RunLoadProgramAnimation();
+      display_mode = DISPLAY_MODE_VIEW_1;
+      state = 2;
+    }
+  } else {
+    state = 0;
   }
 }
 

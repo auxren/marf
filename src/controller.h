@@ -52,6 +52,10 @@ void ControllerProcessTuring(uButtons * key);
 
 void ControllerProcessTuringClocks(void);
 
+void ControllerProcessCiani(uButtons * key);
+
+void LoadCianiPreset(void);
+
 void ControllerProcessStageAddressSwitches(uButtons * key);
 
 void ControllerProcessNavigationSwitches(uButtons* key);
