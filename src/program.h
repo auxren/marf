@@ -37,8 +37,9 @@ typedef union
     unsigned int OutputPulse2:1;
     unsigned int TuringClock:2;   // which external jack (0-3) clocks this stage's register
     unsigned int TuringLength:4;  // shift register length, stored as length-2 (0..14 -> 2..16)
+    unsigned int PulseWidth:4;    // per-step pulse/gate length: 0 (~1% of the step) .. 15 (~99%)
   } b;
-  unsigned char val[3];
+  unsigned char val[4];
 } uStep;
 
 // Slider positions

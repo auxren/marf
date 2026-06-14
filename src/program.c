@@ -107,6 +107,7 @@ void RandomizeProgram(void) {
     s.b.Sloped       = (r >> 4) & 1;
     s.b.OutputPulse1 = (r >> 5) & 1;
     s.b.OutputPulse2 = (r >> 6) & 1;
+    s.b.PulseWidth   = (r >> 12) & 0xF;   // random per-step pulse/gate length
 
     // Time range: one of the three faster ranges (never the slow 30 s range).
     switch ((r >> 8) % 3) {

@@ -31,6 +31,9 @@ volatile uint8_t scale_select_value = 0;   // value to show on the step LEDs
 // When set, scale_select_value is shown in binary across the 16 step LEDs (read
 // as hex nibbles) instead of a single lit LED, so scale numbers past 16 fit.
 volatile uint8_t scale_select_binary = 0;
+// When set, scale_select_value is shown as a filled bar (LEDs 0..value lit) --
+// used by the per-step pulse-width gesture.
+volatile uint8_t scale_select_bar = 0;
 
 // On units whose Pulse 1/2 channels are physically reversed, the panel programs
 // and outputs the wrong pulse. Set during calibration and stored in the cal
@@ -183,6 +186,9 @@ void ControllerMainLoop() {
     ControllerProcessTuringClocks();
     ControllerProcessTuringConfig(&switches);
 
+    // Hold Time Source (External) + move a time slider sets that step's pulse width.
+    ControllerProcessPulseWidth(&switches);
+
     // Holding both Stage Address Reset buttons for >1s randomizes the program.
     ControllerProcessRandomize(&switches);
 
@@ -197,7 +203,10 @@ void ControllerMainLoop() {
     // Scale numbers can exceed 16, so they are shown in binary across the 16
     // step LEDs (read as hex nibbles); roots and Turing values stay single-LED.
     if (scale_select_active) {
-      if (scale_select_binary) {
+      if (scale_select_bar) {
+        // Filled bar: LEDs 0..value lit (pulse-width gesture).
+        steps_leds_lit = 0xFFFFFFFFu & ~(((1UL << (scale_select_value + 1)) - 1UL));
+      } else if (scale_select_binary) {
         steps_leds_lit = 0xFFFFFFFFu & ~((uint32_t) scale_select_value);
       } else {
         steps_leds_lit = 0xFFFFFFFFu & ~(1UL << scale_select_value);
@@ -316,6 +325,7 @@ void ControllerProcessScaleSelect(uButtons * key) {
       scale_select_value = afg_scale[afg] + 1;      // 1-based scale number, in hex/binary
       scale_select_binary = 1;
     }
+    scale_select_bar = 0;
     scale_select_active = 1;
   } else if (active) {
     // Releasing: unfreeze, and pin the sliders we moved so each stage stays at
@@ -461,6 +471,7 @@ void ControllerProcessTuringConfig(uButtons * key) {
       }
     }
     scale_select_binary = 0;   // Turing values are small -> single LED
+    scale_select_bar = 0;
     scale_select_active = 1;
   } else if (active) {
     scale_select_freeze = 0;
@@ -469,6 +480,53 @@ void ControllerProcessTuringConfig(uButtons * key) {
         voltage_slider_pins.high |= (1UL << i);
         voltage_slider_pins.low  |= (1UL << i);
       }
+      if (moved_t[i]) {
+        time_slider_pins.high |= (1UL << i);
+        time_slider_pins.low  |= (1UL << i);
+      }
+    }
+    active = 0;
+    scale_select_active = 0;
+  }
+}
+
+// Per-step pulse-width gesture. Holding the Time Source switch up (External) --
+// with Quantize and Source-External NOT held -- turns the time sliders into
+// pulse-width selectors: moving a time slider sets that step's pulse/gate length
+// (0..15 -> ~1%..99% of the step). The step LEDs show a filled bar of the value.
+// Time sliders are frozen during the gesture (so step times don't change) and
+// the moved ones are pinned on release.
+void ControllerProcessPulseWidth(uButtons * key) {
+  static uint8_t active = 0;
+  static uint16_t snap_t[32];
+  static uint8_t moved_t[32];
+
+  uint8_t time_ext_held = !key->b.TimeSourceExternal;
+  uint8_t max = get_max_step();
+
+  if (time_ext_held && key->b.OutputQuantize && key->b.SourceExternal) {
+    if (!active) {
+      active = 1;
+      scale_select_freeze = 1;
+      for (uint8_t i = 0; i <= max; i++) { snap_t[i] = slider_raw_t[i]; moved_t[i] = 0; }
+    }
+    for (uint8_t i = 0; i <= max; i++) {
+      int dt = (int) slider_raw_t[i] - (int) snap_t[i];
+      if (dt < 0) dt = -dt;
+      if (dt > SCALE_SELECT_MOVE_THRESHOLD) {
+        uint8_t pw = (uint8_t) (((uint32_t) slider_raw_t[i] * 16u) / 4096u);
+        if (pw > 15) pw = 15;
+        steps[i].b.PulseWidth = pw;
+        scale_select_value = pw;       // shown as a bar
+        moved_t[i] = 1;
+      }
+    }
+    scale_select_binary = 0;
+    scale_select_bar = 1;
+    scale_select_active = 1;
+  } else if (active) {
+    scale_select_freeze = 0;
+    for (uint8_t i = 0; i <= max; i++) {
       if (moved_t[i]) {
         time_slider_pins.high |= (1UL << i);
         time_slider_pins.low  |= (1UL << i);

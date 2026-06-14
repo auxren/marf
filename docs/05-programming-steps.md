@@ -78,6 +78,16 @@ Each stage can emit **Pulse 1** and/or **Pulse 2** when it becomes active:
 Use the programmed pulses to trigger envelopes, drums or other events in sync
 with specific stages.
 
+### Per‑step pulse width (gate length)
+
+Each stage's Pulse 1 / Pulse 2 outputs have a programmable **width** — from a
+short trigger (~1 % of the step) up to a near‑full gate (~99 %, always dropping
+low again so it can re‑trigger). Set it by **holding the Time Source switch up
+(External) and moving that step's time slider**; the step LEDs show the width as
+a bar. The width is saved with the program and is included when you
+[randomize](04-front-panel-reference.md#randomize). (The "all pulses" reference
+stays a short sync trigger.)
+
 ## Operating mode (Stop / Sustain / Enable)
 
 A stage can carry one special operating mode (mutually exclusive — setting one

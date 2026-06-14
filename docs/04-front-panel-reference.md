@@ -88,6 +88,7 @@ value, and any slider you move is pinned on release.
 | **Source External + Quantize** | hold ~0.8 s | toggle [shift‑register mode](07-shift-register.md) (chase animation confirms) |
 | **Source External** (mode on) | move a **voltage** slider | set a stage's [clock input](07-shift-register.md#configuring-a-stage-clock--length) |
 | **Source External** (mode on) | move a **time** slider | set a stage's [register length](07-shift-register.md#configuring-a-stage-clock--length) |
+| **Time Source** (External, up) | move a **time** slider | set that step's **pulse width** (gate length, ~1%–99% of the step); step LEDs show a bar |
 
 When shift‑register mode is on, the focused stage's **Source (External)** LED
 **breathes** (slow fade) if that stage is set to External.

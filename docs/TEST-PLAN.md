@@ -123,6 +123,12 @@ meant to behave.
 - [ ] **N2.3** — The sequence has a random loop length (First on stage 1, Last on a random stage) and **plays immediately** (sources stayed Internal, no Stop/Sustain/Enable).
 - [ ] **N2.4** — Sliders are **pinned** to the random values until moved through them. Both AFGs reset to stage 1.
 
+## N3. Per-step pulse width (3.0)
+- [ ] **N3.1** — Hold **Time Source up (External)** and move a step's **time slider** → step LEDs show a **bar**; that step's pulse output gets wider/narrower (gate ~1%–99% of the step).
+- [ ] **N3.2** — The pulse always returns low within the step (so it can re-trigger), even at max width.
+- [ ] **N3.3** — Moving the slider during the gesture does **not** change the step's *time*; the moved slider is pinned on release.
+- [ ] **N3.4** — Pulse width is **saved/loaded** with the program (P-section) and **randomized** by the randomize chord (N2).
+
 ## O. Soft-normalled external inputs (3.0)
 - [ ] **O1** — External-source stage **with** a CV patched to its chosen input → uses the external CV.
 - [ ] **O2** — Same stage with **nothing patched** → falls back to its own slider value (no dead/zero output).
