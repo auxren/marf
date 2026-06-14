@@ -51,39 +51,39 @@ sweeping up steps through the 35 scales (or the twelve roots) in the order below
 
 | # | Scale | Intervals |
 |---|-------|-----------|
-| 1 | **Chromatic** (default) | 1 2♭ 2 3♭ 3 4 5♭ 5 6♭ 6 7♭ 7 |
+| 1 | **Chromatic** (default) | 1 2b 2 3b 3 4 5b 5 6b 6 7b 7 |
 | 2 | **Ionian** (Major) | 1 2 3 4 5 6 7 |
-| 3 | **Dorian** | 1 2 3♭ 4 5 6 7♭ |
-| 4 | **Phrygian** | 1 2♭ 3♭ 4 5 6♭ 7♭ |
-| 5 | **Lydian** | 1 2 3 4♯ 5 6 7 |
-| 6 | **Mixolydian** | 1 2 3 4 5 6 7♭ |
-| 7 | **Aeolian** (Minor) | 1 2 3♭ 4 5 6♭ 7♭ |
-| 8 | **Locrian** | 1 2♭ 3♭ 4 5♭ 6♭ 7♭ |
-| 9 | **Harmonic Minor** | 1 2 3♭ 4 5 6♭ 7 |
-| 10 | **Melodic Minor** | 1 2 3♭ 4 5 6 7 |
-| 11 | **Major Blues** | 1 2 3♭ 3 5 6 |
-| 12 | **Minor Blues** | 1 3♭ 4 5♭ 5 7♭ |
-| 13 | **Diminished** | 1 2 3♭ 4 4♯ 5♯ 6 7 |
-| 14 | **Combination Diminished** | 1 2♭ 3♭ 3 4♯ 5 6 7♭ |
+| 3 | **Dorian** | 1 2 3b 4 5 6 7b |
+| 4 | **Phrygian** | 1 2b 3b 4 5 6b 7b |
+| 5 | **Lydian** | 1 2 3 4# 5 6 7 |
+| 6 | **Mixolydian** | 1 2 3 4 5 6 7b |
+| 7 | **Aeolian** (Minor) | 1 2 3b 4 5 6b 7b |
+| 8 | **Locrian** | 1 2b 3b 4 5b 6b 7b |
+| 9 | **Harmonic Minor** | 1 2 3b 4 5 6b 7 |
+| 10 | **Melodic Minor** | 1 2 3b 4 5 6 7 |
+| 11 | **Major Blues** | 1 2 3b 3 5 6 |
+| 12 | **Minor Blues** | 1 3b 4 5b 5 7b |
+| 13 | **Diminished** | 1 2 3b 4 4# 5# 6 7 |
+| 14 | **Combination Diminished** | 1 2b 3b 3 4# 5 6 7b |
 | 15 | **Major Pentatonic** | 1 2 3 5 6 |
-| 16 | **Minor Pentatonic** | 1 3♭ 4 5 7♭ |
-| 17 | **Raga Bhairav** | 1 2♭ 3 4 5 6♭ 7 |
-| 18 | **Raga Gamanasrama** | 1 2♭ 3 4♯ 5 6 7 |
-| 19 | **Raga Todi** | 1 2♭ 3♭ 4♯ 5 6♭ 7 |
-| 20 | **Arabian** | 1 2 3 4 5♭ 6♭ 7♭ |
-| 21 | **Spanish** | 1 2♭ 3♭ 3 4 5 6♭ 7♭ |
-| 22 | **Gypsy** | 1 2 3♭ 4♯ 5 6♭ 7 |
-| 23 | **Egyptian** | 1 2 4 5 7♭ |
-| 24 | **Hawaiian** | 1 2 3♭ 5 6 |
-| 25 | **Balinese Pelog** | 1 2♭ 3♭ 5 6♭ |
-| 26 | **Japanese Miyakobushi** | 1 2♭ 4 5 6♭ |
+| 16 | **Minor Pentatonic** | 1 3b 4 5 7b |
+| 17 | **Raga Bhairav** | 1 2b 3 4 5 6b 7 |
+| 18 | **Raga Gamanasrama** | 1 2b 3 4# 5 6 7 |
+| 19 | **Raga Todi** | 1 2b 3b 4# 5 6b 7 |
+| 20 | **Arabian** | 1 2 3 4 5b 6b 7b |
+| 21 | **Spanish** | 1 2b 3b 3 4 5 6b 7b |
+| 22 | **Gypsy** | 1 2 3b 4# 5 6b 7 |
+| 23 | **Egyptian** | 1 2 4 5 7b |
+| 24 | **Hawaiian** | 1 2 3b 5 6 |
+| 25 | **Balinese Pelog** | 1 2b 3b 5 6b |
+| 26 | **Japanese Miyakobushi** | 1 2b 4 5 6b |
 | 27 | **Ryuku** | 1 3 4 5 7 |
-| 28 | **Chinese** | 1 2 4♯ 5 7 |
-| 29 | **Bass Line** | 1 5 7♭ |
-| 30 | **Whole Tone** | 1 2 3 5♭ 6♭ 7♭ |
-| 31 | **Minor 3rd Interval** | 1 3♭ 5♭ 6 |
-| 32 | **Major 3rd Interval** | 1 3 6♭ |
-| 33 | **4th Interval** | 1 4 7♭ |
+| 28 | **Chinese** | 1 2 4# 5 7 |
+| 29 | **Bass Line** | 1 5 7b |
+| 30 | **Whole Tone** | 1 2 3 5b 6b 7b |
+| 31 | **Minor 3rd Interval** | 1 3b 5b 6 |
+| 32 | **Major 3rd Interval** | 1 3 6b |
+| 33 | **4th Interval** | 1 4 7b |
 | 34 | **5th Interval** | 1 5 |
 | 35 | **Octave** | 1 (root octaves only) |
 
