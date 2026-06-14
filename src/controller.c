@@ -447,20 +447,8 @@ void ControllerApplyProgrammingSwitches(uButtons * key) {
     section = edit_mode_section;
   };
 
-  // On units whose Pulse 1/2 channels are physically reversed (the same
-  // condition the calibration pulse-LED swap corrects), also swap the Pulse 1/2
-  // *switch* inputs so the panel programs the intended output. The LED side is
-  // handled in UpdateLedsProgramMode; this completes the swap for the switches.
-  if (swapped_pulses) {
-    uButtons swapped = *key;
-    swapped.b.Pulse1On  = key->b.Pulse2On;
-    swapped.b.Pulse1Off = key->b.Pulse2Off;
-    swapped.b.Pulse2On  = key->b.Pulse1On;
-    swapped.b.Pulse2Off = key->b.Pulse1Off;
-    ApplyProgrammingSwitches(section, step_num, &swapped);
-  } else {
-    ApplyProgrammingSwitches(section, step_num, key);
-  }
+  // Apply programming from switches to active step
+  ApplyProgrammingSwitches(section, step_num, key);
 }
 
 void ControllerProcessStageAddressSwitches(uButtons * key) {
