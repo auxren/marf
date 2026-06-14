@@ -166,10 +166,14 @@ void ControllerMainLoop() {
     }
 
     // Step programming can be applied continuously to be more responsive,
-    // eg when the clock is running fast. (Suppressed while the Turing chord is
-    // held so entering Turing mode doesn't reprogram the current step.)
+    // eg when the clock is running fast. (Suppressed while the Turing chord or
+    // the pulse-width chord is held, so those gestures don't reprogram steps --
+    // important while running, where the "current step" advances and would
+    // otherwise be stamped on every step that plays during the hold.)
     uint8_t turing_chord = !switches.b.OutputQuantize && !switches.b.SourceExternal;
-    if (!turing_chord) {
+    uint8_t pulse_width_chord = !switches.b.TimeSourceExternal && !switches.b.TimeRange1
+                                && switches.b.OutputQuantize && switches.b.SourceExternal;
+    if (!turing_chord && !pulse_width_chord) {
       ControllerApplyProgrammingSwitches(&switches);
     }
 
