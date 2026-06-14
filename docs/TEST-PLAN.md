@@ -21,13 +21,16 @@ meant to behave.
 - [ ] **A2** — On a freshly **cleared** program, each stage's max time is **~3 s** (Range 3 default), *not* ~30 s.
 - [ ] **A3** — Power-cycle: module returns without a re-flash; saved calibration still in effect.
 
-## B. Calibration
-- [ ] **B1** — Hold **Stage Address 1 Advance** at power-on → cal mode (**Run/Wait/Stop LEDs cycling**).
-- [ ] **B2** — Turn all pots to max; apply a known **10 V** to all four external inputs A–D.
-- [ ] **B3** — Pulse-LED swap: **Pulse 2 up** moves the lit LED to Pulse 2; **Pulse 1 up** swaps back. (Skip if LEDs already correct.)
-- [ ] **B4** — **Stage Address 2 Advance** saves calibration (erases EEPROM).
-- [ ] **B5** — After cal, all sliders/pots/CV inputs track smoothly across their full range.
-- [ ] **B6** — Power-cycle → calibration persists. **3.0 promise: a reflash of a later 3.0 build must NOT require recal.**
+## B. Calibration (3.0 — two-pass)
+- [ ] **B1** — Hold **Stage Address 1 Advance** at power-on → cal mode (**Run/Wait/Stop LEDs cycling**; Display LED **I** = high pass).
+- [ ] **B2** — **High pass:** all **knobs and sliders to max**, apply **10 V** to the four external inputs (and the Stage Address jacks if you use external CV — keep those knobs at min).
+- [ ] **B3** — *(Optional)* Pulse-**LED** swap: **Pulse 2 up** moves the lit LED to Pulse 2; **Pulse 1 up** = normal.
+- [ ] **B4** — *(Optional)* Pulse-**channel** swap (switches + output jacks): **Time Source External up** = swap; **Time Source Internal up** = normal.
+- [ ] **B5** — Press **Stage Address 1 Advance** → captures the high point (Display LED **II** = low pass).
+- [ ] **B6** — **Low pass:** all **knobs and sliders to min**, **0 V**/unpatched on the inputs. Press **Stage Address 2 Advance** → saves (erases EEPROM).
+- [ ] **B7** — After cal: sliders use their **full travel** (true 0 to full), and inputs/knobs track accurately.
+- [ ] **B8** — Pulse 1 switch programs Pulse 1 (and the Pulse 1 jack outputs) if you set the channel swap; LEDs match.
+- [ ] **B9** — Power-cycle → calibration persists. **3.0 promise: a reflash of a later 3.0 build must NOT require recal.**
 
 ## C. Clear & defaults
 - [ ] **C1** — **Hold Clear up** (or down) → program clears, both sequences stop, step LEDs flash.
@@ -97,8 +100,9 @@ meant to behave.
 - [ ] **L3** — **Multiple loops** chained across the stage list each cycle correctly.
 
 ## M. Scales & quantizing (3.0) — per displayed sequence
-- [ ] **M1** — **Hold Quantize + move a voltage slider** selects the scale; step LEDs show the scale **number**.
-- [ ] **M2** — **Hold Quantize + move a time slider** selects the root (0–11); step LEDs show the root number.
+- [ ] **M1** — **Hold Quantize + move a voltage slider** selects the scale (35 scales). The step LEDs show the scale **number in binary** across the 16 LEDs (read in groups of 4 as hex — e.g. scale 17 = LEDs 1 & 5).
+- [ ] **M2** — **Hold Quantize + move a time slider** selects the root (0–11); step LEDs show the root as a single lit LED.
+- [ ] **M8** — Spot-check a few of the **new scales** (e.g. Dorian, Whole Tone, Raga, Pentatonic, Octave) — quantized notes land in-scale.
 - [ ] **M3** — During the hold, moving the slider does **not** change any stage's output (frozen); on release the moved slider is **pinned**.
 - [ ] **M4** — Scale/root are **independent per sequence** (set AFG 1 and AFG 2 differently, confirm).
 - [ ] **M5** — A **quantized** stage lands only on notes in the selected scale (spot-check Major, Minor, Pentatonic, Whole Tone, Octave).
@@ -119,16 +123,16 @@ meant to behave.
 
 ## N2. Randomize (3.0)
 - [ ] **N2.1** — Hold **both Stage Address Reset buttons (AFG 1 + AFG 2)** for >1 s → a ~2 s twinkling LED show plays.
-- [ ] **N2.2** — Afterward the program is randomized: every stage has random slider levels, voltage range/octave, quantize/slope/pulse states, and time range.
+- [ ] **N2.2** — Afterward the program is randomized: every stage has random slider levels, voltage range/octave, quantize/slope/pulse states, pulse width, and time range (never the slow 30 s range).
 - [ ] **N2.3** — The sequence has a random loop length (First on stage 1, Last on a random stage) and **plays immediately** (sources stayed Internal, no Stop/Sustain/Enable).
 - [ ] **N2.4** — Sliders are **pinned** to the random values until moved through them. Both AFGs reset to stage 1.
 
 ## N3. Per-step pulse width (3.0)
 - [ ] **N3.1** — Hold the chord **Time Source up (External) + Time Range 1 (.03) up** and move a step's **time slider** → step LEDs show a **bar**; that step's pulse outputs (Pulse 1/2 and ALL) get wider/narrower (gate ~1%–99% of the step).
-- [ ] **N3.5** — On release, the step's **time source and time range return to what they were** before the chord (if a slider was moved).
 - [ ] **N3.2** — The pulse always returns low within the step (so it can re-trigger), even at max width.
 - [ ] **N3.3** — Moving the slider during the gesture does **not** change the step's *time*; the moved slider is pinned on release.
 - [ ] **N3.4** — Pulse width is **saved/loaded** with the program (P-section) and **randomized** by the randomize chord (N2).
+- [ ] **N3.5** — On release, the step's **time source and time range return to what they were** before the chord. Setting widths across several stages **while running** does **not** stamp other steps' time range, and the LED bar tracks the slider you're moving.
 
 ## O. Soft-normalled external inputs (3.0)
 - [ ] **O1** — External-source stage **with** a CV patched to its chosen input → uses the external CV.
