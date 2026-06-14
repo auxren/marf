@@ -23,6 +23,11 @@ volatile uint8_t edit_mode_section = 0;
 // Jobs
 volatile ControllerJobFlags controller_job_flags;
 
+// Set while the scale-select gesture is active, so the main loop shows the
+// scale number on the step LEDs instead of the normal step display.
+volatile uint8_t scale_select_active = 0;
+volatile uint8_t scale_select_value = 0;   // 0..SCALE_COUNT-1
+
 inline static void adc_pause(void) {
   NVIC_DisableIRQ(ADC_IRQn);
 };
@@ -160,6 +165,12 @@ void ControllerMainLoop() {
     UpdateStepSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_step_num);
     display_update_flags.b.StepsDisplay = 0;
 
+    // While selecting a scale, show the scale number on the step LEDs instead
+    // (this overrides the normal step display until the gesture is released).
+    if (scale_select_active) {
+      steps_leds_lit = 0xFFFFFFFF & ~(1UL << scale_select_value);
+    }
+
 
     // Flush LEDs every 20ms.
     // Shifting out to the leds is kind of slow, so rate limit the update to 50 Hz.
@@ -186,48 +197,55 @@ void ControllerMainLoop() {
   }; // end main loop
 }
 
+#define SCALE_SELECT_MOVE_THRESHOLD 100   // ADC counts, ignores jitter
+
 // Scale / root selection gesture.
-// While editing a sequence, holding the Quantize switch turns the focused
-// step's sliders into scale/root selectors for that sequence: voltage slider
-// -> scale, time slider -> root. The step LEDs show the selected scale number.
-// The step's own slider values are saved on entry and restored (and pinned) on
-// release, so picking a scale does not reprogram the step's pitch/time.
-// (Source-External must NOT be held -- that chord is reserved for shift-register
-// mode.)
+// Holding the Quantize switch (in any view/edit mode) turns the sliders into
+// scale/root selectors for the *displayed* sequence: move any voltage slider to
+// pick the scale, any time slider to pick the root. The step LEDs show the
+// selected scale number. Each touched slider's value is snapshotted on entry
+// and restored + pinned on release, so selecting a scale never reprograms a
+// step's pitch/time. (Source-External must NOT be held -- that chord is
+// reserved for shift-register mode.)
 void ControllerProcessScaleSelect(uButtons * key) {
   static uint8_t active = 0;
-  static uint8_t slot = 0;
-  static uint16_t saved_v = 0, saved_t = 0;
+  static uint16_t snap_v[32], snap_t[32];
 
   uint8_t quantize_held   = !key->b.OutputQuantize;
   uint8_t source_ext_held = !key->b.SourceExternal;
-  uint8_t editing = (display_mode == DISPLAY_MODE_EDIT_1 || display_mode == DISPLAY_MODE_EDIT_2);
+  uint8_t max = get_max_step();
 
-  if (quantize_held && !source_ext_held && editing) {
-    uint8_t afg = (display_mode == DISPLAY_MODE_EDIT_1) ? AFG1 : AFG2;
-    uint8_t n = edit_mode_step_num;
+  if (quantize_held && !source_ext_held) {
+    uint8_t afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
+                   display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
+
     if (!active) {
-      // Entering: remember the focused step's slider values
+      // Entering: snapshot every slider so we can restore the ones we move.
       active = 1;
-      slot = n;
-      saved_v = sliders[n].VLevel;
-      saved_t = sliders[n].TLevel;
+      for (uint8_t i = 0; i <= max; i++) {
+        snap_v[i] = sliders[i].VLevel;
+        snap_t[i] = sliders[i].TLevel;
+      }
     }
-    // Map the live slider positions to scale / root for this sequence
-    afg_scale[afg] = scale_from_slider(sliders[n].VLevel);
-    afg_root[afg]  = root_from_slider(sliders[n].TLevel);
-    // Show the selected scale number on the step LEDs
-    StepLedsLightSingleStep(afg_scale[afg]);
+
+    // Any slider that has been moved past the threshold drives scale/root.
+    for (uint8_t i = 0; i <= max; i++) {
+      int dv = (int) sliders[i].VLevel - (int) snap_v[i];
+      int dt = (int) sliders[i].TLevel - (int) snap_t[i];
+      if (dv < 0) dv = -dv;
+      if (dt < 0) dt = -dt;
+      if (dv > SCALE_SELECT_MOVE_THRESHOLD) afg_scale[afg] = scale_from_slider(sliders[i].VLevel);
+      if (dt > SCALE_SELECT_MOVE_THRESHOLD) afg_root[afg]  = root_from_slider(sliders[i].TLevel);
+    }
+
+    scale_select_value = afg_scale[afg];
+    scale_select_active = 1;
   } else if (active) {
-    // Releasing: restore the step's slider values and pin them so the physical
-    // slider positions don't jump the step until moved back through.
-    sliders[slot].VLevel = saved_v;
-    sliders[slot].TLevel = saved_t;
-    voltage_slider_pins.high |= (1UL << slot);
-    voltage_slider_pins.low  |= (1UL << slot);
-    time_slider_pins.high |= (1UL << slot);
-    time_slider_pins.low  |= (1UL << slot);
+    // Releasing: leave the sliders alone so they immediately resume normal
+    // control (the moved slider simply sets its step's voltage/time from its
+    // current position -- no pinning, no need to sweep it back through).
     active = 0;
+    scale_select_active = 0;
   }
 }
 

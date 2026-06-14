@@ -23,6 +23,10 @@ typedef union {
 // Flags which can be set by anything to update the led displays
 extern volatile uDisplayUpdateFlag display_update_flags;
 
+// Bit mask of lit step LEDs (active low). Exposed so the controller can
+// override the step display (e.g. to show a scale number while selecting).
+extern uint32_t steps_leds_lit;
+
 // Display modes
 #define DISPLAY_MODE_VIEW_1       0
 #define DISPLAY_MODE_VIEW_2       1
