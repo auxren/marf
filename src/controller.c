@@ -501,41 +501,46 @@ void ControllerProcessTuringConfig(uButtons * key) {
 // .03 Time Range switch (Time Range 1) UP, with Quantize and Source-External
 // NOT held. While held, moving a time slider sets that step's pulse/gate length
 // (0..15 -> ~1%..99% of the step); the step LEDs show a filled bar of the value.
-// The time sliders are frozen during the gesture (so step times don't change)
-// and the moved ones are pinned on release. The held chord switches would
-// otherwise program the focused step's Time Source and Time Range, so those are
-// snapshotted on entry and restored on release if the gesture was actually used
-// (a slider moved) -- a plain flip with no slider move still programs normally.
+//
+// The held chord switches would otherwise program the focused step's Time Source
+// and Time Range. To make the chord fully non-destructive, the focused step's
+// clean Time Source + Time Range are captured every loop *while neither chord
+// switch is held*, and restored once the chord is engaged -- and kept restored
+// each loop until BOTH chord switches are released (so a still-held switch on the
+// way out can't re-program it). Using either switch on its own (not the chord)
+// still programs normally.
 void ControllerProcessPulseWidth(uButtons * key) {
   static uint8_t active = 0;
+  static uint8_t pending_restore = 0;
   static uint16_t snap_t[32];
   static uint8_t moved_t[32];
-  static uint8_t saved_focus_idx = 0;
-  static uStep   saved_step;          // pre-chord copy (for Time Source/Range)
+  static uint8_t clean_idx = 0;
+  static uStep   clean_step;          // focused step's clean Time Source/Range
 
-  uint8_t time_ext_held = !key->b.TimeSourceExternal;
-  uint8_t time_range_03_held = !key->b.TimeRange1;   // the ".03" time range switch
   uint8_t max = get_max_step();
+  uint8_t ts_ext_held = !key->b.TimeSourceExternal;
+  uint8_t tr03_held   = !key->b.TimeRange1;          // the ".03" time range switch
+  uint8_t either_held = ts_ext_held || tr03_held;
+  uint8_t chord = ts_ext_held && tr03_held &&
+                  key->b.OutputQuantize && key->b.SourceExternal;
 
-  if (time_ext_held && time_range_03_held &&
-      key->b.OutputQuantize && key->b.SourceExternal) {
+  // Currently focused step.
+  AfgControllerState a1 = AfgGetControllerState(AFG1);
+  AfgControllerState a2 = AfgGetControllerState(AFG2);
+  uint8_t focus_idx;
+  if (display_mode == DISPLAY_MODE_VIEW_1) {
+    focus_idx = a1.step_num + (a1.section << 4);
+  } else if (display_mode == DISPLAY_MODE_VIEW_2) {
+    focus_idx = a2.step_num + (a2.section << 4);
+  } else {
+    focus_idx = edit_mode_step_num + (edit_mode_section << 4);
+  }
+
+  if (chord) {
     if (!active) {
       active = 1;
       scale_select_freeze = 1;
-      // Remember the focused step so the chord hold can be non-destructive.
-      AfgControllerState a1 = AfgGetControllerState(AFG1);
-      AfgControllerState a2 = AfgGetControllerState(AFG2);
-      if (display_mode == DISPLAY_MODE_VIEW_1) {
-        saved_focus_idx = a1.step_num + (a1.section << 4);
-      } else if (display_mode == DISPLAY_MODE_VIEW_2) {
-        saved_focus_idx = a2.step_num + (a2.section << 4);
-      } else {
-        saved_focus_idx = edit_mode_step_num + (edit_mode_section << 4);
-      }
-      saved_step = steps[saved_focus_idx];   // snapshot Time Source + Time Range
-      // Seed the bar with the focused step's current width so it isn't showing a
-      // stale value (e.g. a scale number up to 35) before a slider is moved.
-      scale_select_value = steps[saved_focus_idx].b.PulseWidth;
+      scale_select_value = steps[focus_idx].b.PulseWidth;  // seed the bar
       for (uint8_t i = 0; i <= max; i++) { snap_t[i] = slider_raw_t[i]; moved_t[i] = 0; }
     }
     for (uint8_t i = 0; i <= max; i++) {
@@ -552,28 +557,36 @@ void ControllerProcessPulseWidth(uButtons * key) {
     scale_select_binary = 0;
     scale_select_bar = 1;
     scale_select_active = 1;
-  } else if (active) {
-    scale_select_freeze = 0;
-    uint8_t used = 0;
-    for (uint8_t i = 0; i <= max; i++) {
-      if (moved_t[i]) {
-        time_slider_pins.high |= (1UL << i);
-        time_slider_pins.low  |= (1UL << i);
-        used = 1;
+    pending_restore = 1;               // restore the step's time src/range on exit
+  } else {
+    if (active) {
+      // Chord just released: pin the moved time sliders so their step times
+      // don't jump to the width position.
+      scale_select_freeze = 0;
+      for (uint8_t i = 0; i <= max; i++) {
+        if (moved_t[i]) {
+          time_slider_pins.high |= (1UL << i);
+          time_slider_pins.low  |= (1UL << i);
+        }
       }
+      active = 0;
+      scale_select_active = 0;
     }
-    // If the gesture was used, the chord was for pulse width -- resume the
-    // focused step's pre-chord Time Source and Time Range states.
-    if (used) {
-      volatile uStep *s = &steps[saved_focus_idx];
-      s->b.TimeSource    = saved_step.b.TimeSource;
-      s->b.TimeRange_p03 = saved_step.b.TimeRange_p03;
-      s->b.TimeRange_p3  = saved_step.b.TimeRange_p3;
-      s->b.TimeRange_3   = saved_step.b.TimeRange_3;
-      s->b.TimeRange_30  = saved_step.b.TimeRange_30;
+    if (pending_restore) {
+      // Resume the captured clean Time Source + Time Range, every loop until both
+      // chord switches are released (a lingering held switch would re-program it).
+      volatile uStep *s = &steps[clean_idx];
+      s->b.TimeSource    = clean_step.b.TimeSource;
+      s->b.TimeRange_p03 = clean_step.b.TimeRange_p03;
+      s->b.TimeRange_p3  = clean_step.b.TimeRange_p3;
+      s->b.TimeRange_3   = clean_step.b.TimeRange_3;
+      s->b.TimeRange_30  = clean_step.b.TimeRange_30;
+      if (!either_held) pending_restore = 0;
+    } else if (!either_held) {
+      // Neither chord switch held: capture the clean (pre-chord) state.
+      clean_idx = focus_idx;
+      clean_step = steps[focus_idx];
     }
-    active = 0;
-    scale_select_active = 0;
   }
 }
 
