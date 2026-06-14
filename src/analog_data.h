@@ -102,47 +102,50 @@ void PrecomputeCalibration(void);
 
 void SetVoltageRange(uDipConfig dip_config);
 
-#define EXTI_LINE_START1  EXTI_Line8
-#define EXTI_LINE_STOP1   EXTI_Line0
-#define EXTI_LINE_STROBE1 EXTI_Line5
+// EXTI line / GPIO pin assignments come from marf_version.h and differ per
+// board revision (v1: START on PB7/PB5, no strobe; v2: STROBE on PB5/PB7,
+// START on PB8/PB6).
+#define EXTI_LINE_START1  MARF_EXTI_START1
+#define EXTI_LINE_STOP1   MARF_EXTI_STOP1
+#define EXTI_LINE_STROBE1 MARF_EXTI_STROBE1
 
-#define EXTI_LINE_START2  EXTI_Line6
-#define EXTI_LINE_STOP2   EXTI_Line1
-#define EXTI_LINE_STROBE2 EXTI_Line7
+#define EXTI_LINE_START2  MARF_EXTI_START2
+#define EXTI_LINE_STOP2   MARF_EXTI_STOP2
+#define EXTI_LINE_STROBE2 MARF_EXTI_STROBE2
 
 // Return the interrupt flag status for each pulse
 static inline PulseInputs get_afg1_pulse_interrupts() {
   PulseInputs pulse_inputs = {};
-  pulse_inputs.start  = MARF_PULSE_HAS_START ? (EXTI_GetFlagStatus(EXTI_LINE_START1) == SET) : 0;
-  pulse_inputs.stop   = EXTI_GetFlagStatus(EXTI_LINE_STOP1)   == SET;
-  pulse_inputs.strobe = EXTI_GetFlagStatus(EXTI_LINE_STROBE1) == SET;
+  pulse_inputs.start  = MARF_PULSE_HAS_START  ? (EXTI_GetFlagStatus(EXTI_LINE_START1)  == SET) : 0;
+  pulse_inputs.stop   = EXTI_GetFlagStatus(EXTI_LINE_STOP1) == SET;
+  pulse_inputs.strobe = MARF_PULSE_HAS_STROBE ? (EXTI_GetFlagStatus(EXTI_LINE_STROBE1) == SET) : 0;
   return pulse_inputs;
 }
 
 // Return the interrupt flag status for each pulse
 static inline PulseInputs get_afg2_pulse_interrupts() {
   PulseInputs pulse_inputs = {};
-  pulse_inputs.start  = MARF_PULSE_HAS_START ? (EXTI_GetFlagStatus(EXTI_LINE_START2) == SET) : 0;
-  pulse_inputs.stop   = EXTI_GetFlagStatus(EXTI_LINE_STOP2)   == SET;
-  pulse_inputs.strobe = EXTI_GetFlagStatus(EXTI_LINE_STROBE2) == SET;
+  pulse_inputs.start  = MARF_PULSE_HAS_START  ? (EXTI_GetFlagStatus(EXTI_LINE_START2)  == SET) : 0;
+  pulse_inputs.stop   = EXTI_GetFlagStatus(EXTI_LINE_STOP2) == SET;
+  pulse_inputs.strobe = MARF_PULSE_HAS_STROBE ? (EXTI_GetFlagStatus(EXTI_LINE_STROBE2) == SET) : 0;
   return pulse_inputs;
 }
 
 // Return the current level of pulse inputs direct from the gpio pins
 static inline PulseInputs get_afg1_pulse_inputs() {
   PulseInputs pulse_inputs = {};
-  pulse_inputs.start  = MARF_PULSE_HAS_START ? ((GPIOB->IDR & GPIO_Pin_8) != 0) : 0;  // PB8
-  pulse_inputs.stop   = (GPIOB->IDR & GPIO_Pin_0) != 0;  // PB0
-  pulse_inputs.strobe = (GPIOB->IDR & GPIO_Pin_5) != 0;  // PB5
+  pulse_inputs.start  = MARF_PULSE_HAS_START  ? ((GPIOB->IDR & MARF_GPIO_START1)  != 0) : 0;
+  pulse_inputs.stop   = (GPIOB->IDR & MARF_GPIO_STOP1) != 0;
+  pulse_inputs.strobe = MARF_PULSE_HAS_STROBE ? ((GPIOB->IDR & MARF_GPIO_STROBE1) != 0) : 0;
   return pulse_inputs;
 }
 
 // Return the current level of pulse inputs direct from the gpio pins
 static inline PulseInputs get_afg2_pulse_inputs() {
   PulseInputs pulse_inputs = {};
-  pulse_inputs.start  = MARF_PULSE_HAS_START ? ((GPIOB->IDR & GPIO_Pin_6) != 0) : 0;  // PB6
-  pulse_inputs.stop   = (GPIOB->IDR & GPIO_Pin_1) != 0;  // PB1
-  pulse_inputs.strobe = (GPIOB->IDR & GPIO_Pin_7) != 0;  // PB7
+  pulse_inputs.start  = MARF_PULSE_HAS_START  ? ((GPIOB->IDR & MARF_GPIO_START2)  != 0) : 0;
+  pulse_inputs.stop   = (GPIOB->IDR & MARF_GPIO_STOP2) != 0;
+  pulse_inputs.strobe = MARF_PULSE_HAS_STROBE ? ((GPIOB->IDR & MARF_GPIO_STROBE2) != 0) : 0;
   return pulse_inputs;
 }
 

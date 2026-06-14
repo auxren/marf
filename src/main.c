@@ -169,22 +169,11 @@ void mInterruptInit(void) {
   mGPIO.GPIO_Speed = GPIO_Speed_100MHz;
   GPIO_Init(GPIOB, &mGPIO);
 
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource0);
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource1);
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource5);
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource7);
-#if MARF_PULSE_HAS_START
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource6);
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource8);
-#endif
+  MARF_PULSE_SYSCFG_INIT();   // configure the EXTI sources wired on this board
 
   // START-STOP LINE INIT Interrupt
   EXTI_DeInit();
-  mInt.EXTI_Line = EXTI_Line0 | EXTI_Line1 | EXTI_Line5 | EXTI_Line7
-#if MARF_PULSE_HAS_START
-                 | EXTI_Line6 | EXTI_Line8
-#endif
-                 ;
+  mInt.EXTI_Line = MARF_PULSE_EXTI_LINES;
   mInt.EXTI_Mode = EXTI_Mode_Interrupt;
   mInt.EXTI_Trigger = EXTI_Trigger_Rising;
   mInt.EXTI_LineCmd = ENABLE;
@@ -208,6 +197,8 @@ void mInterruptInit(void) {
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE; 
   NVIC_Init(&NVIC_InitStructure);
 
+  // Clear any latched pending bits. Clearing lines not configured on this board
+  // is harmless (their PR bits are never set), so the full set is cleared here.
   EXTI_ClearITPendingBit(EXTI_Line0);
   EXTI_ClearITPendingBit(EXTI_Line1);
   EXTI_ClearITPendingBit(EXTI_Line5);

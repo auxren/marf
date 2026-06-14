@@ -65,16 +65,18 @@ pin assignments — DIP-switch pins and pulse-input wiring — and are described
 
 - **v2 (default)** — the SAModular / EMS "v2" board. This is what `make`
   builds, and what the main `*.hex` release asset targets.
-- **v1.6 no-strobe** — the original v1.x board. Built with `make v16` into
-  `build-v1.6/`, and published on releases as `*-v1.6-no-strobe.hex`. On v1 the
-  START pulse inputs are not wired to interrupt-capable pins, so this build
-  drops them (matching the historical `MARF_v1.6_no_strobe_mod.hex`).
+- **v1.6 no-strobe** — the original v1.x board (B248 rev 1.0). Built with
+  `make v16` into `build-v1.6/`, and published on releases as
+  `*-v1.6-no-strobe.hex`. On v1 the pulse jacks are STOP 1/2 (PB0/PB1) and
+  START 1/2 (PB7/PB5), with **no strobe input** (strobe is a panel-only
+  function) — hence "no-strobe". The DIP pins and pulse mapping match the
+  original v1.0 firmware source.
 
-> **Warning: the v1.6 build is reverse-engineered from the original v1 firmware and is
-> UNVERIFIED on real v1 hardware.** Treat it as a candidate to confirm on a v1
-> module, not a tested release. **Do not flash the v1.6 image to a v2 board** —
-> the DIP and pulse pins differ. If unsure which board you have, use the default
-> v2 image.
+> **Warning: the v1.6 build's hardware mapping is taken from the original v1.0
+> firmware source but the 3.0 feature port is still being validated on real v1
+> hardware.** Treat it as a candidate. **Do not flash the v1.6 image to a v2
+> board** — the DIP and pulse pins differ. If unsure which board you have, use
+> the default v2 image.
 
 ## DIP switches
 
