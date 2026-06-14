@@ -298,8 +298,10 @@ void RunCalibrationAnimation() {
     counter = 0;
   }
 
-  mode_leds_lit.b.Pulse1 = swapped_pulses;
-  mode_leds_lit.b.Pulse2 = ~swapped_pulses;
+  // Light the pulse LED matching the current swap choice so it can be confirmed
+  // visually: Pulse 1 up (normal) lights Pulse 1; Pulse 2 up (swap) lights Pulse 2.
+  mode_leds_lit.b.Pulse1 = !swapped_pulses;
+  mode_leds_lit.b.Pulse2 = swapped_pulses;
 
   LEDS_modes_SendStruct(&mode_leds_lit);
   counter += 1;
