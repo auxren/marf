@@ -118,7 +118,7 @@ meant to behave.
 - [ ] **N10** — Toggling the mode **off** restores normal external-input behaviour.
 
 ## N2. Randomize (3.0)
-- [ ] **N2.1** — Hold **both Stage Address Reset buttons (AFG 1 + AFG 2)** for >1 s → a ~10 s twinkling LED show plays.
+- [ ] **N2.1** — Hold **both Stage Address Reset buttons (AFG 1 + AFG 2)** for >1 s → a ~2 s twinkling LED show plays.
 - [ ] **N2.2** — Afterward the program is randomized: every stage has random slider levels, voltage range/octave, quantize/slope/pulse states, and time range.
 - [ ] **N2.3** — The sequence has a random loop length (First on stage 1, Last on a random stage) and **plays immediately** (sources stayed Internal, no Stop/Sustain/Enable).
 - [ ] **N2.4** — Sliders are **pinned** to the random values until moved through them. Both AFGs reset to stage 1.

@@ -40,8 +40,8 @@ typedef struct {
 // ---- Calibration ----------------------------------------------------------
 typedef struct {
   uint16_t cal_constants[8];
-  uint8_t  swapped_pulses;
-  uint8_t  reserved;
+  uint8_t  swapped_pulses;          // swap the Pulse 1/2 LEDs
+  uint8_t  swapped_pulse_switches;  // swap the Pulse 1/2 switch inputs (was reserved)
 } CalPayload;
 
 typedef struct {
@@ -65,10 +65,13 @@ typedef struct {
 //     is anchored to the EEPROM tail at 0xFFFF - sizeof(StoredCal), so changing
 //     its size would relocate it and orphan every existing calibration.
 //
-// Need a new calibration field later? Repurpose CalPayload.reserved (it reads
-// back 0 = "old default" on records written before the field existed) WITHOUT
-// changing the struct size or bumping MARF_CAL_VERSION, so old and new records
-// keep cross-validating. Growing the struct or bumping the version is the one
+// New calibration fields must reuse spare bytes inside the existing 18-byte
+// CalPayload (a field added this way reads back 0 = "old default" on records
+// written before it existed) WITHOUT changing the struct size or bumping
+// MARF_CAL_VERSION, so old and new records keep cross-validating. (The former
+// `reserved` byte is now `swapped_pulse_switches`; cal_constants are uint16_t
+// but only need 12 bits, leaving headroom there if more flags are needed.)
+// Growing the struct or bumping the version is the one
 // thing that forces every user to recalibrate -- the asserts below fail the
 // build if that contract is broken, so it can only happen deliberately.
 //

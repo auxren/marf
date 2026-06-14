@@ -106,7 +106,7 @@ than one second** to randomize the entire program. Every stage gets:
 and the sequence is given a **random loop length** (a First marker on stage 1
 and a Last marker on a random stage). Voltage and time **sources stay Internal**
 (nothing needs to be patched) and **Stop/Sustain/Enable stay off**, so the result
-plays immediately. A ~10‑second twinkling LED show runs while it happens. Both
+plays immediately. A ~2‑second twinkling LED show runs while it happens. Both
 generators reset to stage 1 afterward. (Scales/roots and shift‑register settings
 are left as they were.)
 

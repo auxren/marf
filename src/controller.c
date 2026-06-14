@@ -29,6 +29,11 @@ volatile ControllerJobFlags controller_job_flags;
 volatile uint8_t scale_select_active = 0;
 volatile uint8_t scale_select_value = 0;   // 0..SCALE_COUNT-1
 
+// On units whose Pulse 1/2 switch inputs are physically reversed, the panel
+// programs the wrong pulse. Set during calibration and stored in the cal
+// record; when set, the Pulse 1/2 switch inputs are swapped before programming.
+volatile uint8_t swapped_pulse_switches = 0;
+
 inline static void adc_pause(void) {
   NVIC_DisableIRQ(ADC_IRQn);
 };
@@ -345,7 +350,7 @@ void ControllerProcessTuring(uButtons * key) {
 
 // Holding BOTH Stage Address Reset buttons for >1 s randomizes the whole
 // program (slider values, voltage ranges, quantize/slope/pulses, time ranges
-// and a random loop length) and plays a ~10 s "randomizing" light show.
+// and a random loop length) and plays a ~2 s "randomizing" light show.
 void ControllerProcessRandomize(uButtons * key) {
   static uint8_t state = 0;        // 0 idle, 1 timing, 2 fired (await release)
   static uint32_t start = 0;
@@ -474,8 +479,18 @@ void ControllerApplyProgrammingSwitches(uButtons * key) {
     section = edit_mode_section;
   };
 
-  // Apply programming from switches to active step
-  ApplyProgrammingSwitches(section, step_num, key);
+  // On units with reversed Pulse 1/2 switch wiring (selected in calibration),
+  // swap the Pulse 1/2 switch inputs so the panel programs the intended output.
+  if (swapped_pulse_switches) {
+    uButtons k = *key;
+    k.b.Pulse1On  = key->b.Pulse2On;
+    k.b.Pulse1Off = key->b.Pulse2Off;
+    k.b.Pulse2On  = key->b.Pulse1On;
+    k.b.Pulse2Off = key->b.Pulse1Off;
+    ApplyProgrammingSwitches(section, step_num, &k);
+  } else {
+    ApplyProgrammingSwitches(section, step_num, key);
+  }
 }
 
 void ControllerProcessStageAddressSwitches(uButtons * key) {
@@ -702,6 +717,15 @@ void ControllerCalibrationLoop() {
         swapped_pulses = 1;
       }
 
+      // Pulse-SWITCH swap (independent of the LED swap above), for units whose
+      // Pulse 1/2 switch inputs are reversed. Time Source External up = swap,
+      // Time Source Internal up = normal.
+      if (!switches.b.TimeSourceExternal) {
+        swapped_pulse_switches = 1;
+      } else if (!switches.b.TimeSourceInternal) {
+        swapped_pulse_switches = 0;
+      }
+
       // Shift adc mux if time
       if (controller_job_flags.adc_mux_shift_out) {
         // Disable conversion during shift
@@ -739,7 +763,7 @@ void ControllerCalibrationLoop() {
     StoredCal cal;
     for (uint8_t c = 0; c < 8; c++) cal.payload.cal_constants[c] = cal_constants[c];
     cal.payload.swapped_pulses = swapped_pulses;
-    cal.payload.reserved = 0;
+    cal.payload.swapped_pulse_switches = swapped_pulse_switches;
     marf_stored_cal_finalize(&cal);
 
     __disable_irq();
@@ -769,11 +793,13 @@ void ControllerLoadCalibration() {
   if (marf_stored_cal_valid(&cal)) {
     for (uint8_t c = 0; c < 8; c++) cal_constants[c] = cal.payload.cal_constants[c];
     swapped_pulses = cal.payload.swapped_pulses;
+    swapped_pulse_switches = cal.payload.swapped_pulse_switches;
   } else {
     // Blank, old-format or corrupt calibration: fall back to unity scaling so
     // the module is usable (if uncalibrated) instead of wildly mis-scaled.
     for (uint8_t c = 0; c < 8; c++) cal_constants[c] = 4095;
     swapped_pulses = 0;
+    swapped_pulse_switches = 0;
   }
 
   // Precompute scalers from calibration data

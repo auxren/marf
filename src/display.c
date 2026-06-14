@@ -213,11 +213,11 @@ void RunClearAnimation() {
   }
 }
 
-// ~10 second "randomizing settings" light show: the step and mode LEDs blink
+// ~2 second "randomizing settings" light show: the step and mode LEDs blink
 // and twinkle randomly, with occasional full-panel flashes. The watchdog is
-// refreshed each frame so the long blocking loop doesn't trigger a reset.
+// refreshed each frame so the blocking loop doesn't trigger a reset.
 void RunRandomizeAnimation(void) {
-  for (uint16_t frame = 0; frame < 200; frame++) {   // 200 * ~50ms ~= 10 s
+  for (uint16_t frame = 0; frame < 40; frame++) {    // 40 * ~50ms ~= 2 s
     uint32_t a = marf_rand();
     uint32_t b = marf_rand();
 

@@ -52,6 +52,12 @@ active V/oct if the octave itself is unexpected.
 LED breathes). Hold **Source External + Quantize** for ~0.8 s to toggle it back
 off.
 
+**The Pulse 1 switch programs Pulse 2 (or the LEDs are reversed).**
+Some units have the Pulse 1/2 LEDs and/or switches reversed. Recalibrate and use
+the optional pulse **LED swap** and/or pulse **switch swap** steps
+([Calibration](03-calibration.md#procedure)) — they are independent, so set
+whichever your unit needs.
+
 **Pulses don't reliably reach several destinations at once.**
 See [Stacking pulses](11-pulse-tricks.md#stacking-pulses-to-multiple-destinations).
 
