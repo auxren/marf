@@ -209,8 +209,10 @@ void ControllerMainLoop() {
     // step LEDs (read as hex nibbles); roots and Turing values stay single-LED.
     if (scale_select_active) {
       if (scale_select_bar) {
-        // Filled bar: LEDs 0..value lit (pulse-width gesture).
-        steps_leds_lit = 0xFFFFFFFFu & ~(((1UL << (scale_select_value + 1)) - 1UL));
+        // Filled bar: LEDs 0..value lit (pulse-width gesture). Clamp to 15 so the
+        // shift can never be >= 32 (undefined / would light all LEDs).
+        uint8_t bar = scale_select_value > 15 ? 15 : scale_select_value;
+        steps_leds_lit = 0xFFFFFFFFu & ~(((1UL << (bar + 1)) - 1UL));
       } else if (scale_select_binary) {
         steps_leds_lit = 0xFFFFFFFFu & ~((uint32_t) scale_select_value);
       } else {
@@ -530,6 +532,9 @@ void ControllerProcessPulseWidth(uButtons * key) {
         saved_focus_idx = edit_mode_step_num + (edit_mode_section << 4);
       }
       saved_timesource = steps[saved_focus_idx].b.TimeSource;
+      // Seed the bar with the focused step's current width so it isn't showing a
+      // stale value (e.g. a scale number up to 35) before a slider is moved.
+      scale_select_value = steps[saved_focus_idx].b.PulseWidth;
       for (uint8_t i = 0; i <= max; i++) { snap_t[i] = slider_raw_t[i]; moved_t[i] = 0; }
     }
     for (uint8_t i = 0; i <= max; i++) {
