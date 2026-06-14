@@ -30,6 +30,10 @@ volatile ControllerJobFlags controller_job_flags;
 volatile uint8_t scale_select_active = 0;
 volatile uint8_t scale_select_value = 0;   // 0..SCALE_COUNT-1
 
+// Briefly show the loaded style number on the step LEDs (non-blocking).
+volatile uint8_t style_show_value = 0;
+volatile uint32_t style_show_until = 0;
+
 inline static void adc_pause(void) {
   NVIC_DisableIRQ(ADC_IRQn);
 };
@@ -188,6 +192,11 @@ void ControllerMainLoop() {
     // (this overrides the normal step display until the gesture is released).
     if (scale_select_active) {
       steps_leds_lit = 0xFFFFFFFF & ~(1UL << scale_select_value);
+    }
+
+    // Briefly show the loaded style number after a style change.
+    if (get_millis() < style_show_until) {
+      steps_leds_lit = 0xFFFFFFFF & ~(1UL << (style_show_value & 15));
     }
 
     // Blink the voltage-source LED while Turing mode is on for the displayed
@@ -380,29 +389,31 @@ void LoadStyle(uint8_t index) {
   AfgReset(AFG2);
 }
 
-// Stop + Sustain + First + Last held together for ~0.8 s loads the next style,
-// cycling through the roster. The loaded style number is shown on the step LEDs.
+// A quick tap of the Stop + Sustain + First + Last chord (pressed and released
+// in under a second) cycles to the next style. The loaded style number is shown
+// briefly on the step LEDs. Holding the chord longer does nothing.
 void ControllerProcessStyleCycle(uButtons * key) {
-  static uint8_t state = 0;
-  static uint32_t start = 0;
+  static uint8_t chord_was = 0;
+  static uint32_t press_time = 0;
   static uint8_t idx = 0;
 
   uint8_t chord = !key->b.StopOn && !key->b.SustainOn &&
                   !key->b.FirstOn && !key->b.LastOn;
+  uint32_t now = get_millis();
 
-  if (chord) {
-    if (state == 0) { state = 1; start = get_millis(); }
-    else if (state == 1 && (get_millis() - start) > 800) {
+  if (chord && !chord_was) {
+    press_time = now;                     // chord pressed
+  } else if (!chord && chord_was) {
+    // chord released -- a quick tap cycles to the next style
+    if (now - press_time < 1000) {
       LoadStyle(idx);
-      StepLedsLightSingleStep(idx & 15);   // show which style loaded
-      delay_ms(700);
+      style_show_value = idx;
+      style_show_until = now + 700;
       display_mode = DISPLAY_MODE_VIEW_1;
       idx = (uint8_t) ((idx + 1) % STYLE_COUNT);
-      state = 2;
     }
-  } else {
-    state = 0;
   }
+  chord_was = chord;
 }
 
 void ControllerApplyProgrammingSwitches(uButtons * key) {
