@@ -1143,9 +1143,11 @@ void ControllerScanAdcLoop() {
     AdcMuxSelectAdc2(i);  // Shift the mux
     delay_us(10);         // Settling time
 
-    // Start injected conversion
+    // Start injected conversion. Bounded wait so a stuck conversion can never
+    // hang the whole module (this loop does not pet the watchdog).
     ADC_SoftwareStartInjectedConv(ADC2);
-    while (ADC_GetFlagStatus(ADC2, ADC_FLAG_JEOC) == RESET) {}
+    uint32_t guard = 100000;
+    while (ADC_GetFlagStatus(ADC2, ADC_FLAG_JEOC) == RESET && --guard) {}
     new_readings[i] = ADC_GetInjectedConversionValue(ADC2, ADC_InjectedChannel_1);
     ADC_ClearFlag(ADC2, ADC_FLAG_JEOC);
   }
