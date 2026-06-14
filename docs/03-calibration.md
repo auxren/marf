@@ -32,7 +32,12 @@ If neither switch 1 nor 2 is on, the module uses 2 V/octave.
    module enters calibration mode — you will see the Run/Wait/Stop LEDs cycling.
    (Display LED **I** indicates the high pass.)
 2. **High pass — set everything to maximum:** turn all **knobs and sliders** to
-   max, and **apply a calibrated 10 V source to all four external inputs.**
+   max, and **apply a calibrated 10 V source to all four external inputs.** If
+   you drive **Stage Address** from external CV, also feed 10 V to the two Stage
+   Address CV jacks here — but keep the Stage Address **knobs at minimum** while
+   you do (knob + CV sum into one input, so driving both at once saturates it
+   and mis‑calibrates). Calibrate whichever source — knob or CV — you actually
+   use to address stages.
 3. *(Optional — pulse LED swap.)* Some hardware revisions have the Pulse 1 / 2
    LEDs reversed. If yours does, select **Pulse 2 up** to swap them (the lit LED
    moves to Pulse 2). Select **Pulse 1 up** to swap back to normal. Skip this if
@@ -46,7 +51,8 @@ If neither switch 1 nor 2 is on, the module uses 2 V/octave.
 5. **Press Stage Address 1 *Advance*** to capture the high point. Display LED
    **II** now indicates the low pass.
 6. **Low pass — set everything to minimum:** turn all **knobs and sliders** to
-   min, and apply **0 V** (or unpatch) the four external inputs.
+   min, and apply **0 V** (or unpatch) the external inputs (including the Stage
+   Address CV jacks if you fed them 10 V on the high pass).
 7. **Press Stage Address 2 *Advance*** to capture the low point and save.
 
 > **This erases the entire EEPROM, including all saved programs.** Calibrate
