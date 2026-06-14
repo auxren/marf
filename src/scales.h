@@ -15,10 +15,9 @@
 // the root, is in the scale). SCALE_CHROMATIC keeps every semitone, so it is
 // behaviourally identical to the original quantizer and is the default.
 //
-// The active scale/root live in `current_scale` / `current_scale_root`. The
-// selection UI is deliberately not wired yet; set these to drive it. Persisting
-// the selection later means adding a field to the saved-program payload and
-// bumping MARF_PROGRAM_VERSION (the EEPROM format is already versioned).
+// The active scale/root are per sequence (AFG): afg_scale[0/1], afg_root[0/1].
+// They are selected on the panel by holding the Quantize switch and moving a
+// slider (voltage -> scale, time -> root) and are saved with the program.
 // ---------------------------------------------------------------------------
 
 typedef enum {
@@ -37,9 +36,14 @@ typedef enum {
   SCALE_COUNT
 } ScaleId;
 
-// Active selection (defaults: chromatic, root 0 = the 0 V reference).
-extern volatile uint8_t current_scale;       // 0 .. SCALE_COUNT-1
-extern volatile uint8_t current_scale_root;  // 0 .. 11
+// Active selection per sequence/AFG (defaults: chromatic, root 0).
+extern volatile uint8_t afg_scale[2];   // each 0 .. SCALE_COUNT-1
+extern volatile uint8_t afg_root[2];    // each 0 .. 11
+
+// Map a 12-bit slider level (0..4095) to a scale index / root.
+// Slider at minimum selects Chromatic / root 0.
+uint8_t scale_from_slider(uint16_t level);
+uint8_t root_from_slider(uint16_t level);
 
 // Snap a chromatic semitone index to the nearest semitone that is in `scale`
 // for the given `root` (0..11). On a tie the higher note is chosen. Returns

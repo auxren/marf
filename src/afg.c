@@ -6,6 +6,7 @@
 #include "display.h"
 #include "MAX5135.h"
 #include "program.h"
+#include "scales.h"
 #include "cycle_counter.h"
 #include "delays.h"
 
@@ -99,7 +100,7 @@ float GetTimeMultiplier(uint8_t afg_num) {
 
 // Compute continuous step stage selection
 
-inline void ComputeContinuousStep(uint8_t afg_num) {
+static inline void ComputeContinuousStep(uint8_t afg_num) {
   if (afg_num == AFG1) {
     afg1.stage_address = read_calibrated_add_data_uint16(ADC_STAGEADDRESS_Ch_1) >> get_max_step_shift12();
     if (afg1.stage_address > get_max_step()) afg1.stage_address = get_max_step();
@@ -290,7 +291,7 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
 
   // Now set output voltages
   // Compute the current step's programmed voltage output
-  output_voltage = GetStepVoltage(afg->section, afg->step_num);
+  output_voltage = GetStepVoltage(afg->section, afg->step_num, afg_scale[afg_num], afg_root[afg_num]);
   afg->step_level = output_voltage;
 
   // Set AFG time out value

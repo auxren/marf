@@ -14,6 +14,7 @@
 #include "eprom.h"
 #include "analog_data.h"
 #include "watchdog.h"
+#include "scales.h"
 
 // Step selected for editing (0-31)
 volatile uint8_t edit_mode_step_num = 0;
@@ -150,6 +151,9 @@ void ControllerMainLoop() {
     // eg when the clock is running fast.
     ControllerApplyProgrammingSwitches(&switches);
 
+    // Quantize-held + slider selects the sequence's scale/root
+    ControllerProcessScaleSelect(&switches);
+
     // Update panel state
     UpdateModeSectionLeds(AfgGetControllerState(AFG1), AfgGetControllerState(AFG2), edit_mode_section, edit_mode_step_num);
     display_update_flags.b.MainDisplay = 0;
@@ -180,6 +184,51 @@ void ControllerMainLoop() {
     }
 
   }; // end main loop
+}
+
+// Scale / root selection gesture.
+// While editing a sequence, holding the Quantize switch turns the focused
+// step's sliders into scale/root selectors for that sequence: voltage slider
+// -> scale, time slider -> root. The step LEDs show the selected scale number.
+// The step's own slider values are saved on entry and restored (and pinned) on
+// release, so picking a scale does not reprogram the step's pitch/time.
+// (Source-External must NOT be held -- that chord is reserved for shift-register
+// mode.)
+void ControllerProcessScaleSelect(uButtons * key) {
+  static uint8_t active = 0;
+  static uint8_t slot = 0;
+  static uint16_t saved_v = 0, saved_t = 0;
+
+  uint8_t quantize_held   = !key->b.OutputQuantize;
+  uint8_t source_ext_held = !key->b.SourceExternal;
+  uint8_t editing = (display_mode == DISPLAY_MODE_EDIT_1 || display_mode == DISPLAY_MODE_EDIT_2);
+
+  if (quantize_held && !source_ext_held && editing) {
+    uint8_t afg = (display_mode == DISPLAY_MODE_EDIT_1) ? AFG1 : AFG2;
+    uint8_t n = edit_mode_step_num;
+    if (!active) {
+      // Entering: remember the focused step's slider values
+      active = 1;
+      slot = n;
+      saved_v = sliders[n].VLevel;
+      saved_t = sliders[n].TLevel;
+    }
+    // Map the live slider positions to scale / root for this sequence
+    afg_scale[afg] = scale_from_slider(sliders[n].VLevel);
+    afg_root[afg]  = root_from_slider(sliders[n].TLevel);
+    // Show the selected scale number on the step LEDs
+    StepLedsLightSingleStep(afg_scale[afg]);
+  } else if (active) {
+    // Releasing: restore the step's slider values and pin them so the physical
+    // slider positions don't jump the step until moved back through.
+    sliders[slot].VLevel = saved_v;
+    sliders[slot].TLevel = saved_t;
+    voltage_slider_pins.high |= (1UL << slot);
+    voltage_slider_pins.low  |= (1UL << slot);
+    time_slider_pins.high |= (1UL << slot);
+    time_slider_pins.low  |= (1UL << slot);
+    active = 0;
+  }
 }
 
 void ControllerApplyProgrammingSwitches(uButtons * key) {
@@ -559,6 +608,14 @@ void ControllerLoadProgramLoop() {
           memcpy((void *) steps, (void *) saved_program.payload.steps, sizeof(steps));
           memcpy((void *) sliders, (void *) saved_program.payload.sliders, sizeof(sliders));
 
+          // Restore per-sequence scale/root (clamped defensively)
+          for (uint8_t a = 0; a < 2; a++) {
+            uint8_t sc = saved_program.payload.scale[a];
+            uint8_t rt = saved_program.payload.root[a];
+            afg_scale[a] = (sc < SCALE_COUNT) ? sc : SCALE_CHROMATIC;
+            afg_root[a]  = (rt < 12) ? rt : 0;
+          }
+
           // Pin sliders and reset to step 1
           pin_all_sliders();
           AfgReset(AFG1);
@@ -636,6 +693,12 @@ void ControllerSaveProgramLoop() {
         memcpy((void *) saved_program.payload.steps, (void *) steps, sizeof(steps));
         memcpy((void *) saved_program.payload.sliders, (void *) sliders, sizeof(sliders));
         controller_job_flags.inhibit_adc = 0;
+
+        // Capture per-sequence scale/root
+        for (uint8_t a = 0; a < 2; a++) {
+          saved_program.payload.scale[a] = afg_scale[a];
+          saved_program.payload.root[a]  = afg_root[a];
+        }
 
         // Stamp magic/version/CRC, then write the record to the EPROM
         marf_stored_program_finalize(&saved_program);

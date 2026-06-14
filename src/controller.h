@@ -46,6 +46,8 @@ void ControllerMainLoop();
 
 void ControllerApplyProgrammingSwitches(uButtons * key);
 
+void ControllerProcessScaleSelect(uButtons * key);
+
 void ControllerProcessStageAddressSwitches(uButtons * key);
 
 void ControllerProcessNavigationSwitches(uButtons* key);

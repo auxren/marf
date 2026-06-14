@@ -1,8 +1,18 @@
 #include "scales.h"
 
-// Active selection. Defaults preserve the original chromatic behaviour.
-volatile uint8_t current_scale = SCALE_CHROMATIC;
-volatile uint8_t current_scale_root = 0;
+// Active selection per sequence. Defaults preserve chromatic behaviour.
+volatile uint8_t afg_scale[2] = { SCALE_CHROMATIC, SCALE_CHROMATIC };
+volatile uint8_t afg_root[2]  = { 0, 0 };
+
+uint8_t scale_from_slider(uint16_t level) {
+  uint8_t s = (uint8_t) (((uint32_t) level * SCALE_COUNT) / 4096u);
+  return (s < SCALE_COUNT) ? s : (SCALE_COUNT - 1);
+}
+
+uint8_t root_from_slider(uint16_t level) {
+  uint8_t r = (uint8_t) (((uint32_t) level * 12u) / 4096u);
+  return (r < 12) ? r : 11;
+}
 
 // 12-bit pitch-class masks (bit i set => semitone i is in the scale).
 static const uint16_t SCALE_MASKS[SCALE_COUNT] = {

@@ -29,7 +29,7 @@ void InitProgram() {
   unpin_all_sliders();
 }
 
-float GetStepVoltage(uint8_t section, uint8_t step_num) {
+float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root) {
   float voltage_level = 0.0; // stay in floating point throughout!
   uint8_t ext_ban_num = 0;
   uint8_t slider_num = step_num;
@@ -72,7 +72,7 @@ float GetStepVoltage(uint8_t section, uint8_t step_num) {
     // into the selected scale, then convert back to a voltage. The default
     // SCALE_CHROMATIC snaps to the nearest semitone -- the original behaviour.
     int semitone = (int) (voltage_level * quantizer_magic + 0.5f);
-    semitone = scale_quantize_semitone(current_scale, current_scale_root, semitone);
+    semitone = scale_quantize_semitone(scale, root, semitone);
     voltage_level = (float) semitone * semitone_offset;
   }
 

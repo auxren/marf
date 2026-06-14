@@ -16,6 +16,7 @@
 int g_run = 0, g_fail = 0;   // shared with other test_*.c units
 void run_storage_tests(void);
 void run_scales_tests(void);
+void run_turing_tests(void);
 #define CHECK(cond) do { \
     g_run++; \
     if (!(cond)) { g_fail++; printf("  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond); } \
@@ -44,10 +45,10 @@ static void test_step_voltage_full_range(void) {
   printf("test_step_voltage_full_range\n");
   clear_steps();
   sliders[0].VLevel = 2048;          /* internal slider, full range, no quantize */
-  CHECK_NEAR(GetStepVoltage(0, 0), 2048.0, 0.5);
+  CHECK_NEAR(GetStepVoltage(0, 0, SCALE_CHROMATIC, 0), 2048.0, 0.5);
 
   sliders[1].VLevel = 9000;          /* above 12-bit range -> clamps to 4095 */
-  CHECK_NEAR(GetStepVoltage(0, 1), 4095.0, 0.5);
+  CHECK_NEAR(GetStepVoltage(0, 1, SCALE_CHROMATIC, 0), 4095.0, 0.5);
 }
 
 static void test_step_voltage_quantize(void) {
@@ -56,7 +57,7 @@ static void test_step_voltage_quantize(void) {
   use_1v2_per_octave();
   steps[0].b.Quantize = 1;
   sliders[0].VLevel = 2048;
-  float v = GetStepVoltage(0, 0);
+  float v = GetStepVoltage(0, 0, SCALE_CHROMATIC, 0);
   /* Output must be an integer number of semitones and within half a semitone. */
   extern float semitone_offset;
   double semis = v / semitone_offset;
@@ -70,7 +71,7 @@ static void test_step_voltage_section_shift(void) {
   /* section 1 reads steps[16+n] programming but slider[n] (physical slider) */
   sliders[0].VLevel = 1000;
   steps[16].b.FullRange = 1;
-  CHECK_NEAR(GetStepVoltage(1, 0), 1000.0, 0.5);
+  CHECK_NEAR(GetStepVoltage(1, 0, SCALE_CHROMATIC, 0), 1000.0, 0.5);
 }
 
 static void test_step_width(void) {
@@ -118,17 +119,38 @@ static void test_step_voltage_scale_quantize(void) {
   clear_steps();
   use_1v2_per_octave();
   extern float semitone_offset;
-  current_scale = SCALE_MAJOR;
   steps[0].b.Quantize = 1;
   /* Every quantized output must land on a C-major scale degree. */
   for (int vl = 0; vl <= 4095; vl += 137) {
     sliders[0].VLevel = (uint16_t) vl;
-    float v = GetStepVoltage(0, 0);
+    float v = GetStepVoltage(0, 0, SCALE_MAJOR, 0);
     int semi = (int) (v / semitone_offset + 0.5f);
     int pc = ((semi % 12) + 12) % 12;
     CHECK((scale_mask(SCALE_MAJOR) >> pc) & 1u);
   }
-  current_scale = SCALE_CHROMATIC;   /* restore default */
+}
+
+/* per-sequence scales: same step, two scales, each output stays in its scale */
+static void test_per_sequence_scale(void) {
+  printf("test_per_sequence_scale\n");
+  clear_steps();
+  use_1v2_per_octave();
+  extern float semitone_offset;
+  steps[0].b.Quantize = 1;
+  sliders[0].VLevel = 2048;
+  float a = GetStepVoltage(0, 0, SCALE_MAJOR, 0);          /* AFG I: C major */
+  float b = GetStepVoltage(0, 0, SCALE_NATURAL_MINOR, 9);  /* AFG II: A minor */
+  int sa = ((int)(a / semitone_offset + 0.5f) % 12 + 12) % 12;
+  int sb = ((int)(b / semitone_offset + 0.5f) % 12 + 12) % 12;
+  CHECK((scale_mask(SCALE_MAJOR) >> sa) & 1u);
+  /* A natural minor with root 9: note must be in the root-shifted mask */
+  CHECK((scale_mask(SCALE_NATURAL_MINOR) >> (((sb - 9) % 12 + 12) % 12)) & 1u);
+
+  /* slider->scale/root mapping */
+  CHECK(scale_from_slider(0) == SCALE_CHROMATIC);
+  CHECK(scale_from_slider(4095) == SCALE_COUNT - 1);
+  CHECK(root_from_slider(0) == 0);
+  CHECK(root_from_slider(4095) == 11);
 }
 
 static void test_get_next_step_loop_to_zero(void) {
@@ -147,8 +169,10 @@ int main(void) {
   test_get_next_step_loop();
   test_get_next_step_loop_to_zero();
   test_step_voltage_scale_quantize();
+  test_per_sequence_scale();
   run_storage_tests();
   run_scales_tests();
+  run_turing_tests();
 
   printf("\n%d checks, %d failed\n", g_run, g_fail);
   return g_fail ? 1 : 0;

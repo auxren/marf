@@ -18,14 +18,16 @@
 // ---------------------------------------------------------------------------
 
 #define MARF_STORAGE_MAGIC    0x4652414Du  // 'MARF'
-#define MARF_PROGRAM_VERSION  1
+#define MARF_PROGRAM_VERSION  2   // v2: added per-sequence scale/root
 #define MARF_CAL_VERSION      1
 
 // ---- Saved program --------------------------------------------------------
 typedef struct {
   uStep      steps[32];
   StepSliders sliders[32];
-} ProgramPayload;  // 256 bytes
+  uint8_t    scale[2];   // per-AFG quantizer scale
+  uint8_t    root[2];    // per-AFG quantizer root
+} ProgramPayload;  // 260 bytes
 
 typedef struct {
   uint32_t magic;

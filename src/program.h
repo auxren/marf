@@ -98,8 +98,9 @@ void WriteTimeSlider(uint8_t slider_num, uint32_t new_adc_reading);
 
 void WriteOtherCv(uint8_t cv_num, uint32_t new_adc_reading);
 
-// Return the voltage for step number in section
-float GetStepVoltage(uint8_t section, uint8_t step_num);
+// Return the voltage for step number in section, quantized (when the step's
+// Quantize bit is set) to the given scale/root.
+float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root);
 
 // The time multiplier panel is marked for log scale (0.5, 1, 2, 4) but linear pots are used.
 
