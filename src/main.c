@@ -14,6 +14,7 @@
 #include "leds_modes.h"
 #include "data_types.h"
 #include "dip_config.h"
+#include "marf_version.h"
 #include "expander.h"
 #include "program.h"
 #include "delays.h"
@@ -161,7 +162,7 @@ void mInterruptInit(void) {
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
 
   mGPIO.GPIO_Mode = GPIO_Mode_IN;
-  mGPIO.GPIO_Pin = GPIO_Pin_0|GPIO_Pin_1|GPIO_Pin_5|GPIO_Pin_6|GPIO_Pin_7|GPIO_Pin_8;
+  mGPIO.GPIO_Pin = MARF_PULSE_GPIO_PINS;
   mGPIO.GPIO_PuPd = GPIO_PuPd_NOPULL;
   mGPIO.GPIO_Speed = GPIO_Speed_100MHz;
   GPIO_Init(GPIOB, &mGPIO);
@@ -169,13 +170,19 @@ void mInterruptInit(void) {
   SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource0);
   SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource1);
   SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource5);
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource6);
   SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource7);
+#if MARF_PULSE_HAS_START
+  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource6);
   SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource8);
+#endif
 
   // START-STOP LINE INIT Interrupt
   EXTI_DeInit();
-  mInt.EXTI_Line = EXTI_Line0|EXTI_Line1|EXTI_Line5|EXTI_Line6|EXTI_Line7|EXTI_Line8;
+  mInt.EXTI_Line = EXTI_Line0|EXTI_Line1|EXTI_Line5|EXTI_Line7
+#if MARF_PULSE_HAS_START
+                 | EXTI_Line6 | EXTI_Line8
+#endif
+                 ;
   mInt.EXTI_Mode = EXTI_Mode_Interrupt;
   mInt.EXTI_Trigger = EXTI_Trigger_Rising;
   mInt.EXTI_LineCmd = ENABLE;

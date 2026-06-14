@@ -35,7 +35,9 @@ INCLUDES = \
   -ILibraries/Device/STM32F4xx/Include \
   -ILibraries/CMSIS/Include
 
-DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER
+# Target hardware revision: 2 (default, SAModular/EMS v2) or 1 (v1.x board).
+MARF_HW ?= 2
+DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW)
 
 # ---- Flags ------------------------------------------------------------------
 CPU = -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
@@ -59,8 +61,12 @@ vpath %.c $(SRC_DIR) $(DRV_DIR)
 vpath %.s $(SRC_DIR)
 
 # ---- Rules ------------------------------------------------------------------
-.PHONY: all clean size
+.PHONY: all clean size v16
 all: $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin size
+
+# ---- v1.6 (no-strobe) candidate build --------------------------------------
+v16:
+	$(MAKE) MARF_HW=1 BUILD_DIR=build-v1.6 TARGET=MARF-v1.6-no-strobe
 
 $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
