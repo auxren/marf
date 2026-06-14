@@ -495,11 +495,16 @@ void ControllerProcessTuringConfig(uButtons * key) {
 // pulse-width selectors: moving a time slider sets that step's pulse/gate length
 // (0..15 -> ~1%..99% of the step). The step LEDs show a filled bar of the value.
 // Time sliders are frozen during the gesture (so step times don't change) and
-// the moved ones are pinned on release.
+// the moved ones are pinned on release. Holding the switch shouldn't permanently
+// flip the focused step's Time Source: its pre-gesture state is restored on
+// release if the gesture was actually used (a slider moved). A plain flip with
+// no slider move still programs Time Source normally.
 void ControllerProcessPulseWidth(uButtons * key) {
   static uint8_t active = 0;
   static uint16_t snap_t[32];
   static uint8_t moved_t[32];
+  static uint8_t saved_focus_idx = 0;
+  static uint8_t saved_timesource = 0;
 
   uint8_t time_ext_held = !key->b.TimeSourceExternal;
   uint8_t max = get_max_step();
@@ -508,6 +513,17 @@ void ControllerProcessPulseWidth(uButtons * key) {
     if (!active) {
       active = 1;
       scale_select_freeze = 1;
+      // Remember the focused step's Time Source so the hold can be non-destructive.
+      AfgControllerState a1 = AfgGetControllerState(AFG1);
+      AfgControllerState a2 = AfgGetControllerState(AFG2);
+      if (display_mode == DISPLAY_MODE_VIEW_1) {
+        saved_focus_idx = a1.step_num + (a1.section << 4);
+      } else if (display_mode == DISPLAY_MODE_VIEW_2) {
+        saved_focus_idx = a2.step_num + (a2.section << 4);
+      } else {
+        saved_focus_idx = edit_mode_step_num + (edit_mode_section << 4);
+      }
+      saved_timesource = steps[saved_focus_idx].b.TimeSource;
       for (uint8_t i = 0; i <= max; i++) { snap_t[i] = slider_raw_t[i]; moved_t[i] = 0; }
     }
     for (uint8_t i = 0; i <= max; i++) {
@@ -526,12 +542,17 @@ void ControllerProcessPulseWidth(uButtons * key) {
     scale_select_active = 1;
   } else if (active) {
     scale_select_freeze = 0;
+    uint8_t used = 0;
     for (uint8_t i = 0; i <= max; i++) {
       if (moved_t[i]) {
         time_slider_pins.high |= (1UL << i);
         time_slider_pins.low  |= (1UL << i);
+        used = 1;
       }
     }
+    // If the gesture was used, the hold was for pulse width, not to program the
+    // time source -- restore the focused step's Time Source to its prior state.
+    if (used) steps[saved_focus_idx].b.TimeSource = saved_timesource;
     active = 0;
     scale_select_active = 0;
   }
