@@ -497,31 +497,32 @@ void ControllerProcessTuringConfig(uButtons * key) {
   }
 }
 
-// Per-step pulse-width gesture. Holding the Time Source switch DOWN (Internal) --
-// with Quantize and Source-External NOT held -- turns the time sliders into
-// pulse-width selectors: moving a time slider sets that step's pulse/gate length
-// (0..15 -> ~1%..99% of the step). The step LEDs show a filled bar of the value.
-// (Down/Internal is used so the harmless default time source is what the held
-// switch would set.) Time sliders are frozen during the gesture (so step times
-// don't change) and the moved ones are pinned on release. Holding the switch
-// shouldn't permanently change the focused step's Time Source: its pre-gesture
-// state is restored on release if the gesture was actually used (a slider
-// moved). A plain flip with no slider move still programs Time Source normally.
+// Per-step pulse-width gesture. The chord is Time Source UP (External) + the
+// .03 Time Range switch (Time Range 1) UP, with Quantize and Source-External
+// NOT held. While held, moving a time slider sets that step's pulse/gate length
+// (0..15 -> ~1%..99% of the step); the step LEDs show a filled bar of the value.
+// The time sliders are frozen during the gesture (so step times don't change)
+// and the moved ones are pinned on release. The held chord switches would
+// otherwise program the focused step's Time Source and Time Range, so those are
+// snapshotted on entry and restored on release if the gesture was actually used
+// (a slider moved) -- a plain flip with no slider move still programs normally.
 void ControllerProcessPulseWidth(uButtons * key) {
   static uint8_t active = 0;
   static uint16_t snap_t[32];
   static uint8_t moved_t[32];
   static uint8_t saved_focus_idx = 0;
-  static uint8_t saved_timesource = 0;
+  static uStep   saved_step;          // pre-chord copy (for Time Source/Range)
 
-  uint8_t time_int_held = !key->b.TimeSourceInternal;
+  uint8_t time_ext_held = !key->b.TimeSourceExternal;
+  uint8_t time_range_03_held = !key->b.TimeRange1;   // the ".03" time range switch
   uint8_t max = get_max_step();
 
-  if (time_int_held && key->b.OutputQuantize && key->b.SourceExternal) {
+  if (time_ext_held && time_range_03_held &&
+      key->b.OutputQuantize && key->b.SourceExternal) {
     if (!active) {
       active = 1;
       scale_select_freeze = 1;
-      // Remember the focused step's Time Source so the hold can be non-destructive.
+      // Remember the focused step so the chord hold can be non-destructive.
       AfgControllerState a1 = AfgGetControllerState(AFG1);
       AfgControllerState a2 = AfgGetControllerState(AFG2);
       if (display_mode == DISPLAY_MODE_VIEW_1) {
@@ -531,7 +532,7 @@ void ControllerProcessPulseWidth(uButtons * key) {
       } else {
         saved_focus_idx = edit_mode_step_num + (edit_mode_section << 4);
       }
-      saved_timesource = steps[saved_focus_idx].b.TimeSource;
+      saved_step = steps[saved_focus_idx];   // snapshot Time Source + Time Range
       // Seed the bar with the focused step's current width so it isn't showing a
       // stale value (e.g. a scale number up to 35) before a slider is moved.
       scale_select_value = steps[saved_focus_idx].b.PulseWidth;
@@ -561,9 +562,16 @@ void ControllerProcessPulseWidth(uButtons * key) {
         used = 1;
       }
     }
-    // If the gesture was used, the hold was for pulse width, not to program the
-    // time source -- restore the focused step's Time Source to its prior state.
-    if (used) steps[saved_focus_idx].b.TimeSource = saved_timesource;
+    // If the gesture was used, the chord was for pulse width -- resume the
+    // focused step's pre-chord Time Source and Time Range states.
+    if (used) {
+      volatile uStep *s = &steps[saved_focus_idx];
+      s->b.TimeSource    = saved_step.b.TimeSource;
+      s->b.TimeRange_p03 = saved_step.b.TimeRange_p03;
+      s->b.TimeRange_p3  = saved_step.b.TimeRange_p3;
+      s->b.TimeRange_3   = saved_step.b.TimeRange_3;
+      s->b.TimeRange_30  = saved_step.b.TimeRange_30;
+    }
     active = 0;
     scale_select_active = 0;
   }

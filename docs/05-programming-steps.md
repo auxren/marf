@@ -83,9 +83,10 @@ with specific stages.
 Each stage's pulse outputs (Pulse 1, Pulse 2 **and** the "all pulses" reference)
 have a programmable **width** — from a short trigger (~1 % of the step) up to a
 near‑full gate (~99 %, always dropping low again so it can re‑trigger). Set it by
-**holding the Time Source switch down (Internal) and moving that step's time
-slider**; the step LEDs show the width as a bar. The width is saved with the
-program and is included when you
+**holding Time Source up (External) + the .03 Time Range switch up, and moving
+that step's time slider**; the step LEDs show the width as a bar. (The held
+chord's normal effect on the step's time source / time range is restored when
+you release.) The width is saved with the program and is included when you
 [randomize](04-front-panel-reference.md#randomize).
 
 ## Operating mode (Stop / Sustain / Enable)

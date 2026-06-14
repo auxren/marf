@@ -124,7 +124,8 @@ meant to behave.
 - [ ] **N2.4** — Sliders are **pinned** to the random values until moved through them. Both AFGs reset to stage 1.
 
 ## N3. Per-step pulse width (3.0)
-- [ ] **N3.1** — Hold **Time Source down (Internal)** and move a step's **time slider** → step LEDs show a **bar**; that step's pulse outputs (Pulse 1/2 and ALL) get wider/narrower (gate ~1%–99% of the step).
+- [ ] **N3.1** — Hold the chord **Time Source up (External) + Time Range 1 (.03) up** and move a step's **time slider** → step LEDs show a **bar**; that step's pulse outputs (Pulse 1/2 and ALL) get wider/narrower (gate ~1%–99% of the step).
+- [ ] **N3.5** — On release, the step's **time source and time range return to what they were** before the chord (if a slider was moved).
 - [ ] **N3.2** — The pulse always returns low within the step (so it can re-trigger), even at max width.
 - [ ] **N3.3** — Moving the slider during the gesture does **not** change the step's *time*; the moved slider is pinned on release.
 - [ ] **N3.4** — Pulse width is **saved/loaded** with the program (P-section) and **randomized** by the randomize chord (N2).
