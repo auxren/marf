@@ -1,27 +1,18 @@
 #include <stm32f4xx_gpio.h>
 #include "dip_config.h"
+#include "marf_version.h"
 
-#define DipConfigPin1 GPIO_Pin_11
-#define DipConfigPin2 GPIO_Pin_15
-#define DipConfigPin3 GPIO_Pin_13
-#define DipConfigPin4 GPIO_Pin_8
-
-/*Init GPIOs for configuration dip switch*/
+/*Init GPIOs for configuration dip switch (pins per hardware revision)*/
 void DipConfig_init(void)
 {
 	GPIO_InitTypeDef mGPIO_InitStructure;
-	
+
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
-	
-	//setup gpio speed
 
-
-	mGPIO_InitStructure.GPIO_Pin 		= DipConfigPin1|DipConfigPin2|/*DipConfigPin3|*/DipConfigPin4;
+	mGPIO_InitStructure.GPIO_Pin 		= MARF_DIP_PINS;
 	mGPIO_InitStructure.GPIO_Mode 	= GPIO_Mode_IN;
 	mGPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_UP;
 	mGPIO_InitStructure.GPIO_Speed 	= GPIO_Speed_2MHz;
-	
-
 
 	GPIO_Init(GPIOA, &mGPIO_InitStructure);
 };
@@ -30,12 +21,15 @@ void DipConfig_init(void)
 uDipConfig GetDipConfig(void)
 {
 	uDipConfig lDipConfig;
-	
-	lDipConfig.b.V_OUT_1V2 		= ~GPIO_ReadInputDataBit(GPIOA, DipConfigPin1);
-	//lDipConfig.b.SAVE_V_LEVEL = ~GPIO_ReadInputDataBit(GPIOA, DipConfigPin3);
+
+	lDipConfig.b.V_OUT_1V2 		= ~GPIO_ReadInputDataBit(GPIOA, MARF_DIP_V_OUT_1V2_PIN);
+	lDipConfig.b.V_OUT_1V 		= ~GPIO_ReadInputDataBit(GPIOA, MARF_DIP_V_OUT_1V_PIN);
+	lDipConfig.b.EXPANDER_ON 	= ~GPIO_ReadInputDataBit(GPIOA, MARF_DIP_EXPANDER_PIN);
+#if MARF_DIP_HAS_SAVE_PIN
+	lDipConfig.b.SAVE_V_LEVEL = ~GPIO_ReadInputDataBit(GPIOA, MARF_DIP_SAVE_PIN);
+#else
 	lDipConfig.b.SAVE_V_LEVEL = 1;
-	lDipConfig.b.V_OUT_1V 		= ~GPIO_ReadInputDataBit(GPIOA, DipConfigPin2);
-	lDipConfig.b.EXPANDER_ON 	= ~GPIO_ReadInputDataBit(GPIOA, DipConfigPin4);
-	
+#endif
+
 	return lDipConfig;
 }

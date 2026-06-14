@@ -51,6 +51,26 @@ You can also import the project into STM32CubeIDE (`.cproject` / `.project` are
 included) and build there. Every push and pull request is built automatically by
 CI, and tagged releases publish `.hex` and `.bin` images.
 
+## Hardware revisions (v2 vs v1.6)
+
+This firmware targets two board revisions, selected at build time by the
+`MARF_HW` make variable (default `2`). The differences are confined to GPIO
+pin assignments — DIP-switch pins and pulse-input wiring — and are described in
+`src/marf_version.h`.
+
+- **v2 (default)** — the SAModular / EMS "v2" board. This is what `make`
+  builds, and what the main `*.hex` release asset targets.
+- **v1.6 no-strobe** — the original v1.x board. Built with `make v16` into
+  `build-v1.6/`, and published on releases as `*-v1.6-no-strobe.hex`. On v1 the
+  START pulse inputs are not wired to interrupt-capable pins, so this build
+  drops them (matching the historical `MARF_v1.6_no_strobe_mod.hex`).
+
+> **⚠️ The v1.6 build is reverse-engineered from the original v1 firmware and is
+> UNVERIFIED on real v1 hardware.** Treat it as a candidate to confirm on a v1
+> module, not a tested release. **Do not flash the v1.6 image to a v2 board** —
+> the DIP and pulse pins differ. If unsure which board you have, use the default
+> v2 image.
+
 ## DIP switches
 
 Before using the module, set the configuration DIP switches for your hardware —
