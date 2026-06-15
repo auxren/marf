@@ -44,7 +44,7 @@ jobs:
       - name: Report size
         run: |
           arm-none-eabi-size build/MARF.elf
-          arm-none-eabi-size build-v1.6/MARF-v1.6-no-strobe.elf
+          arm-none-eabi-size build-v1.6/MARF-REV1-no-strobe.elf
 
       - name: Build user manual (PDF)
         run: |
@@ -68,8 +68,8 @@ jobs:
           cp build/MARF.hex "build/${BASE}.hex"
           cp build/MARF.bin "build/${BASE}.bin"
           cp build/MARF-Manual.pdf "build/${BASE}-manual.pdf"
-          cp build-v1.6/MARF-v1.6-no-strobe.hex "build/${BASE}-v1.6-no-strobe.hex"
-          cp build-v1.6/MARF-v1.6-no-strobe.bin "build/${BASE}-v1.6-no-strobe.bin"
+          cp build-v1.6/MARF-REV1-no-strobe.hex "build/${BASE}-REV1-no-strobe.hex"
+          cp build-v1.6/MARF-REV1-no-strobe.bin "build/${BASE}-REV1-no-strobe.bin"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -79,8 +79,8 @@ jobs:
             build/${{ steps.name.outputs.base }}.hex
             build/${{ steps.name.outputs.base }}.bin
             build/${{ steps.name.outputs.base }}-manual.pdf
-            build/${{ steps.name.outputs.base }}-v1.6-no-strobe.hex
-            build/${{ steps.name.outputs.base }}-v1.6-no-strobe.bin
+            build/${{ steps.name.outputs.base }}-REV1-no-strobe.hex
+            build/${{ steps.name.outputs.base }}-REV1-no-strobe.bin
             build/MARF.elf
             build/MARF.map
           if-no-files-found: error
@@ -93,6 +93,6 @@ jobs:
             build/${{ steps.name.outputs.base }}.hex
             build/${{ steps.name.outputs.base }}.bin
             build/${{ steps.name.outputs.base }}-manual.pdf
-            build/${{ steps.name.outputs.base }}-v1.6-no-strobe.hex
-            build/${{ steps.name.outputs.base }}-v1.6-no-strobe.bin
+            build/${{ steps.name.outputs.base }}-REV1-no-strobe.hex
+            build/${{ steps.name.outputs.base }}-REV1-no-strobe.bin
           generate_release_notes: true

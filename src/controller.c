@@ -899,12 +899,15 @@ void ControllerCalibrationLoop() {
       if (max_captured) { DISPLAY_LED_I_OFF; DISPLAY_LED_II_ON; }
       else              { DISPLAY_LED_I_ON;  DISPLAY_LED_II_OFF; }
 
-      // Pulse LED swap selection
-      if (!switches.b.Pulse1On) swapped_pulses = 0;
-      else if (!switches.b.Pulse2On) swapped_pulses = 1;
-      // Pulse channel (switch + output) swap selection
-      if (!switches.b.TimeSourceExternal) swapped_pulse_switches = 1;
-      else if (!switches.b.TimeSourceInternal) swapped_pulse_switches = 0;
+      // Pulse 1<->2 swap, selected with the OUTPUT PULSE switches:
+      //   Pulse 1 On = normal, Pulse 2 On = swapped.
+      // One control swaps the ENTIRE pulse chain together -- the programming-row
+      // LEDs, the switch inputs, AND the output jacks + their LEDs -- so the whole
+      // thing stays consistent with the panel labels. (Previously the LED swap was
+      // on the Pulse switches but the output/jack swap was hidden on the Time
+      // Source switch, so toggling the obvious switch left the outputs unchanged.)
+      if (!switches.b.Pulse1On)      { swapped_pulses = 0; swapped_pulse_switches = 0; }
+      else if (!switches.b.Pulse2On) { swapped_pulses = 1; swapped_pulse_switches = 1; }
 
       cal_scan_step();
 

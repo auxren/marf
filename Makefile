@@ -74,7 +74,7 @@ all: $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin size
 # separate directory so the default v2 build is untouched. The v1 pin map is
 # reverse-engineered and UNVERIFIED on real v1 hardware.
 v16:
-	$(MAKE) MARF_HW=1 BUILD_DIR=build-v1.6 TARGET=MARF-v1.6-no-strobe
+	$(MAKE) MARF_HW=1 BUILD_DIR=build-v1.6 TARGET=MARF-REV1-no-strobe
 
 # ---- Host unit tests --------------------------------------------------------
 # Compiles the pure logic with the host compiler against test/shim (no target

@@ -24,8 +24,8 @@ meant to behave.
 ## B. Calibration (3.0 — two-pass)
 - [ ] **B1** — Hold **Stage Address 1 Advance** at power-on → cal mode (**Run/Wait/Stop LEDs cycling**; Display LED **I** = high pass).
 - [ ] **B2** — **High pass:** all **knobs and sliders to max**, apply **10 V** to the four external inputs (and the Stage Address jacks if you use external CV — keep those knobs at min).
-- [ ] **B3** — *(Optional)* Pulse-**LED** swap: **Pulse 2 up** moves the lit LED to Pulse 2; **Pulse 1 up** = normal.
-- [ ] **B4** — *(Optional)* Pulse-**channel** swap (switches + output jacks): **Time Source External up** = swap; **Time Source Internal up** = normal.
+- [ ] **B3** — *(Optional)* Pulse 1/2 swap with the **OUTPUT PULSE switches**: **Pulse 2 up** = swap, **Pulse 1 up** = normal. One control swaps the **whole chain together** — programming LEDs, switch inputs, and output jacks + their LEDs. The programming-row Pulse LED follows the choice.
+- [ ] **B4** — After a swap + **reboot**, the swap persists: the **output pulse jack LEDs** (by the jacks) are swapped to match, not just the programming-row LEDs.
 - [ ] **B5** — Press **Stage Address 1 Advance** → captures the high point (Display LED **II** = low pass).
 - [ ] **B6** — **Low pass:** all **knobs and sliders to min**, **0 V**/unpatched on the inputs. Press **Stage Address 2 Advance** → saves (erases EEPROM).
 - [ ] **B7** — After cal: sliders use their **full travel** (true 0 to full), and inputs/knobs track accurately.

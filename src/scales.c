@@ -4,14 +4,25 @@
 volatile uint8_t afg_scale[2] = { SCALE_CHROMATIC, SCALE_CHROMATIC };
 volatile uint8_t afg_root[2]  = { 0, 0 };
 
+// A dead band at each end so the extremes are reliably reachable even when a
+// slider doesn't quite sweep 0..4095 (uncalibrated travel, mechanical slop):
+// the bottom band always selects the first item, the top band the last.
+#define SLIDER_SELECT_MARGIN 250u   // ~6% at each end
+
+static uint8_t select_from_slider(uint16_t level, uint8_t count) {
+  if (level <= SLIDER_SELECT_MARGIN) return 0;
+  if (level >= 4095u - SLIDER_SELECT_MARGIN) return count - 1;
+  uint32_t span = 4096u - 2u * SLIDER_SELECT_MARGIN;
+  uint8_t i = (uint8_t) (((uint32_t) (level - SLIDER_SELECT_MARGIN) * count) / span);
+  return (i < count) ? i : (count - 1);
+}
+
 uint8_t scale_from_slider(uint16_t level) {
-  uint8_t s = (uint8_t) (((uint32_t) level * SCALE_COUNT) / 4096u);
-  return (s < SCALE_COUNT) ? s : (SCALE_COUNT - 1);
+  return select_from_slider(level, SCALE_COUNT);   // bottom = Chromatic
 }
 
 uint8_t root_from_slider(uint16_t level) {
-  uint8_t r = (uint8_t) (((uint32_t) level * 12u) / 4096u);
-  return (r < 12) ? r : 11;
+  return select_from_slider(level, 12);            // bottom = root 0
 }
 
 // 12-bit pitch-class masks (bit i set => semitone i, relative to root, is in

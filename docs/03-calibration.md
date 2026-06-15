@@ -38,22 +38,19 @@ If neither switch 1 nor 2 is on, the module uses 2 V/octave.
    you do (knob + CV sum into one input, so driving both at once saturates it
    and mis‑calibrates). Calibrate whichever source — knob or CV — you actually
    use to address stages.
-3. *(Optional — pulse LED swap.)* Some hardware revisions have the Pulse 1 / 2
-   LEDs reversed. If yours does, select **Pulse 2 up** to swap them (the lit LED
-   moves to Pulse 2). Select **Pulse 1 up** to swap back to normal. Skip this if
-   your pulse LEDs already read correctly.
-4. *(Optional — pulse channel swap.)* Some units have the Pulse 1 / 2
-   *switches and output jacks* reversed (the Pulse 1 switch programs Pulse 2 and
-   the pulse comes out the Pulse 2 jack, etc.). If yours does, select **Time
-   Source External up** to swap the pulse channels (both switches and outputs);
-   select **Time Source Internal up** to leave them normal. This is independent
-   of the LED swap above. Skip it if your pulse switches and jacks already match.
-5. **Press Stage Address 1 *Advance*** to capture the high point. Display LED
+3. *(Optional — Pulse 1 / 2 swap.)* Some hardware revisions have the Pulse 1 / 2
+   channels reversed. Use the **OUTPUT PULSE switches** to fix it: select
+   **Pulse 2 up** to swap, **Pulse 1 up** for normal. One control swaps the whole
+   pulse chain together — the programming LEDs, the switch inputs **and** the
+   output jacks and their LEDs — so everything matches the panel labels. The
+   programming-row Pulse LED follows your choice so you can confirm it. Skip this
+   if your pulses already read and route correctly.
+4. **Press Stage Address 1 *Advance*** to capture the high point. Display LED
    **II** now indicates the low pass.
-6. **Low pass — set everything to minimum:** turn all **knobs and sliders** to
+5. **Low pass — set everything to minimum:** turn all **knobs and sliders** to
    min, and apply **0 V** (or unpatch) the external inputs (including the Stage
    Address CV jacks if you fed them 10 V on the high pass).
-7. **Press Stage Address 2 *Advance*** to capture the low point and save.
+6. **Press Stage Address 2 *Advance*** to capture the low point and save.
 
 > **This erases the entire EEPROM, including all saved programs.** Calibrate
 > before you store programs you care about.
