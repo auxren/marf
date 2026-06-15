@@ -13,6 +13,12 @@ on:
 permissions:
   contents: write   # needed to create a Release on tag pushes
 
+# GitHub is removing the Node 20 runtime from the runners; opt the pinned JS
+# actions (checkout, upload-artifact, gh-release) into Node 24 now so they stop
+# emitting the deprecation warning. Harmless once Node 24 is the default.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   test:
     runs-on: ubuntu-latest
