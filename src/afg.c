@@ -303,13 +303,20 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
                                   override_v, use_override);
   afg->step_level = output_voltage;
 
-  // Set AFG time out value
-  outputs.time = get_time_slider_level(afg->step_num) >> 2;
+  // Set AFG time out value. v1 has a 12-bit Time/Ref DAC, v2 a 10-bit one.
+#if MARF_HW == 1
+  outputs.time = get_time_slider_level(afg->step_num);          // full 12 bits
+#else
+  outputs.time = get_time_slider_level(afg->step_num) >> 2;     // 10 bits
+#endif
 
   if (afg->step_cnt < afg->step_width) {
-    // Set AFG reference out value
-    // (Slopes down from 1023 to 0 over the course of the step)
+    // Set AFG reference out value (slopes down to 0 over the course of the step)
+#if MARF_HW == 1
+    outputs.ref = 4095 - (uint16_t) (((uint64_t) afg->step_cnt << 12) / afg->step_width);
+#else
     outputs.ref = 1023 - (uint16_t) (((uint64_t) afg->step_cnt << 10) / afg->step_width);
+#endif
 
     // If the step is sloped, then slope from prev_step_level to the new output value
     outputs.sloped = step.b.Sloped;

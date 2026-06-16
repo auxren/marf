@@ -21,6 +21,27 @@ inline static uint16_t SPI_I2S_ReceiveData_Fast(SPI_TypeDef* SPIx) {
   return SPIx->DR;
 }
 
+#if MARF_HW == 1
+// v1: the 12-bit MAX5135 takes a 3-byte frame (command + 16 data bits).
+inline static void MAX5135_SendPack(uint8_t byte1, uint8_t byte2, uint8_t byte3) {
+  GPIOB->BSRRH = GPIO_Pin_12; // Set
+
+  while(!SPI_I2S_GetFlagStatus_Fast(SPI2, SPI_I2S_FLAG_TXE));
+  SPI_I2S_SendData_Fast(SPI2, byte1);
+  while(!SPI_I2S_GetFlagStatus_Fast(SPI2, SPI_I2S_FLAG_RXNE));
+  SPI_I2S_ReceiveData_Fast(SPI2);
+  while(!SPI_I2S_GetFlagStatus_Fast(SPI2, SPI_I2S_FLAG_TXE));
+  SPI_I2S_SendData(SPI2, byte2);
+  while(!SPI_I2S_GetFlagStatus_Fast(SPI2, SPI_I2S_FLAG_RXNE));
+  SPI_I2S_ReceiveData_Fast(SPI2);
+  while(!SPI_I2S_GetFlagStatus_Fast(SPI2, SPI_I2S_FLAG_TXE));
+  SPI_I2S_SendData(SPI2, byte3);
+  while(!SPI_I2S_GetFlagStatus_Fast(SPI2, SPI_I2S_FLAG_RXNE));
+  SPI_I2S_ReceiveData_Fast(SPI2);
+
+  GPIOB->BSRRL = GPIO_Pin_12; // Reset
+}
+#else
 inline static void MAX5135_SendPack(uint8_t byte1, uint8_t byte2) {
   GPIOB->BSRRH = GPIO_Pin_12; // Set
 
@@ -35,6 +56,7 @@ inline static void MAX5135_SendPack(uint8_t byte1, uint8_t byte2) {
 
   GPIOB->BSRRL = GPIO_Pin_12; // Reset
 }
+#endif
 
 void MAX5135_Initialize(void) {
 	
@@ -70,20 +92,43 @@ void MAX5135_Initialize(void) {
 	mSPI.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2;
 	mSPI.SPI_Mode = SPI_Mode_Master;
 	mSPI.SPI_DataSize = 8;
+#if MARF_HW == 1
+	mSPI.SPI_CPOL = SPI_CPOL_High;   // v1 MAX5135 clocks on the opposite polarity
+#else
 	mSPI.SPI_CPOL = SPI_CPOL_Low;
+#endif
 	mSPI.SPI_CPHA = SPI_CPHA_1Edge;
-	mSPI.SPI_FirstBit = SPI_FirstBit_MSB;	
+	mSPI.SPI_FirstBit = SPI_FirstBit_MSB;
 	mSPI.SPI_NSS = SPI_NSS_Soft;
-	
+
 	SPI_Init(SPI2, &mSPI);
 	SPI_Cmd(SPI2, ENABLE);
 	SPI_NSSInternalSoftwareConfig(SPI2, SPI_NSSInternalSoft_Set);
+
+#if MARF_HW == 1
+	// v1 MAX5135 needs an explicit power-up / clear / linearity-calibration
+	// sequence before it will drive the Time and Ref outputs.
+	MAX5135_SendPack(MAX5135_CMD_PWR_CONTROL, MAX5135_DATA_NONE, MAX5135_DATA_NONE);
+	MAX5135_SendPack(MAX5135_CMD_SOFTWARE_CLEAR, MAX5135_DATA_NONE, MAX5135_DATA_NONE);
+	MAX5135_SendPack(MAX5135_CMD_LINEARITY, MAX5135_LINEARITY_BIT, MAX5135_DATA_NONE);
+	delay_ms(10);   // let the linearity calibration settle
+	MAX5135_SendPack(MAX5135_CMD_LINEARITY, MAX5135_DATA_NONE, MAX5135_DATA_NONE);
+#endif
 }
 
 
+#if MARF_HW == 1
+// v1: 12-bit DAC. Command byte 0x30|channel-mask, then the 12-bit value left-
+// justified into 16 data bits.
+void MAX5135_DAC_send(uint8_t DAC_Ch, uint16_t DAC_val) {
+	MAX5135_SendPack(0x30 | DAC_Ch,
+	                 (uint8_t) (((DAC_val << 4) & 0xFF00) >> 8),
+	                 (uint8_t) ((DAC_val << 4) & 0x00FF));
+}
+#else
 void MAX5135_DAC_send(uint8_t channel, uint16_t val) {
 	uint8_t msb = 0, lsb = 0;
-	
+
 	val &= 0x03FF;
 	switch(channel) {
 		case 0:
@@ -105,3 +150,4 @@ void MAX5135_DAC_send(uint8_t channel, uint16_t val) {
 	}
 	MAX5135_SendPack(msb, lsb);
 }
+#endif

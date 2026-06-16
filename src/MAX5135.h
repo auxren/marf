@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "marf_version.h"
+
 ////  Frame format for DAC exchange
 ////  C7 C6 C5 C4 C3 C2 C1 C0    D15 D14 D13 ...... D5 D4 D3 D2 D0
 ////  -----------------------    ---------------------------------
@@ -26,10 +28,19 @@
 #define MAX5135_LINEARITY_BIT				0x02
 
 // DAC_CH selection
-#define MAX5135_DAC_CH_0						0x00
-#define MAX5135_DAC_CH_1						0x01
-#define MAX5135_DAC_CH_2						0x02
-#define MAX5135_DAC_CH_3						0x03
+#if MARF_HW == 1
+	// v1: 12-bit MAX5135 -- the channel is a one-hot mask OR'd into the command.
+	#define MAX5135_DAC_CH_0						0x01
+	#define MAX5135_DAC_CH_1						0x02
+	#define MAX5135_DAC_CH_2						0x04
+	#define MAX5135_DAC_CH_3						0x08
+#else
+	// v2: 10-bit MAX5135 -- the channel is encoded in the command's high nibble.
+	#define MAX5135_DAC_CH_0						0x00
+	#define MAX5135_DAC_CH_1						0x01
+	#define MAX5135_DAC_CH_2						0x02
+	#define MAX5135_DAC_CH_3						0x03
+#endif
 
 #define MAX5135_DATA_NONE						0x00
 

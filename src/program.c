@@ -215,6 +215,12 @@ uint32_t GetStepWidth(uint8_t section, uint8_t step_num, float time_multiplier) 
     time_level = (float) sliders[slider_num].TLevel;
   };
 
+#if MARF_HW == 1
+  // v1 applies a piecewise-log2 taper to the time fader so the slider feels like
+  // the original v1.6 firmware (without this the v1 step rate is noticeably off).
+  time_level = scale_time_fader_fake_log2(time_level);
+#endif
+
   // Map the slider (0..4095) onto the 2-30s range for this time range:
   // 2s at minimum, rising to 2 + 28 = 30s at full scale.
   step_width = (time_level * RECIPROCAL_12BIT * STEP_WIDTH_28S) + STEP_WIDTH_2S;
