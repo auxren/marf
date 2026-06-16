@@ -38,13 +38,18 @@ If neither switch 1 nor 2 is on, the module uses 2 V/octave.
    you do (knob + CV sum into one input, so driving both at once saturates it
    and mis‑calibrates). Calibrate whichever source — knob or CV — you actually
    use to address stages.
-3. *(Optional — Pulse 1 / 2 swap.)* Some hardware revisions have the Pulse 1 / 2
-   channels reversed. Use the **OUTPUT PULSE switches** to fix it: select
-   **Pulse 2 up** to swap, **Pulse 1 up** for normal. One control swaps the whole
-   pulse chain together — the programming LEDs, the switch inputs **and** the
-   output jacks and their LEDs — so everything matches the panel labels. The
-   programming-row Pulse LED follows your choice so you can confirm it. Skip this
-   if your pulses already read and route correctly.
+3. *(Optional — pulse fixes.)* Two independent swaps, for boards that need them
+   (the programming‑row Pulse LED follows your choice so you can confirm each):
+   - **LED‑only swap** — if just the **Pulse 1 / 2 LEDs** are reversed (switches
+     and jacks are fine): select **Pulse 2 up** to swap, **Pulse 1 up** for
+     normal.
+   - **Channel swap** — if the Pulse 1 / 2 **switches *and* output jacks** are
+     reversed (Pulse 1 switch programs Pulse 2, pulse comes out the Pulse 2 jack):
+     select **Time Source External up** to swap, **Time Source Internal up** for
+     normal.
+
+   Apply only the one(s) your board needs. Skip this entirely if your pulses
+   already read and route correctly.
 4. **Press Stage Address 1 *Advance*** to capture the high point. Display LED
    **II** now indicates the low pass.
 5. **Low pass — set everything to minimum:** turn all **knobs and sliders** to
