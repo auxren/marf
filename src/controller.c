@@ -712,20 +712,25 @@ void ControllerProcessNavigationSwitches(uButtons* key) {
     display_mode = DISPLAY_MODE_VIEW_2;
   }
   if (!key->b.StepLeft || !key->b.StepRight) {
+    // Entering edit from view with a Stage No press. Start the edit cursor at
+    // the stage currently in view (not always stage 1) and use the normal SHORT
+    // debounce -- NOT the long SCROLL_WAIT -- so the press that enters edit
+    // registers like any other press. Previously the 120-tick scroll-wait
+    // swallowed the first Stage No press after a Display change.
     if (display_mode == DISPLAY_MODE_VIEW_1) {
       display_mode = DISPLAY_MODE_EDIT_1;
       edit_mode_section = afg1.section;
-      edit_mode_step_num = 0;
-      right_counter = SCROLL_WAIT_COUNTER;
-      left_counter = SCROLL_WAIT_COUNTER;
+      edit_mode_step_num = afg1.step_num;
+      right_counter = SHORT_COUNTER_TICKS;
+      left_counter = SHORT_COUNTER_TICKS;
       update_display();
     }
     else if (display_mode == DISPLAY_MODE_VIEW_2) {
       display_mode = DISPLAY_MODE_EDIT_2;
       edit_mode_section = afg2.section;
-      edit_mode_step_num = 0;
-      right_counter = SCROLL_WAIT_COUNTER;
-      left_counter = SCROLL_WAIT_COUNTER;
+      edit_mode_step_num = afg2.step_num;
+      right_counter = SHORT_COUNTER_TICKS;
+      left_counter = SHORT_COUNTER_TICKS;
       update_display();
     }
   }
