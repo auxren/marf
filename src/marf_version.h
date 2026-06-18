@@ -41,32 +41,39 @@
   #define MARF_DIP_EXPANDER_PIN    GPIO_Pin_8
   #define MARF_DIP_HAS_SAVE_PIN    1
 
-  // Pulse inputs wired on v1 (GPIOB), from the original v1.0 source:
-  //   STOP 1 = PB0, STOP 2 = PB1, START 1 = PB7, START 2 = PB5.
-  // There is NO strobe pulse input on v1 (strobe is a panel function only) --
-  // PB6/PB8 are not connected. (This is the "no-strobe" board; earlier builds
-  // wrongly dropped START instead of strobe, which broke start/stop.)
+  // Pulse inputs wired on v1 (GPIOB), straight from the MARF_v1.6 source
+  // (analog_data.h get_afg*_pulse_inputs + main.c mInterruptInit):
+  //   AFG1: START 1 = PB7, STOP 1 = PB0, STROBE 1 = PB2
+  //   AFG2: START 2 = PB5, STOP 2 = PB1, STROBE 2 = PB14
+  // v1 strobes are on PB2 (EXTI2) and PB14 (EXTI15_10), and the EXTI trigger is
+  // RISING + FALLING (the v1 hardware needs both edges). v2 uses different pins
+  // and rising-only. (The earlier "v1 = no-strobe, PB0/1/5/7" map was a
+  // reverse-engineered guess and broke start/run on real v1 hardware.)
   #define MARF_PULSE_HAS_START     1
-  #define MARF_PULSE_HAS_STROBE    0
-  #define MARF_PULSE_GPIO_PINS     (GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_5 | GPIO_Pin_7)
-  #define MARF_PULSE_EXTI_LINES    (EXTI_Line0 | EXTI_Line1 | EXTI_Line5 | EXTI_Line7)
+  #define MARF_PULSE_HAS_STROBE    1
+  #define MARF_PULSE_HAS_EXTI2_15  1   /* v1 strobes need EXTI2 + EXTI15_10 IRQs */
+  #define MARF_PULSE_EXTI_TRIGGER  EXTI_Trigger_Rising_Falling
+  #define MARF_PULSE_GPIO_PINS     (GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_5 | GPIO_Pin_7 | GPIO_Pin_14)
+  #define MARF_PULSE_EXTI_LINES    (EXTI_Line0 | EXTI_Line1 | EXTI_Line2 | EXTI_Line5 | EXTI_Line7 | EXTI_Line14)
   #define MARF_GPIO_STOP1    GPIO_Pin_0
   #define MARF_GPIO_STOP2    GPIO_Pin_1
   #define MARF_GPIO_START1   GPIO_Pin_7
   #define MARF_GPIO_START2   GPIO_Pin_5
-  #define MARF_GPIO_STROBE1  GPIO_Pin_5   /* unused on v1 (HAS_STROBE 0) */
-  #define MARF_GPIO_STROBE2  GPIO_Pin_7   /* unused on v1 */
+  #define MARF_GPIO_STROBE1  GPIO_Pin_2
+  #define MARF_GPIO_STROBE2  GPIO_Pin_14
   #define MARF_EXTI_STOP1    EXTI_Line0
   #define MARF_EXTI_STOP2    EXTI_Line1
   #define MARF_EXTI_START1   EXTI_Line7
   #define MARF_EXTI_START2   EXTI_Line5
-  #define MARF_EXTI_STROBE1  EXTI_Line5   /* unused on v1 */
-  #define MARF_EXTI_STROBE2  EXTI_Line7   /* unused on v1 */
+  #define MARF_EXTI_STROBE1  EXTI_Line2
+  #define MARF_EXTI_STROBE2  EXTI_Line14
   #define MARF_PULSE_SYSCFG_INIT() do { \
       SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource0); \
       SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource1); \
+      SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource2); \
       SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource5); \
       SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource7); \
+      SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, GPIO_PinSource14); \
     } while (0)
 
 #else
@@ -84,6 +91,8 @@
   //   START 1 = PB8, START 2 = PB6.
   #define MARF_PULSE_HAS_START     1
   #define MARF_PULSE_HAS_STROBE    1
+  #define MARF_PULSE_HAS_EXTI2_15  0   /* v2 pulse inputs all fall under EXTI0/1/9_5 */
+  #define MARF_PULSE_EXTI_TRIGGER  EXTI_Trigger_Rising
   #define MARF_PULSE_GPIO_PINS     (GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7 | GPIO_Pin_8)
   #define MARF_PULSE_EXTI_LINES    (EXTI_Line0 | EXTI_Line1 | EXTI_Line5 | EXTI_Line6 | EXTI_Line7 | EXTI_Line8)
   #define MARF_GPIO_STOP1    GPIO_Pin_0

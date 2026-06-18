@@ -176,7 +176,7 @@ void mInterruptInit(void) {
   EXTI_DeInit();
   mInt.EXTI_Line = MARF_PULSE_EXTI_LINES;
   mInt.EXTI_Mode = EXTI_Mode_Interrupt;
-  mInt.EXTI_Trigger = EXTI_Trigger_Rising;
+  mInt.EXTI_Trigger = MARF_PULSE_EXTI_TRIGGER;   // v1 = rising+falling, v2 = rising
   mInt.EXTI_LineCmd = ENABLE;
   EXTI_Init(&mInt);
 
@@ -194,18 +194,27 @@ void mInterruptInit(void) {
 
   NVIC_InitStructure.NVIC_IRQChannel = EXTI9_5_IRQn;
   NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority 	= 0x00; // highest
-  NVIC_InitStructure.NVIC_IRQChannelSubPriority 				= 0x00; 
-  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE; 
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority 				= 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
 
-  // Clear any latched pending bits. Clearing lines not configured on this board
-  // is harmless (their PR bits are never set), so the full set is cleared here.
-  EXTI_ClearITPendingBit(EXTI_Line0);
-  EXTI_ClearITPendingBit(EXTI_Line1);
-  EXTI_ClearITPendingBit(EXTI_Line5);
-  EXTI_ClearITPendingBit(EXTI_Line6);
-  EXTI_ClearITPendingBit(EXTI_Line7);
-  EXTI_ClearITPendingBit(EXTI_Line8);
+#if MARF_PULSE_HAS_EXTI2_15
+  // v1 strobes sit on PB2 (EXTI2) and PB14 (EXTI15_10), which need their own IRQs.
+  NVIC_InitStructure.NVIC_IRQChannel = EXTI2_IRQn;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init(&NVIC_InitStructure);
+
+  NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init(&NVIC_InitStructure);
+#endif
+
+  // Clear any latched pending bits for the lines this board uses.
+  EXTI_ClearITPendingBit(MARF_PULSE_EXTI_LINES);
 };
 
 // General handler for any and all of the start, stop and strobe interrupt signals.
@@ -285,6 +294,19 @@ void EXTI9_5_IRQHandler() {
   delay_us(2);
   HandlePulseInterruptSignals();
 }
+
+#if MARF_PULSE_HAS_EXTI2_15
+// v1 only: strobe A on PB2 (EXTI2) and strobe B on PB14 (EXTI15_10).
+void EXTI2_IRQHandler() {
+  delay_us(2);
+  HandlePulseInterruptSignals();
+}
+
+void EXTI15_10_IRQHandler() {
+  delay_us(2);
+  HandlePulseInterruptSignals();
+}
+#endif
 
 /*
 	Timer interrupt handler for AFG1 clock.
