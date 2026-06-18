@@ -142,22 +142,6 @@ static inline float scale_time_fake_log2(float linear_val) {
   }
 }
 
-// v1-only: piecewise-linear approximation of a log2 taper applied to the time
-// FADER (slider), matching the original v1.6 firmware so the v1 step rate feels
-// the same. (v2 uses the raw linear slider level.)
-static inline float scale_time_fader_fake_log2(float linear_val) {
-  if (linear_val < 910)
-    return linear_val * 0.160;
-  else if (linear_val < 1457)
-    return linear_val * 0.5378 - 344.44;
-  else if (linear_val < 2185)
-    return linear_val * 1.0 - 1023.91;
-  else if (linear_val < 3004)
-    return linear_val * 1.786 - 2731.94;
-  else
-    return linear_val * 1.339 - 1389.7;
-}
-
 // Get step time slider level as simple linear value
 static inline uint16_t get_time_slider_level(uint8_t slider_num) {
   return sliders[slider_num].TLevel;

@@ -12,9 +12,10 @@
 // Both boards use an STM32F405RG with the same EEPROM / shift-register / ADC-mux
 // wiring. They differ in:
 //   * the MAX5135 Time/Ref DAC: v1 is 12-bit (3-byte frame, CPOL high, needs a
-//     power/clear/linearity init); v2 is 10-bit (2-byte frame, CPOL low). v1
-//     also applies a log2 taper to the time fader. Gated on MARF_HW in
-//     MAX5135.c, afg.c and program.c (ported from the v1.6 source).
+//     power/clear/linearity init); v2 is 10-bit (2-byte frame, CPOL low). Gated
+//     on MARF_HW in MAX5135.c and afg.c (ported from the v1.6 source).
+//     (The v1.6 log2 time-fader taper is deliberately NOT used -- both boards
+//     use the linear fader so they run at the same rate; see program.c.)
 //   * the DIP-switch GPIO pins (and which switch maps to which function), and
 //   * the pulse-input wiring (GPIOB):
 //       v2: STOP1=PB0 STOP2=PB1 STROBE1=PB5 STROBE2=PB7 START1=PB8 START2=PB6
