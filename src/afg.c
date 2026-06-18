@@ -336,9 +336,11 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   //   PulseWidth 0      -> a short FIXED trigger (~1 ms), like the classic
   //                        firmware: tempo-independent, not a fraction of the step.
   //   PulseWidth 1..15  -> a gate growing to ~99% of the step.
-  // Whatever the setting, the pulse must always return low before the step ends
-  // so it can re-trigger -- otherwise at fast steps / low Time Multiply the high
-  // portion fills the whole step and successive pulses fuse into a constant high.
+  // The pulse must always return low before the step ends so it can re-trigger,
+  // but the low gap is capped at 1/4 of the step: at long steps it's a fixed
+  // ~1 ms gap; at short steps (fast / low Time Multiply) the gap shrinks with the
+  // step so the pulse never gets crushed to nothing (it stays a usable fraction
+  // of the step) and never fuses into a constant high.
   uint32_t sw = afg->step_width;
   uint32_t pulse_ticks;
   if (step.b.PulseWidth == 0) {
@@ -348,14 +350,11 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
     pulse_ticks = (uint32_t) (((uint64_t) sw * pw_percent) / 100u);
     if (pulse_ticks < PULSE_ACTIVE_STEP_WIDTH) pulse_ticks = PULSE_ACTIVE_STEP_WIDTH;
   }
-  // Guarantee a low gap at the end of the step.
-  if (sw > PULSE_ACTIVE_STEP_WIDTH) {
-    uint32_t max_high = sw - PULSE_ACTIVE_STEP_WIDTH; // keep >= ~1 ms low
-    if (pulse_ticks > max_high) pulse_ticks = max_high;
-  } else {
-    // Step shorter than the trigger width: split it so it still pulses.
-    pulse_ticks = sw / 2u;
-  }
+  // Low gap: ~1 ms, but never more than a quarter of the step.
+  uint32_t gap = PULSE_ACTIVE_STEP_WIDTH;
+  if (gap > sw / 4u) gap = sw / 4u;
+  uint32_t max_high = (sw > gap) ? (sw - gap) : 0u;
+  if (pulse_ticks > max_high) pulse_ticks = max_high;
   uint8_t pulses_on = (afg->step_cnt < pulse_ticks) ? 1 : 0;
   outputs.all_pulses = pulses_on;
   outputs.pulse1 = pulses_on ? step.b.OutputPulse1 : 0;
