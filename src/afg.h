@@ -70,8 +70,15 @@ AfgControllerState AfgGetControllerState(uint8_t afg_num);
 // Move the section programming offset to steps 0-15 or 16-31
 void AfgSetSection(uint8_t afg_num, uint8_t section);
 
-// Clock mode control from start, stop, strobe interrupts
-void AfgProcessModeChanges(uint8_t afg_num, PulseInputs pulses);
+// Clock mode control from start, stop, strobe interrupts.
+// `stamp` is the DWT cycle count taken when the pulse interrupt fired (always
+// non-zero from the ISR path), or 0 for panel/manual events. On v2, a stream
+// of simultaneous Start+Stop (advance) pulses with a stable spacing locks the
+// generator to that external clock: the Time Multiplier knob then selects an
+// integer ratio (/8../2, x1 around noon, x2..x8) and the time sliders become a
+// per-step shuffle/nudge. See clockfollow.h. Panel Advance (stamp 0) never
+// affects the clock lock.
+void AfgProcessModeChanges(uint8_t afg_num, PulseInputs pulses, uint32_t stamp);
 
 // Check timer after handling start signal
 uint8_t AfgCheckStart(uint8_t afg_num, uint8_t start_signal);

@@ -5,6 +5,13 @@ Each stage is defined independently. Focus a stage (see
 set its voltage, time, pulses and behaviour with the programming switches and
 sliders.
 
+> **Both channels at once:** hold **both Display switches** and the programming
+> switches apply to **both generators' current stages** simultaneously,
+> wherever each one is — e.g. hold both Displays and flick **Quantize** to
+> quantize the stage each generator is playing. Stage No Left/Right shifts both
+> sections while held. Release either Display switch to return to normal
+> single‑channel programming.
+
 ## Voltage
 
 The stage's **Voltage Out** comes from either the stage's **voltage slider** or
@@ -88,6 +95,10 @@ that step's time slider**; the step LEDs show the width as a bar. (The held
 chord's normal effect on the step's time source / time range is restored when
 you release.) The width is saved with the program and is included when you
 [randomize](04-front-panel-reference.md#randomize).
+
+Fresh and cleared programs default to a **~50 % gate**. The very bottom of the
+width range is the classic **~1 ms fixed trigger** (tempo‑independent) — pull
+the width all the way down if you want that behaviour.
 
 ## Operating mode (Stop / Sustain / Enable)
 

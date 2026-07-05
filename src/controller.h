@@ -37,6 +37,12 @@ typedef struct  {
   PulseInputs afg1_interrupts;
   PulseInputs afg2_interrupts;
 
+  // DWT cycle stamps taken in the pulse ISR (always non-zero), so the external
+  // clock-follow period measurement is not skewed by the modal ADC scan that
+  // runs before the pulses are processed. 0 = no stamp (panel/manual).
+  uint32_t afg1_pulse_stamp;
+  uint32_t afg2_pulse_stamp;
+
 } ControllerJobFlags;
 
 extern volatile ControllerJobFlags controller_job_flags;

@@ -8,9 +8,12 @@ on and off from the panel.
 
 ## What it does
 
-- Each stage has its **own** shift register (a loop of 2–16 bits). On each clock
-  the bit that wraps around is fed back — copied, inverted or randomised — and
-  the register is read out as a voltage.
+- Each stage has its **own** looping shift register — a repeating sequence of
+  **2–16 full‑range voltages** (the loop length is per stage; the value always
+  reads the full range). While the sequencer is **on a stage**, each clock
+  from its assigned external input plays the **next step of that stage's
+  loop**; with odds set by the stage's voltage slider, the bit feeding back
+  **slips** and the loop mutates. Stages the sequencer isn't on never move.
 - A register only drives a stage that is set to **Source External**. With the
   mode on, such a stage uses its register instead of an external input; the
   output still passes through the stage's **range / octave / quantize / scale**
@@ -25,27 +28,47 @@ Hold **Source External + Quantize together for about 0.8 s** to toggle the mode
 for the **displayed** sequence (pick it first with **Display 1 / Display 2**).
 
 On entering, the mode LEDs play a short **chase animation** (Quantize → Sloped →
-Full Range → External, twice) to confirm. While the mode is on, the **Source
-(External)** LED of the focused stage **breathes** (a slow fade) whenever that
-stage is set to External — a subtle reminder that its voltage is coming from a
-register. Hold the chord again to toggle the mode off.
+Full Range → External, twice) to confirm; on leaving, the chase runs in
+**reverse** — so every toggle is visibly acknowledged in its direction. While
+the mode is on, the **Source (External)** LED of the focused stage **breathes**
+(a slow fade) whenever that stage is set to External — a subtle reminder that
+its voltage is coming from a register. Hold the chord again to toggle the mode
+off.
 
 ## Clocking
 
-In this mode the four **external inputs A–D become clocks**. A rising edge on an
-input (the CV crossing mid‑scale) clocks every stage assigned to that input.
-Each stage is assigned to one of the four clocks (see configuration below), so
-you can run different stages from different clocks, or all from one.
+In this mode the four **external inputs A–D become clocks**. A rising edge on
+an input (crossing about **2 V**, re‑arming below ~1 V, so ordinary 5 V clocks
+work) clocks the register of the stage the sequencer is **currently on** — if
+that stage is assigned to that input (see configuration below). Different
+stages can listen to different clocks, or all to one; a stage the sequencer
+isn't on never moves.
 
-The stage's **voltage slider acts as the "big knob"** that sets how the loop
-evolves on each clock:
+**Nothing patched? It still works.** The clock is **soft‑normalled to the
+sequencer itself**: a stage whose assigned input has no CV present steps its
+register **once each time the sequencer enters it**. So with no cables at all,
+every visited stage gets one hold‑or‑slip decision per pass — and plugging a
+clock into the stage's input takes over (several slips per stage, faster
+evolution, or slower from a divided clock).
+
+The stage's **voltage slider sets how much the loop "slips"** per clock — how
+likely the recirculating bit is to be replaced with a fresh random one. The
+mapping is monotonic: the higher the slider, the more the loop mutates.
 
 | Voltage slider | Behaviour |
 |----------------|-----------|
-| **Full up** | **Locked** — the loop repeats exactly (period = length). |
-| **Centre** | **Random** — the pattern never repeats. |
-| **Full down** | **Inverted / double‑locked** — a longer, mirrored loop (period = 2× length). |
-| **In between** | **Slip** — mostly looping, with occasional changes. |
+| **Full down** | **Locked** — the same `length` voltages repeat in sequence, exactly. |
+| **In between** | **Slip** — the loop mostly repeats, with occasional changes. The slip rate follows a squared curve, so most of the travel is gentle evolution and it ramps up steeply near the top. |
+| **Full up** | **Every clock slips** — the sequence never repeats (an ever‑changing stream of full‑range voltages). |
+
+For example: one stage, loop length 4, clock into input A — slider down plays
+the same 4 voltages round and round; sliding up mutates that sequence more and
+more; at the top it never repeats. (After changing the slider or the length,
+the loop takes up to 8 clocks to settle into its exact repeat.)
+
+The slider is read **live** — its physical position is always the slip amount,
+even right after loading a program or using a configuration gesture (slider
+"pinning" never applies to it).
 
 ## Configuring a stage (clock & length)
 
@@ -55,7 +78,7 @@ slider for the **displayed** sequence:
 | Gesture | Sets |
 |---------|------|
 | **Hold Source External + move a *voltage* slider** | which **clock** (input A–D) drives that stage |
-| **Hold Source External + move a *time* slider** | that stage's **loop length** (2–16) |
+| **Hold Source External + move a *time* slider** | that stage's **loop length** (2–16 steps; default 8) |
 
 As with [scale selection](06-scales.md#selecting-a-scale-and-root), the step LEDs
 show the value, the sliders are frozen during the gesture so they don't change

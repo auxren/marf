@@ -85,6 +85,17 @@ meant to behave.
 - [ ] **I7** — **Start + Stop together** = single advance.
 - [ ] **I8** — **Strobe + Start together** = jump to addressed stage *and* run from there. *(v2 only)*
 
+## I2. External clock sync (3.2) *(v2 only)*
+- [ ] **IC1** — Patch a steady clock (~0.5–50 Hz) into **both Start and Stop**: after two pulses the sequence advances **one stage per clock**, in time, with **Time Multiply at noon**.
+- [ ] **IC2** — Turn Time Multiply **clockwise**: the sequence runs at **×2 … ×8 stages per clock**, evenly subdivided; changing the incoming tempo re-syncs without drift.
+- [ ] **IC3** — Turn Time Multiply **counter-clockwise**: the sequence advances **every 2 … 8 clocks**; the reference output slopes over the full (longer) step.
+- [ ] **IC4** — Knob sitting on a zone boundary does **not** flap between ratios (hysteresis).
+- [ ] **IC5** — While locked, a stage's **time slider = humanize depth**: **bottom = dead on the clock**; raising it adds a **random early/late shift, freshly drawn each time the stage plays** (scaling linearly, up to ±½ step at the top); the long-term grid stays locked. Gate lengths stay steady while onsets move (only the silent tails stretch).
+- [ ] **IC5b** — The humanize depth responds to the **physical slider position immediately**, including right after a program load or randomize (no pinning dead zone), and the shift moves the stage's **pulses** (ALL and programmed 1/2) together with the stage.
+- [ ] **IC6** — Stop the clock: after **~2 s** the generator returns to free-run (sliders set times, Time Multiply continuous again). Re-patching re-locks after two pulses.
+- [ ] **IC7** — Panel **Advance** pressed rhythmically does **not** create a lock, and pressing it while locked just advances one stage.
+- [ ] **IC8** — While locked, **Enable/Sustain** stages still hold/release from Start, **Strobe** still jumps, loops still loop, and programmed pulse widths scale with the clocked step length.
+
 ## J. Stage Address & continuous mode
 - [ ] **J1** — **Stage Address CV** + Strobe lands on the intended stage across its full range.
 - [ ] **J2** — **Continuous Select** engaged: stage follows the Stage Address CV directly (no clock); Reset has no effect; releasing returns to prior run state.
@@ -114,8 +125,10 @@ meant to behave.
 - [ ] **N2** — While on, the focused stage's **Source (External) LED breathes** if that stage is External.
 - [ ] **N3** — An **Internal** stage has its Source LED off and plays its normal slider voltage (no breathing).
 - [ ] **N4** — With the mode on, an **External-source** stage outputs an evolving looping voltage (its register), not the external input.
-- [ ] **N5** — The four **external inputs A–D act as clocks**: a rising edge advances the registers assigned to that input.
-- [ ] **N6** — The stage's **voltage slider = "big knob"**: full up = **locked loop**; centre = **random**; full down = **double-length/inverted**; between = **slip**.
+- [ ] **N5** — The four **external inputs A–D act as clocks** (3.2): a rising edge clocks the register of the stage the sequencer is **currently on** (if assigned to that input). Stages the sequencer isn't on never move. A **5 V clock** must register reliably (threshold ~2 V, re-arm ~1 V).
+- [ ] **N5b** — **Soft-normalled clocking** (3.2): with **nothing patched** into a stage's assigned input, its register steps **once per stage entry** — e.g. a free-running 5-step loop with sliders 2–5 down and 1 up changes step 1 every pass with zero cables. Patching a clock into the input takes over.
+- [ ] **N6** — The stage's **voltage slider = slip amount** (3.2 mapping). One stage, loop length 4, clock into its input: full **down** = the **same 4 full-range voltages repeat in sequence** (settles within ~8 clocks); full **up** = the sequence **never repeats**; in between = mostly repeating with occasional changes, ramping up toward the top (squared curve). Values span the full voltage range at ANY loop length (no low-voltage sliver at short lengths).
+- [ ] **N6b** — The slip control follows the **physical slider position immediately after a program load** (no pinning dead zone).
 - [ ] **N7** — **Hold Source External + move a voltage slider** sets which clock input (A–D) drives that stage (step LEDs show 0–3).
 - [ ] **N8** — **Hold Source External + move a time slider** sets that stage's loop length (2–16; step LEDs show it).
 - [ ] **N9** — The register output still passes through the stage's **range / octave / quantize / scale**.
@@ -134,6 +147,12 @@ meant to behave.
 - [ ] **N3.3** — Moving the slider during the gesture does **not** change the step's *time*; the moved slider is pinned on release.
 - [ ] **N3.4** — Pulse width is **saved/loaded** with the program (P-section) and **randomized** by the randomize chord (N2).
 - [ ] **N3.5** — On release, the step's **time source and time range return to what they were** before the chord. Setting widths across several stages **while running** does **not** stamp other steps' time range, and the LED bar tracks the slider you're moving.
+
+## N4. Both-channels programming (3.2) *(v2 only)*
+- [ ] **N4.1** — Hold **both Display switches** and flick **Quantize on**: the stage each generator is currently playing gets quantized — on **both** AFGs, even when they're on different sections.
+- [ ] **N4.2** — All other programming switches (range/octave, slope, pulses, time range, sources, op-modes, First/Last) likewise apply to **both** current stages while the chord is held.
+- [ ] **N4.3** — While held, **Stage No Left/Right** shifts **both** sections together (unexpanded units); display focus does not change and edit mode is not entered.
+- [ ] **N4.4** — Releasing either Display switch returns to normal single-channel programming/navigation.
 
 ## O. Soft-normalled external inputs (3.0)
 - [ ] **O1** — External-source stage **with** a CV patched to its chosen input → uses the external CV.

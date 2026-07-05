@@ -42,6 +42,19 @@ volatile uint8_t scale_select_bar = 0;
 // Pulse 1/2 output jacks (main.c) are swapped so the panel matches.
 volatile uint8_t swapped_pulse_switches = 0;
 
+// SWD-visible debug taps for the switch-scan pipeline (diagnosing the chord
+// dropout while externally clocked). Cheap; safe to leave in.
+volatile uint32_t dbg_scan_count = 0;     // 5 ms HC165 scans performed
+volatile uint32_t dbg_accept_count = 0;   // debounce acceptances
+volatile uint64_t dbg_new_switches = 0;   // latest raw HC165 read
+volatile uint64_t dbg_stable_switches = 0;// latest debounced state
+// Latching press-evidence counters: total scans that saw these switches
+// pressed in the RAW read, ever since boot. Timing-free diagnosis: press
+// whenever, read later.
+volatile uint32_t dbg_quantize_scans = 0; // scans with Quantize read pressed
+volatile uint32_t dbg_srcext_scans = 0;   // scans with Source External pressed
+volatile uint32_t dbg_chord_scans = 0;    // scans with both pressed
+
 inline static void adc_pause(void) {
   NVIC_DisableIRQ(ADC_IRQn);
 };
@@ -139,6 +152,17 @@ void ControllerMainLoop() {
     if (get_millis() - switch_last_read_time > 5) {
       new_switches_state = HC165_ReadSwitches(); // SLOOOOOOOOOOOW right here ..
       switch_last_read_time = get_millis();
+      dbg_scan_count++;
+      dbg_new_switches = new_switches_state;
+      dbg_stable_switches = stable_switches_state;
+      {
+        uButtons raw;
+        raw.value = new_switches_state;
+        uint8_t q = !raw.b.OutputQuantize, s = !raw.b.SourceExternal;
+        if (q) dbg_quantize_scans++;
+        if (s) dbg_srcext_scans++;
+        if (q && s) dbg_chord_scans++;
+      }
       if (new_switches_state == stable_switches_state) {
         // Nothing is happening
         switch_debounce_counter = KEY_DEBOUNCE_COUNT;
@@ -154,6 +178,7 @@ void ControllerMainLoop() {
     if (!switch_debounce_counter) {
       // Now switches are stable
       switch_debounce_counter = KEY_DEBOUNCE_COUNT;
+      dbg_accept_count++;
       previous_switches_state = stable_switches_state;
       stable_switches_state = new_switches_state;
 
@@ -297,6 +322,7 @@ void ControllerProcessScaleSelect(uButtons * key) {
   static uint8_t active = 0;
   static uint8_t showing_root = 0;   // step LEDs show root (vs scale) when set
   static uint16_t snap_v[32], snap_t[32];  // live slider positions at entry
+  static uint16_t last_v[32], last_t[32];  // last-loop positions (moving now?)
   static uint8_t moved_v[32], moved_t[32]; // which sliders were used to select
 
   uint8_t quantize_held   = !key->b.OutputQuantize;
@@ -316,24 +342,35 @@ void ControllerProcessScaleSelect(uButtons * key) {
       for (uint8_t i = 0; i <= max; i++) {
         snap_v[i] = slider_raw_v[i];
         snap_t[i] = slider_raw_t[i];
+        last_v[i] = slider_raw_v[i];
+        last_t[i] = slider_raw_t[i];
         moved_v[i] = 0;
         moved_t[i] = 0;
       }
     }
 
     // A voltage slider moved past the threshold picks the scale; a time slider
-    // picks the root. The step LEDs follow whichever was last moved.
+    // picks the root. Since all sliders write the SAME per-sequence value, a
+    // slider only writes while it is actually moving - otherwise a slider
+    // displaced earlier in the hold would keep re-asserting its value every
+    // loop and mask anything selected on another slider afterwards.
     for (uint8_t i = 0; i <= max; i++) {
-      int dv = (int) slider_raw_v[i] - (int) snap_v[i];
+      int dv = (int) slider_raw_v[i] - (int) snap_v[i];   // moved since entry?
       int dt = (int) slider_raw_t[i] - (int) snap_t[i];
       if (dv < 0) dv = -dv;
       if (dt < 0) dt = -dt;
-      if (dv > SCALE_SELECT_MOVE_THRESHOLD) {
+      int dlv = (int) slider_raw_v[i] - (int) last_v[i];  // moving right now?
+      int dlt = (int) slider_raw_t[i] - (int) last_t[i];
+      if (dlv < 0) dlv = -dlv;
+      if (dlt < 0) dlt = -dlt;
+      last_v[i] = slider_raw_v[i];
+      last_t[i] = slider_raw_t[i];
+      if (dv > SCALE_SELECT_MOVE_THRESHOLD && dlv > 8) {
         afg_scale[afg] = scale_from_slider(slider_raw_v[i]);
         showing_root = 0;
         moved_v[i] = 1;
       }
-      if (dt > SCALE_SELECT_MOVE_THRESHOLD) {
+      if (dt > SCALE_SELECT_MOVE_THRESHOLD && dlt > 8) {
         afg_root[afg] = root_from_slider(slider_raw_t[i]);
         showing_root = 1;
         moved_t[i] = 1;
@@ -373,24 +410,34 @@ void ControllerProcessScaleSelect(uButtons * key) {
 // Holding Source-External AND Quantize together for ~0.8 s toggles Turing mode
 // for the displayed sequence (one toggle per hold). When on, external-source
 // steps take their voltage from this stage's shift register.
+// The hold timer tolerates brief (<150 ms) dropouts in the switch reading, so
+// a momentary glitch (e.g. noise while heavily externally clocked) can't
+// silently restart the 0.8 s requirement.
 void ControllerProcessTuring(uButtons * key) {
   static uint8_t state = 0;        // 0 idle, 1 timing, 2 toggled (await release)
   static uint32_t start = 0;
+  static uint32_t last_held = 0;   // last time the chord read as held
 
   uint8_t both_held = !key->b.OutputQuantize && !key->b.SourceExternal;
+  uint32_t now = get_millis();
 
   if (both_held) {
-    if (state == 0) { state = 1; start = get_millis(); }
-    else if (state == 1 && (get_millis() - start) > 800) {
+    last_held = now;
+    if (state == 0) { state = 1; start = now; }
+    else if (state == 1 && (now - start) > 800) {
       uint8_t afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
                      display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
       turing_enabled[afg] ^= 1;
+      mode_led_breathe = 0;            // avoid PWM contention during the animation
       if (turing_enabled[afg]) {
-        mode_led_breathe = 0;          // avoid PWM contention during the animation
-        RunTuringEnterAnimation();
+        RunTuringEnterAnimation();     // forward chase: mode ON
+      } else {
+        RunTuringExitAnimation();      // reverse chase: mode OFF
       }
       state = 2;
     }
+  } else if (state == 1 && (now - last_held) < 150) {
+    // Brief dropout while timing: keep the hold alive.
   } else {
     state = 0;
   }
@@ -405,12 +452,15 @@ void ControllerProcessTuring(uButtons * key) {
 void ControllerProcessRandomize(uButtons * key) {
   static uint8_t state = 0;        // 0 idle, 1 timing, 2 fired (await release)
   static uint32_t start = 0;
+  static uint32_t last_held = 0;
 
   uint8_t both_reset = !key->b.StageAddress1Reset && !key->b.StageAddress2Reset;
+  uint32_t now = get_millis();
 
   if (both_reset) {
-    if (state == 0) { state = 1; start = get_millis(); }
-    else if (state == 1 && (get_millis() - start) > 1000) {
+    last_held = now;
+    if (state == 0) { state = 1; start = now; }
+    else if (state == 1 && (now - start) > 1000) {
       // Randomize the block the displayed AFG is showing (its current section).
       uint8_t disp_afg = (display_mode == DISPLAY_MODE_VIEW_2 ||
                           display_mode == DISPLAY_MODE_EDIT_2) ? AFG2 : AFG1;
@@ -422,14 +472,18 @@ void ControllerProcessRandomize(uButtons * key) {
       AfgReset(disp_afg);           // restart just that sequence from its step 1
       state = 2;
     }
+  } else if (state == 1 && (now - last_held) < 150) {
+    // Brief dropout while timing: keep the hold alive.
   } else {
     state = 0;
   }
 }
 
 // Clock the per-stage shift registers from the four external inputs.
-// A rising edge on external input k clocks every stage assigned to clock k,
-// with the stage's voltage slider acting as the Turing "big knob".
+#if MARF_HW == 1
+
+// v1 (frozen): a rising edge on external input k clocks EVERY stage assigned
+// to clock k, with the stage's committed voltage slider as the "big knob".
 void ControllerProcessTuringClocks(void) {
   static uint16_t prev[4] = { 0, 0, 0, 0 };
 
@@ -451,15 +505,100 @@ void ControllerProcessTuringClocks(void) {
   }
 }
 
+#else
+
+// v2: a rising edge on external input k clocks ONLY the stage(s) the
+// sequencers are currently ON (if assigned to clock k) - "when on a step, the
+// machine steps at that clock". A locked stage's register therefore never
+// moves while other stages play, so a sequence of locked stages repeats
+// exactly, pass after pass.
+//
+// Soft-normalling: a stage whose assigned input has NO CV present instead
+// steps its register once each time the sequencer ENTERS it - so the mode
+// works with nothing patched, and plugging a clock into A-D takes over.
+//
+// Edge detection uses a low threshold with hysteresis (~2 V rising, ~1 V
+// falling on a 10 V input) so ordinary 5 V clocks register reliably - the old
+// mid-scale (~5 V) threshold sat exactly on a 5 V gate and missed it.
+#define TURING_CLK_HI 820    // ~2 V of 10 V full scale
+#define TURING_CLK_LO 410    // ~1 V - must fall below to re-arm
+
+// Step the given stage's register (slip odds from its LIVE voltage slider -
+// not the committed/pinnable value, which went dead after loads/gestures).
+static void turing_step_stage(uint8_t s) {
+  uStep st = get_step_programming(0, s);
+  turing_set_length(&turing_machines[s], st.b.TuringLength + 2);  // 2..16
+  // On a 16-slider unit a section-1 stage (16-31) sits on physical slider s-16.
+  uint8_t slider = Is_Expander_Present() ? s : (uint8_t) (s & 0x0F);
+  turing_clock(&turing_machines[s], slider_raw_v[slider]);
+}
+
+void ControllerProcessTuringClocks(void) {
+  static uint8_t high[4] = { 0, 0, 0, 0 };
+  static uint8_t prev_cur[2] = { 0xFF, 0xFF };   // stage entry detection
+
+  if (!turing_enabled[0] && !turing_enabled[1]) {
+    prev_cur[0] = prev_cur[1] = 0xFF;
+    return;
+  }
+
+  AfgControllerState a1 = AfgGetControllerState(AFG1);
+  AfgControllerState a2 = AfgGetControllerState(AFG2);
+  uint8_t cur[2];
+  cur[AFG1] = (uint8_t) (a1.step_num + (a1.section << 4));
+  cur[AFG2] = (uint8_t) (a2.step_num + (a2.section << 4));
+
+  // External clock edges: step the current stage(s) assigned to input k.
+  for (uint8_t k = 0; k < 4; k++) {
+    uint16_t v = add_data[k];
+    uint8_t rising = 0;
+    if (!high[k] && v >= TURING_CLK_HI) { high[k] = 1; rising = 1; }
+    else if (high[k] && v < TURING_CLK_LO) { high[k] = 0; }
+    if (!rising) continue;
+
+    uint8_t did1 = 0;
+    if (turing_enabled[AFG1] && get_step_programming(0, cur[AFG1]).b.TuringClock == k) {
+      turing_step_stage(cur[AFG1]);
+      did1 = 1;
+    }
+    // Don't double-clock a stage both sequencers are sitting on.
+    if (turing_enabled[AFG2] && !(did1 && cur[AFG2] == cur[AFG1]) &&
+        get_step_programming(0, cur[AFG2]).b.TuringClock == k) {
+      turing_step_stage(cur[AFG2]);
+    }
+  }
+
+  // Soft-normalled stage-entry clocking for stages whose assigned input is
+  // unpatched.
+  uint8_t entered1 = 0;
+  for (uint8_t a = 0; a < 2; a++) {
+    if (!turing_enabled[a]) { prev_cur[a] = 0xFF; continue; }
+    if (cur[a] == prev_cur[a]) continue;
+    prev_cur[a] = cur[a];
+    // Both sequencers entering the same stage together: step it once.
+    if (a == AFG2 && entered1 && cur[AFG2] == cur[AFG1]) continue;
+    if (a == AFG1) entered1 = 1;
+    uStep st = get_step_programming(0, cur[a]);
+    if (!external_present[st.b.TuringClock]) {
+      turing_step_stage(cur[a]);
+    }
+  }
+}
+
+#endif  // MARF_HW
+
 // Per-stage Turing config gesture (only in Turing mode for the displayed
 // sequence). Holding Source-External (without Quantize) and moving a voltage
 // slider sets which of the four external jacks (0-3) clocks that stage; moving a
 // time slider sets that stage's loop length (2-16). The step LEDs show the value.
-// Sliders are frozen during the gesture (so the probability / duration don't
-// change) and the moved ones are pinned on release.
+// Sliders are frozen during the gesture (so the committed step voltage/duration
+// don't change) and the moved ones are pinned on release. Note the slip amount
+// follows the LIVE slider position, so wherever a voltage slider lands after
+// the gesture is that stage's new slip setting - position is truth.
 void ControllerProcessTuringConfig(uButtons * key) {
   static uint8_t active = 0;
   static uint16_t snap_v[32], snap_t[32];
+  static uint16_t last_v[32], last_t[32];   // last-loop positions: spot the slider moving NOW
   static uint8_t moved_v[32], moved_t[32];
 
   uint8_t source_ext_held = !key->b.SourceExternal;
@@ -472,30 +611,59 @@ void ControllerProcessTuringConfig(uButtons * key) {
     if (!active) {
       active = 1;
       scale_select_freeze = 1;
+      // Seed the LED display with the focused stage's CURRENT clock input, so
+      // entering the gesture shows the real assignment. Previously it showed a
+      // stale value from an earlier gesture until a slider crossed the move
+      // threshold - entering with the slider already at the bottom read as
+      // "bottom = B" while nothing had actually been written.
+      {
+        AfgControllerState a1 = AfgGetControllerState(AFG1);
+        AfgControllerState a2 = AfgGetControllerState(AFG2);
+        uint8_t f_step, f_section;
+        if (display_mode == DISPLAY_MODE_VIEW_1) {
+          f_step = a1.step_num; f_section = a1.section;
+        } else if (display_mode == DISPLAY_MODE_VIEW_2) {
+          f_step = a2.step_num; f_section = a2.section;
+        } else {
+          f_step = edit_mode_step_num; f_section = edit_mode_section;
+        }
+        scale_select_value = get_step_programming(f_section, f_step).b.TuringClock;
+      }
       for (uint8_t i = 0; i <= max; i++) {
         snap_v[i] = slider_raw_v[i];
         snap_t[i] = slider_raw_t[i];
+        last_v[i] = slider_raw_v[i];
+        last_t[i] = slider_raw_t[i];
         moved_v[i] = 0;
         moved_t[i] = 0;
       }
     }
     for (uint8_t i = 0; i <= max; i++) {
-      int dv = (int) slider_raw_v[i] - (int) snap_v[i];
+      int dv = (int) slider_raw_v[i] - (int) snap_v[i];   // moved since entry?
       int dt = (int) slider_raw_t[i] - (int) snap_t[i];
       if (dv < 0) dv = -dv;
       if (dt < 0) dt = -dt;
+      int dlv = (int) slider_raw_v[i] - (int) last_v[i];  // moving right now?
+      int dlt = (int) slider_raw_t[i] - (int) last_t[i];
+      if (dlv < 0) dlv = -dlv;
+      if (dlt < 0) dlt = -dlt;
+      last_v[i] = slider_raw_v[i];
+      last_t[i] = slider_raw_t[i];
       if (dv > SCALE_SELECT_MOVE_THRESHOLD) {
         uint8_t clk = (uint8_t) (((uint32_t) slider_raw_v[i] * 4) / 4096);
         if (clk > 3) clk = 3;
         steps[i].b.TuringClock = clk;
-        scale_select_value = clk;            // show clock 0-3 on step LEDs
+        // The LED display follows the slider being moved NOW - a slider that
+        // was displaced earlier in the hold (especially a higher-numbered one)
+        // must not mask changes made on another slider afterwards.
+        if (dlv > 8) scale_select_value = clk;
         moved_v[i] = 1;
       }
       if (dt > SCALE_SELECT_MOVE_THRESHOLD) {
         uint8_t len = (uint8_t) (((uint32_t) slider_raw_t[i] * 15) / 4096);  // 0..14
         if (len > 14) len = 14;
         steps[i].b.TuringLength = len;
-        scale_select_value = (uint8_t) (len + 1);  // show length-1 (1..15) on step LEDs
+        if (dlt > 8) scale_select_value = (uint8_t) (len + 1);  // show length-1 (1..15)
         moved_t[i] = 1;
       }
     }
@@ -627,6 +795,28 @@ void ControllerApplyProgrammingSwitches(uButtons * key) {
   AfgControllerState afg2 = AfgGetControllerState(AFG2);
   uint8_t step_num = 0, section = 0;
 
+  // On units with reversed Pulse 1/2 switch wiring (selected in calibration),
+  // swap the Pulse 1/2 switch inputs so the panel programs the intended output.
+  uButtons k = *key;
+  if (swapped_pulse_switches) {
+    k.b.Pulse1On  = key->b.Pulse2On;
+    k.b.Pulse1Off = key->b.Pulse2Off;
+    k.b.Pulse2On  = key->b.Pulse1On;
+    k.b.Pulse2Off = key->b.Pulse1Off;
+  }
+
+#if MARF_HW != 1
+  // Both Display switches held: "both channels" programming. The switches
+  // apply to BOTH generators' current stages, wherever each one is, instead
+  // of just the displayed one. (Sliders need no special handling: the two
+  // sections share the physical slider bank, so a slider always feeds both.)
+  if (!key->b.StageAddress1Display && !key->b.StageAddress2Display) {
+    ApplyProgrammingSwitches(afg1.section, afg1.step_num, &k);
+    ApplyProgrammingSwitches(afg2.section, afg2.step_num, &k);
+    return;
+  }
+#endif
+
   // Determine step num for different display modes
   if (display_mode == DISPLAY_MODE_VIEW_1) {
     step_num = afg1.step_num;
@@ -639,34 +829,24 @@ void ControllerApplyProgrammingSwitches(uButtons * key) {
     section = edit_mode_section;
   };
 
-  // On units with reversed Pulse 1/2 switch wiring (selected in calibration),
-  // swap the Pulse 1/2 switch inputs so the panel programs the intended output.
-  if (swapped_pulse_switches) {
-    uButtons k = *key;
-    k.b.Pulse1On  = key->b.Pulse2On;
-    k.b.Pulse1Off = key->b.Pulse2Off;
-    k.b.Pulse2On  = key->b.Pulse1On;
-    k.b.Pulse2Off = key->b.Pulse1Off;
-    ApplyProgrammingSwitches(section, step_num, &k);
-  } else {
-    ApplyProgrammingSwitches(section, step_num, key);
-  }
+  ApplyProgrammingSwitches(section, step_num, &k);
 }
 
 void ControllerProcessStageAddressSwitches(uButtons * key) {
   PulseInputs signals1 = {}, signals2 = {};
 
-  // Only do one of reset, strobe or advance
+  // Only do one of reset, strobe or advance.
+  // Panel events pass stamp 0 (manual): they never affect the clock lock.
   if (!key->b.StageAddress1Reset) {
     AfgReset(AFG1);
     update_display();
   } else if (!key->b.StageAddress1PulseSelect) {
     signals1.strobe = 1;
-    AfgProcessModeChanges(AFG1, signals1);
+    AfgProcessModeChanges(AFG1, signals1, 0);
   } else if (!key->b.StageAddress1Advance) {
     signals1.start = 1;
     signals1.stop = 1;
-    AfgProcessModeChanges(AFG1, signals1);
+    AfgProcessModeChanges(AFG1, signals1, 0);
   }
 
   if (!key->b.StageAddress2Reset) {
@@ -674,11 +854,11 @@ void ControllerProcessStageAddressSwitches(uButtons * key) {
     update_display();
   } else if ( (!key->b.StageAddress2PulseSelect)) {
     signals2.strobe = 1;
-    AfgProcessModeChanges(AFG2, signals2);
+    AfgProcessModeChanges(AFG2, signals2, 0);
   } else if (!key->b.StageAddress2Advance) {
     signals2.start = 1;
     signals2.stop = 1;
-    AfgProcessModeChanges(AFG2, signals2);
+    AfgProcessModeChanges(AFG2, signals2, 0);
   };
 
   if (!key->b.StageAddress1ContiniousSelect) {
@@ -704,14 +884,24 @@ void ControllerProcessNavigationSwitches(uButtons* key) {
   static uint16_t left_counter = SHORT_COUNTER_TICKS;
   static uint16_t right_counter = SHORT_COUNTER_TICKS;
 
+#if MARF_HW != 1
+  // Both Display switches held = "both channels" chord: programming switches
+  // apply to both generators (see ControllerApplyProgrammingSwitches), Stage
+  // No shifts both sections, and the display-mode flips / edit-entry are
+  // suppressed for the duration of the hold.
+  uint8_t both_displays = !key->b.StageAddress1Display && !key->b.StageAddress2Display;
+#else
+  const uint8_t both_displays = 0;   // v1 build: feature disabled (frozen)
+#endif
+
   // Display/edit mode changes
-  if (!key->b.StageAddress1Display && display_mode != DISPLAY_MODE_VIEW_1) {
+  if (!key->b.StageAddress1Display && !both_displays && display_mode != DISPLAY_MODE_VIEW_1) {
     display_mode = DISPLAY_MODE_VIEW_1;
   }
-  if (!key->b.StageAddress2Display && display_mode != DISPLAY_MODE_VIEW_2) {
+  if (!key->b.StageAddress2Display && !both_displays && display_mode != DISPLAY_MODE_VIEW_2) {
     display_mode = DISPLAY_MODE_VIEW_2;
   }
-  if (!key->b.StepLeft || !key->b.StepRight) {
+  if (!both_displays && (!key->b.StepLeft || !key->b.StepRight)) {
     // Entering edit from view with a Stage No press. Start the edit cursor at
     // the stage currently in view (not always stage 1) and use the normal SHORT
     // debounce -- NOT the long SCROLL_WAIT -- so the press that enters edit
@@ -737,7 +927,17 @@ void ControllerProcessNavigationSwitches(uButtons* key) {
 
   // Section shift for each afg in 16 slider mode
   if (!Is_Expander_Present()) {
-    if (!key->b.StepLeft && !key->b.StageAddress1Display) {
+    if (both_displays && !key->b.StepLeft) {
+      // Both channels: shift both generators to steps 1-16
+      AfgSetSection(AFG1, 0);
+      AfgSetSection(AFG2, 0);
+      update_display();
+    } else if (both_displays && !key->b.StepRight) {
+      // Both channels: shift both generators to steps 17-32
+      AfgSetSection(AFG1, 1);
+      AfgSetSection(AFG2, 1);
+      update_display();
+    } else if (!key->b.StepLeft && !key->b.StageAddress1Display) {
       AfgSetSection(AFG1, 0);
       display_mode = DISPLAY_MODE_VIEW_1;
       update_display();
@@ -1246,12 +1446,16 @@ void ControllerScanAdcLoop() {
   // Disable all irq including the function generators
   __disable_irq();
   if (any_pulses_high(controller_job_flags.afg1_interrupts)) {
-    AfgProcessModeChanges(AFG1, controller_job_flags.afg1_interrupts);
+    AfgProcessModeChanges(AFG1, controller_job_flags.afg1_interrupts,
+                          controller_job_flags.afg1_pulse_stamp);
     controller_job_flags.afg1_interrupts = PULSE_INPUTS_NONE;
+    controller_job_flags.afg1_pulse_stamp = 0;
   }
   if (any_pulses_high(controller_job_flags.afg2_interrupts)) {
-    AfgProcessModeChanges(AFG2, controller_job_flags.afg2_interrupts);
+    AfgProcessModeChanges(AFG2, controller_job_flags.afg2_interrupts,
+                          controller_job_flags.afg2_pulse_stamp);
     controller_job_flags.afg2_interrupts = PULSE_INPUTS_NONE;
+    controller_job_flags.afg2_pulse_stamp = 0;
   }
 
   // Restore normal operation

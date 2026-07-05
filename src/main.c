@@ -224,6 +224,11 @@ void HandlePulseInterruptSignals() {
   static uint32_t pulse2_handled_time = 0;
   uint32_t now = get_millis();
 
+  // Stamp the pulse arrival with the DWT cycle counter NOW (never 0), so the
+  // clock-follow period measurement isn't skewed by the modal ADC scan that
+  // runs before the pulses are actually processed.
+  uint32_t stamp = DWT->CYCCNT | 1;
+
   // Read all 3 GPIO pins directly right now
   volatile PulseInputs pulses1 = get_afg1_pulse_interrupts();
   volatile PulseInputs pulses2 = get_afg2_pulse_interrupts();
@@ -236,11 +241,12 @@ void HandlePulseInterruptSignals() {
         // We may need newly updated values from adc2 to do the right thing.
         // Go into a short modal state and then process the input pulses.
         controller_job_flags.afg1_interrupts = pulses1;
+        controller_job_flags.afg1_pulse_stamp = stamp;
         controller_job_flags.modal_loop = CONTROLLER_MODAL_SCAN;
       } else {
         // Can't go into the modal scan because we're already in the save/load modal
         // So process immediately instead
-        AfgProcessModeChanges(AFG1, pulses1);
+        AfgProcessModeChanges(AFG1, pulses1, stamp);
       }
       pulse1_handled_time = now;
     }
@@ -254,9 +260,10 @@ void HandlePulseInterruptSignals() {
     if (any_pulses_high(pulses2)) {
       if (controller_job_flags.modal_loop == CONTROLLER_MODAL_NONE) {
         controller_job_flags.afg2_interrupts = pulses2;
+        controller_job_flags.afg2_pulse_stamp = stamp;
         controller_job_flags.modal_loop = CONTROLLER_MODAL_SCAN;
       } else {
-        AfgProcessModeChanges(AFG2, pulses2);
+        AfgProcessModeChanges(AFG2, pulses2, stamp);
       }
       pulse2_handled_time = now;
     }

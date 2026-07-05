@@ -89,9 +89,17 @@ value, and any slider you move is pinned on release.
 | **Source External** (mode on) | move a **voltage** slider | set a stage's [clock input](07-shift-register.md#configuring-a-stage-clock--length) |
 | **Source External** (mode on) | move a **time** slider | set a stage's [register length](07-shift-register.md#configuring-a-stage-clock--length) |
 | **Time Source up (External) + Time Range 1 (.03) up** | move a **time** slider | set that step's **pulse width** (gate length, ~1%–99% of the step); step LEDs show a bar |
+| **Display 1 + Display 2** | use any programming switch | program **both channels at once** — the switch applies to **both generators' current stages**, wherever each one is; Stage No Left/Right shifts **both** sections |
 
 When shift‑register mode is on, the focused stage's **Source (External)** LED
 **breathes** (slow fade) if that stage is set to External.
+
+While **both Display switches** are held the display focus doesn't change and
+Stage No doesn't enter edit mode — release either switch to go back to normal
+single‑channel control. (The sliders need no "both" mode: the two sections
+share the physical slider bank, so a slider always feeds the stage at that
+position in both of them. The Time Multiply knobs are physically separate, one
+per generator.)
 
 ## Randomize
 
@@ -121,9 +129,14 @@ it happens. The displayed generator resets to its first stage afterward.
   source is *external*, the slider instead **selects which external input**
   (A–D) feeds the stage.
 - **Time slider** (per stage) — the stage's duration within its time range. When
-  the time source is *external*, it selects an external input.
+  the time source is *external*, it selects an external input. When the
+  generator is [locked to an external clock](08-running-and-clocking.md#external-clock-sync-v2),
+  it becomes that stage's **humanize amount** instead (bottom = on the clock,
+  up = more random timing shift).
 - **Time Multiply** (per generator) — scales all of that generator's stage
-  times together, roughly ×0.5 to ×4.
+  times together, roughly ×0.5 to ×4. When the generator is
+  [locked to an external clock](08-running-and-clocking.md#external-clock-sync-v2),
+  it selects an **integer clock ratio** (÷8 … ×1 … ×8) instead.
 
 ## Inputs
 

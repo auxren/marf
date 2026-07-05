@@ -7,7 +7,11 @@ pulses have useful combined meanings.
 
 - **Start + Stop together = single advance.** Pulsing Start and Stop at the same
   time advances the generator by exactly one stage without otherwise changing
-  its run state. (This is what the panel **Advance** button does.)
+  its run state. (This is what the panel **Advance** button does.) On v2, a
+  **steady stream** of such pulses locks the generator to that clock — the Time
+  Multiply knob then selects a clock ratio and the time sliders become a
+  per‑stage shuffle; see
+  [External clock sync](08-running-and-clocking.md#external-clock-sync-v2).
 - **Strobe + Start = start on the addressed stage.** Pulsing Strobe and Start
   together jumps to the stage selected by the **Stage Address** CV *and* starts
   running from there — handy for launching a sequence at a chosen entry point.

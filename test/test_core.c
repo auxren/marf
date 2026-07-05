@@ -19,6 +19,7 @@ void run_storage_tests(void);
 void run_scales_tests(void);
 void run_turing_tests(void);
 void run_presets_tests(void);
+void run_clockfollow_tests(void);
 #define CHECK(cond) do { \
     g_run++; \
     if (!(cond)) { g_fail++; printf("  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond); } \
@@ -270,6 +271,7 @@ int main(void) {
   run_scales_tests();
   run_turing_tests();
   run_presets_tests();
+  run_clockfollow_tests();
 
   printf("\n%d checks, %d failed\n", g_run, g_fail);
   return g_fail ? 1 : 0;

@@ -6,15 +6,28 @@
 // ---------------------------------------------------------------------------
 // Turing-machine style looping shift-register voltage source.
 //
-// Pure, hardware-free and host-tested. One TuringMachine per stage: a circular
-// shift register of programmable length (2..16). On each clock the bit that
-// wraps around is fed back, copied / inverted / randomised according to a
-// "change" amount (the Music Thing "big knob"):
+// Pure, hardware-free and host-tested. One TuringMachine per stage: a classic
+// looping 16-bit shift register, clocked from its assigned external input
+// ONLY while the sequencer is on that stage (soft-normalled to once per stage
+// entry when nothing is patched). The feedback tap sits at bit (length-1), so
+// the bit stream - and therefore the value sequence - repeats with period =
+// `length` (2..16). The value is always the low 8 bits read as a number, so
+// it spans the full 0..4095 range at any length. Each clock plays the next
+// step of the loop; with probability set by `change` (the stage's voltage
+// slider, read live) the fed-back bit "slips" (is replaced with a fresh
+// random bit), mutating the loop.
 //
-//   change far clockwise  (-> 4095): copy  -> the loop repeats   (period = len)
-//   change centre         (~ 2048): random -> never repeats
-//   change far counter-cw (-> 0)   : invert -> "double lock"     (period = 2*len)
-//   in between                     : "slip" - mostly looping, occasional change
+// v2 mapping (monotonic, squared "slip" curve):
+//   change 0 (slider down) : locked -> the same `length` voltages repeat in
+//                            sequence, exactly, forever
+//   change 4095 (slider up): every clock slips -> the sequence never repeats
+//   in between             : mostly repeating, mutating more and more as the
+//                            slider rises (squared curve)
+//
+// v1 (MARF_HW == 1) keeps the legacy behaviour (all assigned stages clock on
+// every edge, register truncated to the loop length, locked at both extremes,
+// random at centre, invert/double-lock counter-clockwise) - that build is
+// frozen.
 //
 // The output is the low bits of the register read as a number and scaled to the
 // 12-bit 0..4095 range used everywhere else (the caller then applies the step's

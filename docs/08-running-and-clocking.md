@@ -27,6 +27,52 @@ Simultaneous combinations are meaningful — see [Pulse tricks](11-pulse-tricks.
 The panel **Advance** button is equivalent to a simultaneous Start + Stop
 (advance one stage); the panel **Pulse Select** button is equivalent to a Strobe.
 
+## External clock sync (v2)
+
+Patch a clock into **both Start and Stop** (a stream of simultaneous advance
+pulses) and the generator **locks to it**. One irregular pulse still advances
+one stage, exactly as before — but as soon as two pulses arrive with a steady,
+plausible spacing (about **20 ms to 2 s**, i.e. ~0.5–50 Hz), the generator
+starts following the clock:
+
+- **Time Multiply becomes a clock‑ratio switch.** Around noon (11 to 1 o'clock)
+  the sequence advances **one stage per clock** (×1). Turning clockwise
+  **multiplies** — ×2, ×3 … up to **×8** stages per clock, subdivided evenly and
+  re‑synchronised on every incoming pulse so it can never drift. Turning
+  counter‑clockwise **divides** — one stage every 2, 3 … up to **8** clocks.
+  All integer ratios are available; the zones have hysteresis so a knob sitting
+  on a boundary won't flap.
+
+- **The time sliders become a per‑stage "humanize" amount.** While locked,
+  stage durations come from the clock, so the time sliders are re‑purposed: a
+  stage's slider at the **bottom** puts it **dead on the clock**; raising it
+  introduces a **random timing shift — early or late, freshly drawn every time
+  the stage plays** — scaling linearly up to half a step either way at the
+  top. The long‑term grid stays
+  locked to the clock, so a few raised sliders give the pattern a human,
+  breathing feel that always lands back in time. Like the shift‑register slip
+  control, the humanize depth reads the **live** slider position — it responds
+  immediately even right after a program load or randomize (slider pinning
+  never applies to it).
+
+- **Everything else still works.** Programmed pulses and the reference output
+  scale to the clocked step length; **Enable / Sustain** stages still hold and
+  release from the Start input; **Strobe** still jumps; loops still loop. While
+  locked, the clock is the transport — the generator follows it whether it is
+  officially "running" or "stopped", just as advance pulses have always worked
+  in either state.
+
+- **Unpatch or stop the clock** and after **2 seconds** the generator quietly
+  returns to normal free‑running behaviour: the time sliders set stage times
+  again and Time Multiply is the continuous ×0.5–×4 multiplier.
+
+The panel **Advance** button is always a plain manual advance — pressing it in
+time does not create (or disturb) a clock lock.
+
+> Tip: the clock ratio and the shuffle are per generator, so one clock into
+> both generators' Start+Stop pairs gives two locked sequences that can run at
+> different ratios with different grooves.
+
 ## Stop / Sustain / Enable stages
 
 These per‑stage modes (set when [programming a step](05-programming-steps.md#operating-mode-stop--sustain--enable))

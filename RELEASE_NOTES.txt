@@ -1,4 +1,75 @@
 Release Notes
+Version 3.2
+July 2026
+
+New features (v2 hardware only; the v1.6/REV1 build is functionally unchanged)
+--
+
+1. External clock sync. Patch a clock into BOTH Start and Stop of a generator
+   and it locks to that clock (pulses 20 ms - 2 s apart). While locked:
+   - The Time Multiply knob selects an integer clock ratio instead of a
+     continuous multiplier: /8 /7 /6 /5 /4 /3 /2 [x1 around noon] x2 ... x8.
+     Multiplied steps are subdivided evenly and re-synced on every incoming
+     pulse, so they can never drift. The ratio zones have hysteresis.
+   - The time sliders become a per-stage "humanize" amount: slider down = the
+     stage lands dead on the clock; raising it adds a random timing shift,
+     freshly drawn each time the stage plays - early or late, scaling
+     linearly up to half a step at the top - while the long-term grid stays
+     locked to the clock. The slider depth is applied live, and gate lengths
+     stay steady while onsets move.
+   - No clock for 2 seconds -> the generator returns to normal free-running
+     (sliders set times, Time Multiply is continuous again).
+   - The panel Advance button stays a plain manual advance and never creates
+     or disturbs a clock lock.
+
+2. Both-channels programming. Hold BOTH Display switches and the programming
+   switches apply to both generators' current stages at once, wherever each
+   one is (e.g. flick Quantize to quantize both playing stages). Stage No
+   Left/Right shifts both sections while held. Display focus does not change
+   during the hold.
+
+3. Shift-register (Turing) mode rework. Each stage is now a classic looping
+   shift register: a repeating sequence of `length` (2-16) FULL-RANGE voltages
+   played by the stage's assigned clock input (A-D) while the sequencer is on
+   that stage. The voltage slider is a monotonic "slip" control: slider down =
+   locked (the same voltages repeat in sequence, exactly), slider up = every
+   clock slips (the sequence never repeats), with a squared curve in between
+   (most of the travel is gentle mutation of the loop). Fixes vs 3.1:
+   - values span the full range at any loop length (short lengths used to be
+     confined to a sliver of the bottom of the range);
+   - the old invert/"double lock" zone is gone; the mapping is monotonic;
+   - the slider is read live - its position is always the slip amount, even
+     right after loading a program (pinning no longer applies to it);
+   - clock inputs trigger at ~2 V (re-arm below ~1 V) so ordinary 5 V clocks
+     register reliably (the old mid-scale threshold sat exactly on 5 V);
+   - only the currently-playing stage's register is clocked;
+   - soft-normalled: with nothing patched into a stage's assigned input, its
+     register steps once per stage entry, so the mode works with no cables;
+   - new/cleared/randomized/preset stages default to loop length 8.
+
+4. Cleared/fresh programs now default to a ~50% gate on every step. The old
+   default was the classic ~1 ms fixed trigger, which is inaudible as a gate
+   and made a fresh module feel dead. Pull a step's pulse width all the way
+   down (pulse-width chord) to get the classic trigger behaviour back.
+
+5. Gesture fixes.
+   - The clock/length config gesture (Source External held) now seeds its LED
+     display with the focused stage's actual clock assignment on entry -
+     previously it showed a stale value from an earlier gesture until a slider
+     crossed the move threshold, which read as "bottom selects B, not A".
+   - In the config and scale/root gestures, the selection follows the slider
+     being moved NOW. Previously any slider displaced earlier in the hold kept
+     re-asserting its value every loop, so a fast throw or a higher-numbered
+     slider could mask all later changes until the gesture was re-entered.
+   - The Turing-toggle and randomize hold timers tolerate brief (<150 ms)
+     dropouts in the switch reading instead of silently restarting.
+   - Toggling Turing mode OFF now plays a reverse LED chase. Previously only
+     the ON toggle animated, so an off-toggle was silent and easily read as
+     "the chord did nothing" - especially since the breathing Source LED only
+     shows when the focused stage is set to External.
+
+
+Release Notes
 Version 2.66
 June 2022
 
