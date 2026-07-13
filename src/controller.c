@@ -101,6 +101,10 @@ void ControllerCommonAllLoops() {
     controller_job_flags.adc_mux_shift_out = 0;
     // Wait for settle
     delay_us(10);
+#if MARF_HW == 1
+    // Drop the first post-advance conversion (see controller.h).
+    controller_job_flags.adc_discard_next = 1;
+#endif
     // Reenable conversion again
     controller_job_flags.inhibit_adc = 0;
   }
@@ -480,34 +484,7 @@ void ControllerProcessRandomize(uButtons * key) {
 }
 
 // Clock the per-stage shift registers from the four external inputs.
-#if MARF_HW == 1
-
-// v1 (frozen): a rising edge on external input k clocks EVERY stage assigned
-// to clock k, with the stage's committed voltage slider as the "big knob".
-void ControllerProcessTuringClocks(void) {
-  static uint16_t prev[4] = { 0, 0, 0, 0 };
-
-  if (!turing_enabled[0] && !turing_enabled[1]) return;
-
-  for (uint8_t k = 0; k < 4; k++) {
-    uint16_t v = add_data[k];
-    uint8_t rising = (prev[k] < 2048) && (v >= 2048);
-    prev[k] = v;
-    if (rising) {
-      for (uint8_t s = 0; s < TURING_NUM_STAGES; s++) {
-        uStep st = get_step_programming(0, s);
-        if (st.b.TuringClock == k) {
-          turing_set_length(&turing_machines[s], st.b.TuringLength + 2);  // 2..16
-          turing_clock(&turing_machines[s], sliders[s].VLevel);           // big knob
-        }
-      }
-    }
-  }
-}
-
-#else
-
-// v2: a rising edge on external input k clocks ONLY the stage(s) the
+// A rising edge on external input k clocks ONLY the stage(s) the
 // sequencers are currently ON (if assigned to clock k) - "when on a step, the
 // machine steps at that clock". A locked stage's register therefore never
 // moves while other stages play, so a sequence of locked stages repeats
@@ -536,9 +513,11 @@ static void turing_step_stage(uint8_t s) {
 void ControllerProcessTuringClocks(void) {
   static uint8_t high[4] = { 0, 0, 0, 0 };
   static uint8_t prev_cur[2] = { 0xFF, 0xFF };   // stage entry detection
+  static uint32_t last_edge_ms[4] = { 0, 0, 0, 0 };
 
   if (!turing_enabled[0] && !turing_enabled[1]) {
     prev_cur[0] = prev_cur[1] = 0xFF;
+    AdcMuxSetHotPot(-1);
     return;
   }
 
@@ -548,6 +527,16 @@ void ControllerProcessTuringClocks(void) {
   cur[AFG1] = (uint8_t) (a1.step_num + (a1.section << 4));
   cur[AFG2] = (uint8_t) (a2.step_num + (a2.section << 4));
 
+  // Oversample the input(s) serving as register clocks (v1; no-op on v2).
+  // With both sequences in Turing mode, alternate between their assigned
+  // inputs so each still gets fast sampling.
+  {
+    static uint8_t flip = 0;
+    flip ^= 1;
+    uint8_t a = (turing_enabled[AFG1] && (!turing_enabled[AFG2] || flip)) ? AFG1 : AFG2;
+    AdcMuxSetHotPot((int8_t) (16 + get_step_programming(0, cur[a]).b.TuringClock));
+  }
+
   // External clock edges: step the current stage(s) assigned to input k.
   for (uint8_t k = 0; k < 4; k++) {
     uint16_t v = add_data[k];
@@ -555,21 +544,38 @@ void ControllerProcessTuringClocks(void) {
     if (!high[k] && v >= TURING_CLK_HI) { high[k] = 1; rising = 1; }
     else if (high[k] && v < TURING_CLK_LO) { high[k] = 0; }
     if (!rising) continue;
+    uint32_t prev_edge_ms = last_edge_ms[k];
+    last_edge_ms[k] = get_millis();
+
+    // Register-clock period for gate scaling (ms -> AFG ticks).
+    uint32_t edge_period_ticks = 0;
+    if (prev_edge_ms != 0) {
+      uint32_t d = last_edge_ms[k] - prev_edge_ms;
+      if (d > 0 && d < 10000) edge_period_ticks = d * 32u;
+    }
 
     uint8_t did1 = 0;
     if (turing_enabled[AFG1] && get_step_programming(0, cur[AFG1]).b.TuringClock == k) {
       turing_step_stage(cur[AFG1]);
+      AfgTuringPulseRefire(AFG1, edge_period_ticks);   // announce with a gate
       did1 = 1;
     }
-    // Don't double-clock a stage both sequencers are sitting on.
-    if (turing_enabled[AFG2] && !(did1 && cur[AFG2] == cur[AFG1]) &&
-        get_step_programming(0, cur[AFG2]).b.TuringClock == k) {
-      turing_step_stage(cur[AFG2]);
+    // Don't double-clock a stage both sequencers are sitting on (but still
+    // re-fire AFG2's pulses - it is playing the stage that just stepped).
+    if (turing_enabled[AFG2] && get_step_programming(0, cur[AFG2]).b.TuringClock == k) {
+      if (!(did1 && cur[AFG2] == cur[AFG1])) {
+        turing_step_stage(cur[AFG2]);
+      }
+      AfgTuringPulseRefire(AFG2, edge_period_ticks);
     }
   }
 
   // Soft-normalled stage-entry clocking for stages whose assigned input is
-  // unpatched.
+  // not actively clocking. An input that has produced an edge in the last
+  // 2 s OWNS its stages (entry-clocking is suppressed) - the CV-presence
+  // sense can flap on slow/short pulse trains, which double-clocked stages
+  // from both paths and made patterns skip and stutter.
+  uint32_t now = get_millis();
   uint8_t entered1 = 0;
   for (uint8_t a = 0; a < 2; a++) {
     if (!turing_enabled[a]) { prev_cur[a] = 0xFF; continue; }
@@ -579,13 +585,13 @@ void ControllerProcessTuringClocks(void) {
     if (a == AFG2 && entered1 && cur[AFG2] == cur[AFG1]) continue;
     if (a == AFG1) entered1 = 1;
     uStep st = get_step_programming(0, cur[a]);
-    if (!external_present[st.b.TuringClock]) {
+    uint8_t k = st.b.TuringClock;
+    uint8_t edge_active = last_edge_ms[k] != 0 && (now - last_edge_ms[k]) < 2000;
+    if (!edge_active && !external_present[k]) {
       turing_step_stage(cur[a]);
     }
   }
 }
-
-#endif  // MARF_HW
 
 // Per-stage Turing config gesture (only in Turing mode for the displayed
 // sequence). Holding Source-External (without Quantize) and moving a voltage
@@ -805,7 +811,6 @@ void ControllerApplyProgrammingSwitches(uButtons * key) {
     k.b.Pulse2Off = key->b.Pulse1Off;
   }
 
-#if MARF_HW != 1
   // Both Display switches held: "both channels" programming. The switches
   // apply to BOTH generators' current stages, wherever each one is, instead
   // of just the displayed one. (Sliders need no special handling: the two
@@ -815,7 +820,6 @@ void ControllerApplyProgrammingSwitches(uButtons * key) {
     ApplyProgrammingSwitches(afg2.section, afg2.step_num, &k);
     return;
   }
-#endif
 
   // Determine step num for different display modes
   if (display_mode == DISPLAY_MODE_VIEW_1) {
@@ -884,15 +888,11 @@ void ControllerProcessNavigationSwitches(uButtons* key) {
   static uint16_t left_counter = SHORT_COUNTER_TICKS;
   static uint16_t right_counter = SHORT_COUNTER_TICKS;
 
-#if MARF_HW != 1
   // Both Display switches held = "both channels" chord: programming switches
   // apply to both generators (see ControllerApplyProgrammingSwitches), Stage
   // No shifts both sections, and the display-mode flips / edit-entry are
   // suppressed for the duration of the hold.
   uint8_t both_displays = !key->b.StageAddress1Display && !key->b.StageAddress2Display;
-#else
-  const uint8_t both_displays = 0;   // v1 build: feature disabled (frozen)
-#endif
 
   // Display/edit mode changes
   if (!key->b.StageAddress1Display && !both_displays && display_mode != DISPLAY_MODE_VIEW_1) {

@@ -30,6 +30,12 @@ typedef struct  {
   // Flag that the controller is shifting the mux and adc reads are invalid
   uint8_t inhibit_adc;
 
+  // v1: drop the first conversion after a mux advance - it may have started
+  // while the (long, 40-bit) chain write was still in flight and sampled the
+  // previous channel. Attributing it to the new pot cross-contaminated
+  // channels (sliders reading clock pulses and vice versa).
+  uint8_t adc_discard_next;
+
   // Flags that we are going into a modal loop
   uint8_t modal_loop;
 

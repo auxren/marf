@@ -207,6 +207,15 @@ static inline void v1_select_pot(uint8_t pot) {
   adc_mux_send_word(v1_ch_sel_data[pot]);
 }
 
+// The external input currently serving as a shift-register clock (16-19), or
+// -1 when Turing mode is off / nothing is being clocked. Set by the
+// controller; oversampled by AdcMuxAdvance below.
+static volatile int8_t v1_hot_pot = -1;
+
+void AdcMuxSetHotPot(int8_t pot) {
+  v1_hot_pot = pot;
+}
+
 #endif  // MARF_HW == 1
 
 void AdcMuxResetAllOff() {
@@ -246,9 +255,23 @@ void AdcMuxGpioInitialize(void)
 
 uint8_t AdcMuxAdvance(uint8_t pot) {
 #if MARF_HW == 1
-  // v1: plain increment through the 40 base positions with an explicit
-  // full-chain mask per selection (no dependence on previous chain state).
-  uint8_t next_pot = (uint8_t) ((pot + 1) % 40);
+  // v1: explicit full-chain masks make the scan order arbitrary. The ACTIVE
+  // shift-register clock input (set by the controller, pots 16-19) is
+  // OVERSAMPLED - visited every other slot (~0.3 ms) - because it is
+  // edge-detected from these samples and musical clock pulses are far shorter
+  // than a full scan lap. Everything else walks the normal 0-39 sequence in
+  // the remaining slots.
+  static uint8_t v1_base = 39;
+  static uint8_t v1_phase = 0;
+  uint8_t next_pot;
+  (void) pot;
+  v1_phase ^= 1;
+  if (v1_phase && v1_hot_pot >= 16 && v1_hot_pot <= 19) {
+    next_pot = (uint8_t) v1_hot_pot;
+  } else {
+    v1_base = (uint8_t) ((v1_base + 1) % 40);
+    next_pot = v1_base;
+  }
   v1_select_pot(next_pot);
   DELAY_NOPS_120NS();
   return next_pot;

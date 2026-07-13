@@ -35,13 +35,16 @@ one stage, exactly as before — but as soon as two pulses arrive with a steady,
 plausible spacing (about **20 ms to 2 s**, i.e. ~0.5–50 Hz), the generator
 starts following the clock:
 
-- **Time Multiply becomes a clock‑ratio switch.** Around noon (11 to 1 o'clock)
-  the sequence advances **one stage per clock** (×1). Turning clockwise
+- **Time Multiply becomes a clock‑ratio switch**, anchored to the panel
+  legend: at the **printed "1"** the sequence advances **one stage per clock**
+  (×1). Turning clockwise
   **multiplies** — ×2, ×3 … up to **×8** stages per clock, subdivided evenly and
   re‑synchronised on every incoming pulse so it can never drift. Turning
-  counter‑clockwise **divides** — one stage every 2, 3 … up to **8** clocks.
-  All integer ratios are available; the zones have hysteresis so a knob sitting
-  on a boundary won't flap.
+  counter‑clockwise **divides** — one stage every 2, 3 … up to **8** clocks at
+  full counter‑clockwise. All integer ratios are available; the zones have
+  hysteresis so a knob sitting on a boundary won't flap. (The printed legend
+  is log‑spaced and stops at 4, so above "1" the marks are approximate — full
+  clockwise is always ×8.)
 
 - **The time sliders become a per‑stage "humanize" amount.** While locked,
   stage durations come from the clock, so the time sliders are re‑purposed: a

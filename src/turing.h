@@ -17,17 +17,12 @@
 // slider, read live) the fed-back bit "slips" (is replaced with a fresh
 // random bit), mutating the loop.
 //
-// v2 mapping (monotonic, squared "slip" curve):
+// Mapping (monotonic, squared "slip" curve), both hardware revisions:
 //   change 0 (slider down) : locked -> the same `length` voltages repeat in
 //                            sequence, exactly, forever
 //   change 4095 (slider up): every clock slips -> the sequence never repeats
 //   in between             : mostly repeating, mutating more and more as the
 //                            slider rises (squared curve)
-//
-// v1 (MARF_HW == 1) keeps the legacy behaviour (all assigned stages clock on
-// every edge, register truncated to the loop length, locked at both extremes,
-// random at centre, invert/double-lock counter-clockwise) - that build is
-// frozen.
 //
 // The output is the low bits of the register read as a number and scaled to the
 // 12-bit 0..4095 range used everywhere else (the caller then applies the step's

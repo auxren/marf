@@ -16,23 +16,24 @@ void run_clockfollow_tests(void);
 
 static void test_ratio_zones(void) {
   printf("test_ratio_zones\n");
-  // Extremes and noon
+  // Extremes, and x1 anchored to the PANEL's printed "1" (~raw 1365)
   CHECK(cf_ratio_from_knob(0, 0) == -8);        // full CCW = /8
   CHECK(cf_ratio_from_knob(4095, 0) == 8);      // full CW  = x8
-  CHECK(cf_ratio_from_knob(2048, 0) == 1);      // noon     = x1
-  // x1 zone spans 1638..2457
-  CHECK(cf_ratio_from_knob(1638, 0) == 1);
-  CHECK(cf_ratio_from_knob(2457, 0) == 1);
-  CHECK(cf_ratio_from_knob(1637, 0) == -2);
-  CHECK(cf_ratio_from_knob(2458, 0) == 2);
+  CHECK(cf_ratio_from_knob(1365, 0) == 1);      // printed "1" = x1
+  // x1 zone spans 1165..1664
+  CHECK(cf_ratio_from_knob(1165, 0) == 1);
+  CHECK(cf_ratio_from_knob(1664, 0) == 1);
+  CHECK(cf_ratio_from_knob(1164, 0) == -2);
+  CHECK(cf_ratio_from_knob(1665, 0) == 2);
+  CHECK(cf_ratio_from_knob(1900, 0) == 2);   // just past the x1 zone = x2
   // Every divide zone in order
   for (int i = 0; i < 7; i++) {
-    int8_t r = cf_ratio_from_knob((uint16_t) (i * 234 + 117), 0);
+    int8_t r = cf_ratio_from_knob((uint16_t) (i * 166 + 83), 0);
     CHECK(r == (int8_t) (i - 8));
   }
   // Every multiply zone in order
   for (int i = 0; i < 7; i++) {
-    int8_t r = cf_ratio_from_knob((uint16_t) (2458 + i * 234 + 117), 0);
+    int8_t r = cf_ratio_from_knob((uint16_t) (1665 + i * 347 + 170), 0);
     CHECK(r == (int8_t) (i + 2));
   }
 }
@@ -40,17 +41,17 @@ static void test_ratio_zones(void) {
 static void test_ratio_hysteresis(void) {
   printf("test_ratio_hysteresis\n");
   // Sitting at x1; drift just past the zone edge stays x1...
-  CHECK(cf_ratio_from_knob(2458 + 20, 1) == 1);
-  CHECK(cf_ratio_from_knob(1638 - 20, 1) == 1);
+  CHECK(cf_ratio_from_knob(1665 + 20, 1) == 1);
+  CHECK(cf_ratio_from_knob(1165 - 20, 1) == 1);
   // ...but a clear move switches
-  CHECK(cf_ratio_from_knob(2458 + 60, 1) == 2);
-  CHECK(cf_ratio_from_knob(1638 - 60, 1) == -2);
+  CHECK(cf_ratio_from_knob(1665 + 60, 1) == 2);
+  CHECK(cf_ratio_from_knob(1165 - 60, 1) == -2);
   // And from x2, jitter back across the x1 edge doesn't flap
-  CHECK(cf_ratio_from_knob(2457 - 20, 2) == 2);
-  CHECK(cf_ratio_from_knob(2457 - 60, 2) == 1);
+  CHECK(cf_ratio_from_knob(1664 - 20, 2) == 2);
+  CHECK(cf_ratio_from_knob(1664 - 60, 2) == 1);
   // Invalid current ratio is ignored (no hysteresis applied)
-  CHECK(cf_ratio_from_knob(2048, 0) == 1);
-  CHECK(cf_ratio_from_knob(2048, 99) == 1);
+  CHECK(cf_ratio_from_knob(1365, 0) == 1);
+  CHECK(cf_ratio_from_knob(1365, 99) == 1);
 }
 
 static void test_humanize(void) {

@@ -86,7 +86,7 @@ meant to behave.
 - [ ] **I8** — **Strobe + Start together** = jump to addressed stage *and* run from there. *(v2 only)*
 
 ## I2. External clock sync (3.2) *(v2 only)*
-- [ ] **IC1** — Patch a steady clock (~0.5–50 Hz) into **both Start and Stop**: after two pulses the sequence advances **one stage per clock**, in time, with **Time Multiply at noon**.
+- [ ] **IC1** — Patch a steady clock (~0.5–50 Hz) into **both Start and Stop**: after two pulses the sequence advances **one stage per clock**, in time, with **Time Multiply at the printed "1"**.
 - [ ] **IC2** — Turn Time Multiply **clockwise**: the sequence runs at **×2 … ×8 stages per clock**, evenly subdivided; changing the incoming tempo re-syncs without drift.
 - [ ] **IC3** — Turn Time Multiply **counter-clockwise**: the sequence advances **every 2 … 8 clocks**; the reference output slopes over the full (longer) step.
 - [ ] **IC4** — Knob sitting on a zone boundary does **not** flap between ratios (hysteresis).

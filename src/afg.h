@@ -95,6 +95,12 @@ void AfgReset(uint8_t afg_num);
 // Process one time window
 ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks);
 
+// Re-fire the playing stage's pulses without disturbing the stage timer -
+// used when a shift-register clock steps the stage's register while the
+// sequencer sits on it. `period_ticks` is the measured register-clock period
+// (AFG ticks); the gate is the stage's programmed pulse-width % of THAT.
+void AfgTuringPulseRefire(uint8_t afg_num, uint32_t period_ticks);
+
 // Go in and out of continuous state address mode
 void EnableContinuousStageAddress(uint8_t afg_num);
 void DisableContinuousStageAddress(uint8_t afg_num);

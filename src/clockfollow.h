@@ -10,10 +10,11 @@
 // Stop, i.e. a stream of advance pulses), the AFG locks to the incoming clock:
 //
 //   * The Time Multiplier knob selects an integer clock ratio instead of a
-//     continuous multiplier. Noon (11 to 1 o'clock) = x1 (one step per clock);
-//     clockwise multiplies the clock up to x8, counter-clockwise divides it
-//     down to /8. All integer ratios are available:
-//         /8 /7 /6 /5 /4 /3 /2  [x1]  x2 x3 x4 x5 x6 x7 x8
+//     continuous multiplier, anchored to the PANEL legend: the printed "1"
+//     (about a third of the travel) = x1, one step per clock; clockwise
+//     multiplies up to x8 at full CW, counter-clockwise divides down to /8.
+//     All integer ratios are available:
+//         /8 /7 /6 /5 /4 /3 /2  [x1 at printed "1"]  x2 x3 x4 x5 x6 x7 x8
 //
 //   * The time sliders (which set nothing time-wise while clocked) become a
 //     per-step "humanize" amount: slider down = right on the clock; raising it

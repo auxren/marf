@@ -101,10 +101,8 @@ float GetTimeMultiplier(uint8_t afg_num) {
   }
 }
 
-#if MARF_HW != 1
-
 // ---------------------------------------------------------------------------
-// External clock follow (v2 only; the v1 build is frozen).
+// External clock follow.
 //
 // A stream of simultaneous Start+Stop (advance) pulses with a stable spacing
 // locks the generator to that clock. While locked:
@@ -206,14 +204,6 @@ static void ClockFollowMaintain(uint8_t afg_num) {
   }
 }
 
-#else  // MARF_HW == 1
-
-static inline uint32_t AfgEffStepWidth(uint8_t afg_num, uint8_t section, uint8_t step_num) {
-  return GetStepWidth(section, step_num, GetTimeMultiplier(afg_num));
-}
-
-#endif  // MARF_HW
-
 // Compute continuous step stage selection
 
 static inline void ComputeContinuousStep(uint8_t afg_num) {
@@ -227,10 +217,8 @@ static inline void ComputeContinuousStep(uint8_t afg_num) {
 }
 
 void AfgRecalculateStepWidths() {
-#if MARF_HW != 1
   ClockFollowMaintain(AFG1);
   ClockFollowMaintain(AFG2);
-#endif
   afg1.step_width = AfgEffStepWidth(AFG1, afg1.section, afg1.step_num);
   afg2.step_width = AfgEffStepWidth(AFG2, afg2.section, afg2.step_num);
 }
@@ -296,8 +284,6 @@ void AfgReset(uint8_t afg_num) {
     AfgJumpToStep(afg_num, 0);
   }
 }
-
-#if MARF_HW != 1
 
 // Handle one external advance (Start+Stop) pulse: measure the clock, manage
 // the lock, and advance according to the current ratio and nudge. `stamp` is
@@ -376,8 +362,6 @@ static void AfgClockAdvance(uint8_t afg_num, uint32_t stamp) {
   }
 }
 
-#endif  // MARF_HW != 1
-
 // Process start, stop and strobe pulse inputs in reaction to an interrupt on any of them.
 // Since simultaneous pulses are meaningful, we process them all together.
 // `stamp` is the DWT cycle stamp captured when the pulse interrupt fired
@@ -394,16 +378,10 @@ void AfgProcessModeChanges(uint8_t afg_num, PulseInputs pulses, uint32_t stamp) 
       afg->mode = MODE_RUN;
     }
   } else if (pulses.start && pulses.stop && afg->mode != MODE_WAIT) {
-    // Stop and start together are an advance.
-    // Do not change the mode, but jump immediately to the next step.
-#if MARF_HW == 1
-    (void) stamp;
-    AfgJumpToStep(afg_num, GetNextStep(afg->section, afg->step_num));
-#else
-    // On v2 a steady stream of advance pulses is an external clock: lock to
-    // it (ratio from the Time Multiplier knob, shuffle from the time sliders).
+    // Stop and start together are an advance. A steady stream of advance
+    // pulses is an external clock: lock to it (ratio from the Time Multiplier
+    // knob, humanize from the time sliders).
     AfgClockAdvance(afg_num, stamp);
-#endif
   } else if (pulses.start) {
     if (afg->mode == MODE_STOP) {
       // Start running
@@ -420,6 +398,38 @@ void AfgProcessModeChanges(uint8_t afg_num, PulseInputs pulses, uint32_t stamp) 
     afg->mode = MODE_STOP;
     update_display();
   }
+}
+
+// Pulse re-fire on shift-register clocks: when the PLAYING stage's register
+// is stepped (Turing mode), the stage's pulses fire again - a new value
+// should be announced with a gate even though no stage transition happened
+// (e.g. the sequencer parked on one stage with a clock into its register).
+// The gate width scales with the REGISTER CLOCK period (not the stage timer:
+// a parked stage's step width can be seconds, which held the gate high across
+// clocks - "always on"). Counts ticks since the request; 0xFFFFFFFF = idle.
+static volatile uint32_t pulse_refire[2] = { 0xFFFFFFFF, 0xFFFFFFFF };
+static volatile uint32_t pulse_refire_width[2] = { 0, 0 };
+
+void AfgTuringPulseRefire(uint8_t afg_num, uint32_t period_ticks) {
+  volatile AfgState *afg = afgs[afg_num];
+  uStep step = get_step_programming(afg->section, afg->step_num);
+  uint32_t w;
+  if (step.b.PulseWidth == 0 ||
+      period_ticks < 4u * PULSE_ACTIVE_STEP_WIDTH || period_ticks > 200000u) {
+    // Trigger width, also the fallback when the clock period is implausible
+    // (first edge, or out of musical range).
+    w = PULSE_ACTIVE_STEP_WIDTH;
+  } else {
+    uint32_t pw_percent = 1u + ((uint32_t) step.b.PulseWidth * 98u) / 15u;
+    w = (uint32_t) (((uint64_t) period_ticks * pw_percent) / 100u);
+    // Always return low before the next clock so the gate can re-trigger.
+    uint32_t gap = PULSE_ACTIVE_STEP_WIDTH;
+    if (gap > period_ticks / 4u) gap = period_ticks / 4u;
+    if (w > period_ticks - gap) w = period_ticks - gap;
+    if (w < PULSE_ACTIVE_STEP_WIDTH) w = PULSE_ACTIVE_STEP_WIDTH;
+  }
+  pulse_refire_width[afg_num] = w;
+  pulse_refire[afg_num] = 0;
 }
 
 // Advance to the next step from inside AfgTick (mirrors the classic advance).
@@ -447,7 +457,6 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
     afg->step_cnt += ticks;
   }
 
-#if MARF_HW != 1
   // Externally clocked: a humanized-late step boundary is armed by its clock
   // pulse and fires here once the delay has elapsed.
   volatile ClockFollowState *cf = &cfs[afg_num];
@@ -462,7 +471,6 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
       step = get_step_programming(afg->section, afg->step_num);
     }
   }
-#endif
 
   // Check if we're at the end of the step
   if (afg->mode == MODE_WAIT) {
@@ -515,12 +523,6 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
       // Don't reset step counter
     };
 
-#if MARF_HW == 1
-    if (afg->mode == MODE_RUN) {
-      // Advance to the next step
-      AfgAdvanceInTick(afg, afg_num, &step);
-    };
-#else
     if (!cf->active) {
       if (afg->mode == MODE_RUN) {
         // Advance to the next step
@@ -547,7 +549,6 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
       }
       // else: hold until the next clock pulse
     }
-#endif
   };
 
   // Now set output voltages
@@ -608,9 +609,7 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   // audibly modulate the PREVIOUS stage's gate length. With the nominal width
   // only the silent tail absorbs the shift; the gate itself stays steady.
   uint32_t nominal = sw;
-#if MARF_HW != 1
   if (cf->active) nominal = cf_base_width(cf->period, cf->ratio);
-#endif
   uint32_t pulse_ticks;
   if (step.b.PulseWidth == 0) {
     pulse_ticks = PULSE_ACTIVE_STEP_WIDTH;            // fixed short trigger
@@ -624,7 +623,13 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   if (gap > sw / 4u) gap = sw / 4u;
   uint32_t max_high = (sw > gap) ? (sw - gap) : 0u;
   if (pulse_ticks > max_high) pulse_ticks = max_high;
-  uint8_t pulses_on = (afg->step_cnt < pulse_ticks) ? 1 : 0;
+  // A shift-register clock on the playing stage re-fires its pulses, scaled
+  // to the register clock period, independent of the stage timer.
+  if (pulse_refire[afg_num] < 0xFFFFFFFFu - ticks) {
+    pulse_refire[afg_num] += ticks;
+  }
+  uint8_t pulses_on = (afg->step_cnt < pulse_ticks) ||
+                      (pulse_refire[afg_num] < pulse_refire_width[afg_num]) ? 1 : 0;
   outputs.all_pulses = pulses_on;
   outputs.pulse1 = pulses_on ? step.b.OutputPulse1 : 0;
   outputs.pulse2 = pulses_on ? step.b.OutputPulse2 : 0;

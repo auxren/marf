@@ -277,9 +277,7 @@ static void build_block(ProgramPayload *p, const PresetDef *d,
     s.b.Quantize      = 1;            // snap to the preset's scale
     s.b.VoltageSource = 0;            // internal (slider) -- nothing to patch
     s.b.TimeSource    = 0;            // internal time slider
-#if MARF_HW != 1
     s.b.TuringLength  = 6;            // default 8-bit register (full value range)
-#endif
     set_time_range(&s, d->time_range);
     apply_articulation(&s, src->art);
 

@@ -66,12 +66,10 @@ void InitProgram() {
   uStep clear_step = {{ 0x00, 0x00, 0x00 }};
   clear_step.b.TimeRange_3 = 1;   // default to the 3 s range (was 30 s)
   clear_step.b.FullRange = 1;
-#if MARF_HW != 1                  // v1 build is frozen: keep its old defaults
   clear_step.b.TuringLength = 6;  // default 8-bit register (full value range)
   clear_step.b.PulseWidth = 8;    // default ~50% gate (0 = the classic ~1 ms
                                   // trigger, which is inaudible as a gate and
                                   // made fresh/cleared programs feel dead)
-#endif
 
   StepSliders clear_slider;
   clear_slider.VLevel = 0;
@@ -129,9 +127,7 @@ void RandomizeProgram(uint8_t section) {
     // Keep sources internal and op-modes off; mark the random loop length.
     s.b.VoltageSource = 0;
     s.b.TimeSource    = 0;
-#if MARF_HW != 1
     s.b.TuringLength  = 6;   // default 8-bit register (full value range)
-#endif
     s.b.CycleFirst    = (off == 0)        ? 1 : 0;
     s.b.CycleLast     = (off == last_off) ? 1 : 0;
 

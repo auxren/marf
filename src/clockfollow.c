@@ -1,18 +1,23 @@
 #include "clockfollow.h"
 
 // ---------------------------------------------------------------------------
-// Knob -> ratio zones.
+// Knob -> ratio zones, anchored to the PANEL LEGEND (0.5 .. 1 .. 2 .. 4).
 //
-// The knob's travel is split into 15 zones:
-//   0    .. 1637 : divide,   7 zones  /8 /7 /6 /5 /4 /3 /2 (full CCW = /8)
-//   1638 .. 2457 : x1 (the noon dead zone, ~11 to 1 o'clock)
-//   2458 .. 4095 : multiply, 7 zones  x2 x3 x4 x5 x6 x7 x8 (full CW = x8)
+// The panel's printed "1" sits at about a third of the travel (the classic
+// fake-log taper puts 0.5-1 in the first third), NOT at noon - so the x1 zone
+// is centred there, divides fill the travel below it and multiplies above:
+//   0    .. 1164 : divide,   7 zones  /8 /7 /6 /5 /4 /3 /2 (full CCW = /8)
+//   1165 .. 1664 : x1 (centred on the printed "1", ~raw 1365)
+//   1665 .. 4095 : multiply, 7 zones  x2 x3 x4 x5 x6 x7 x8 (full CW = x8).
+// Note the printed legend is log-spaced and only reaches 4, so above "1" the
+// marks are approximate: turn by ear/count - full CW is always x8.
 // ---------------------------------------------------------------------------
 
-#define CF_X1_LO       1638u
-#define CF_X1_HI       2457u
+#define CF_X1_LO       1165u
+#define CF_X1_HI       1664u
 #define CF_SIDE_ZONES  7u
-#define CF_ZONE_WIDTH  234u    // 1638 / 7
+#define CF_DIV_ZONE_W  166u    // 1165 / 7
+#define CF_MUL_ZONE_W  347u    // (4096 - 1665) / 7
 #define CF_HYST        40u     // extra counts to move before a zone change
 
 // Zone bounds for a valid ratio.
@@ -22,15 +27,15 @@ static void zone_bounds(int8_t ratio, uint16_t *lo, uint16_t *hi) {
   } else if (ratio < 0) {
     // /8 is zone 0 (full CCW), /2 is zone 6
     uint16_t i = (uint16_t) (8 + ratio);           // -8 -> 0 .. -2 -> 6
-    *lo = (uint16_t) (i * CF_ZONE_WIDTH);
+    *lo = (uint16_t) (i * CF_DIV_ZONE_W);
     *hi = (uint16_t) ((i == CF_SIDE_ZONES - 1) ? (CF_X1_LO - 1)
-                                               : ((i + 1) * CF_ZONE_WIDTH - 1));
+                                               : ((i + 1) * CF_DIV_ZONE_W - 1));
   } else {
-    // x2 is zone 0 (just past noon), x8 is zone 6 (full CW)
+    // x2 is zone 0 (just past the printed "1"), x8 is zone 6 (full CW)
     uint16_t i = (uint16_t) (ratio - 2);           // 2 -> 0 .. 8 -> 6
-    *lo = (uint16_t) (CF_X1_HI + 1 + i * CF_ZONE_WIDTH);
+    *lo = (uint16_t) (CF_X1_HI + 1 + i * CF_MUL_ZONE_W);
     *hi = (uint16_t) ((i == CF_SIDE_ZONES - 1) ? 4095
-                                               : (CF_X1_HI + (i + 1) * CF_ZONE_WIDTH));
+                                               : (CF_X1_HI + (i + 1) * CF_MUL_ZONE_W));
   }
 }
 
@@ -38,11 +43,11 @@ static void zone_bounds(int8_t ratio, uint16_t *lo, uint16_t *hi) {
 static int8_t ratio_raw(uint16_t knob) {
   if (knob >= CF_X1_LO && knob <= CF_X1_HI) return 1;
   if (knob < CF_X1_LO) {
-    uint16_t i = (uint16_t) (knob / CF_ZONE_WIDTH);
+    uint16_t i = (uint16_t) (knob / CF_DIV_ZONE_W);
     if (i > CF_SIDE_ZONES - 1) i = CF_SIDE_ZONES - 1;
     return (int8_t) (i - 8);                       // 0 -> -8 .. 6 -> -2
   }
-  uint16_t i = (uint16_t) ((knob - (CF_X1_HI + 1)) / CF_ZONE_WIDTH);
+  uint16_t i = (uint16_t) ((knob - (CF_X1_HI + 1)) / CF_MUL_ZONE_W);
   if (i > CF_SIDE_ZONES - 1) i = CF_SIDE_ZONES - 1;
   return (int8_t) (i + 2);                         // 0 -> x2 .. 6 -> x8
 }

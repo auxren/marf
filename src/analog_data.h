@@ -141,20 +141,35 @@ static inline PulseInputs get_afg2_pulse_interrupts() {
   return pulse_inputs;
 }
 
-// Return the current level of pulse inputs direct from the gpio pins
+// Return the current ACTIVE state of the pulse inputs direct from the gpio
+// pins (1 = a pulse is present at the jack).
+// v1's Start/Stop input conditioning INVERTS: the lines idle HIGH and a pulse
+// at the jack pulls them LOW (measured on real v1 hardware - it is also why
+// v1 uses both-edge EXTI). Strobes idle LOW and are read directly on both
+// revisions. All level-based logic (Enable/Sustain holds, the both-edge event
+// qualification) reads through these accessors, so the inversion lives here.
 static inline PulseInputs get_afg1_pulse_inputs() {
   PulseInputs pulse_inputs = {};
-  pulse_inputs.start  = MARF_PULSE_HAS_START  ? ((GPIOB->IDR & MARF_GPIO_START1)  != 0) : 0;
+#if MARF_HW == 1
+  pulse_inputs.start  = (GPIOB->IDR & MARF_GPIO_START1) == 0;
+  pulse_inputs.stop   = (GPIOB->IDR & MARF_GPIO_STOP1)  == 0;
+#else
+  pulse_inputs.start  = MARF_PULSE_HAS_START ? ((GPIOB->IDR & MARF_GPIO_START1) != 0) : 0;
   pulse_inputs.stop   = (GPIOB->IDR & MARF_GPIO_STOP1) != 0;
+#endif
   pulse_inputs.strobe = MARF_PULSE_HAS_STROBE ? ((GPIOB->IDR & MARF_GPIO_STROBE1) != 0) : 0;
   return pulse_inputs;
 }
 
-// Return the current level of pulse inputs direct from the gpio pins
 static inline PulseInputs get_afg2_pulse_inputs() {
   PulseInputs pulse_inputs = {};
-  pulse_inputs.start  = MARF_PULSE_HAS_START  ? ((GPIOB->IDR & MARF_GPIO_START2)  != 0) : 0;
+#if MARF_HW == 1
+  pulse_inputs.start  = (GPIOB->IDR & MARF_GPIO_START2) == 0;
+  pulse_inputs.stop   = (GPIOB->IDR & MARF_GPIO_STOP2)  == 0;
+#else
+  pulse_inputs.start  = MARF_PULSE_HAS_START ? ((GPIOB->IDR & MARF_GPIO_START2) != 0) : 0;
   pulse_inputs.stop   = (GPIOB->IDR & MARF_GPIO_STOP2) != 0;
+#endif
   pulse_inputs.strobe = MARF_PULSE_HAS_STROBE ? ((GPIOB->IDR & MARF_GPIO_STROBE2) != 0) : 0;
   return pulse_inputs;
 }

@@ -1,4 +1,59 @@
 Release Notes
+Version 3.2.1  (REV1 / v1 hardware ONLY)
+July 2026
+
+A v1-hardware release: the REV1 image is validated on a real v1 unit for the
+first time and gains full 3.2 feature parity. v2 OWNERS: stay on v3.2 - this
+release intentionally publishes no v2 image (shared improvements that also
+touch v2 will ship as v3.3 after a v2 regression pass).
+
+New (REV1)
+--
+1. Full v3.2 feature parity: external clock sync (ratio knob + humanize
+   sliders), the reworked shift-register mode, both-channels programming,
+   the gesture fixes and the 50%-gate / 8-bit-register defaults. Previously
+   REV1 was functionally frozen at 3.1 behaviour.
+2. Shift-register clocks now gate the pulse outputs: when the playing
+   stage's register is clocked, the stage's pulses re-fire with the stage's
+   pulse-width setting scaled to the incoming clock period.
+3. The clock-ratio zones are anchored to the panel legend: the printed "1"
+   on Time Multiply = x1 (it is NOT at noon); full CW = x8, full CCW = /8.
+
+Fixed (REV1)
+--
+1. ALL analog inputs (sliders, Time Multiply, stage-address CVs, external
+   inputs) now work: v1 boards need explicit full-chain ADC mux selection
+   (ported from the original v1.0 firmware); the optimized v2 addressing
+   landed selections wrong, which also explains the historic "Time Multiply
+   and continuous stage address dead on v1" reports.
+4. v1's Start/Stop inputs are INVERTED by the input conditioning (idle high,
+   pulse pulls low). Pulses are now processed once, on the leading edge, so
+   external clocking (start+stop) locks correctly; Enable/Sustain stages read
+   the true gate state (they were doubly broken before: wrong pin AND wrong
+   polarity).
+5. The active shift-register clock input is oversampled (~0.3 ms) so musical
+   clock pulses register reliably; readings can no longer be attributed to
+   the wrong channel (first conversion after each mux move is discarded).
+6. An input that is actively clocking a register suppresses the
+   step-on-entry soft-normal for 2 s (no more double-clocked, stuttering
+   patterns).
+
+Known issues / notes (3.2.1)
+--
+- No v2 image in this release by design; v2 users stay on v3.2.
+- Bench-validated on one v1 unit: analog inputs, external clock sync
+  (lock/ratios/humanize), shift-register clocking and gates. NOT yet
+  validated on v1: strobe inputs (PB2/PB14), Sustain/Enable under a gate,
+  Time/Ref OUT levels (12-bit DAC port), expander units (which also do not
+  get the clock-input oversampling).
+- With BOTH sequences in Turing mode on different clock inputs, the two
+  inputs alternate the fast sampling (each ~0.7 ms) - keep clock pulses
+  above ~1.5 ms in that configuration.
+- On v2 (v3.2), the shift-register clock inputs still sample at ~3.3 ms:
+  use clock pulses/gates of a few ms or slower rates there until v3.3.
+
+
+Release Notes
 Version 3.2
 July 2026
 
@@ -8,7 +63,8 @@ New features (v2 hardware only; the v1.6/REV1 build is functionally unchanged)
 1. External clock sync. Patch a clock into BOTH Start and Stop of a generator
    and it locks to that clock (pulses 20 ms - 2 s apart). While locked:
    - The Time Multiply knob selects an integer clock ratio instead of a
-     continuous multiplier: /8 /7 /6 /5 /4 /3 /2 [x1 around noon] x2 ... x8.
+     continuous multiplier: /8 /7 /6 /5 /4 /3 /2 [x1 at the panel's printed
+     "1"] x2 ... x8 (full clockwise).
      Multiplied steps are subdivided evenly and re-synced on every incoming
      pulse, so they can never drift. The ratio zones have hysteresis.
    - The time sliders become a per-stage "humanize" amount: slider down = the

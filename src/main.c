@@ -49,6 +49,16 @@ void ADC_IRQHandler() {
     return;
   }
 
+#if MARF_HW == 1
+  // First conversion after a mux advance may have been sampled on the
+  // previous channel (the conversion pipeline overlaps the long v1 chain
+  // write): drop it. The next conversion is clean and drives the scan on.
+  if (controller_job_flags.adc_discard_next) {
+    controller_job_flags.adc_discard_next = 0;
+    return;
+  }
+#endif
+
   if (controller_job_flags.adc_pot_sel < 16 && adc1_eoc) {
     // POT_TYPE_VOLTAGE EOC
     stage = controller_job_flags.adc_pot_sel;
@@ -217,26 +227,57 @@ void mInterruptInit(void) {
   EXTI_ClearITPendingBit(MARF_PULSE_EXTI_LINES);
 };
 
+// SWD-visible debug taps for the pulse path (each stage of the funnel).
+volatile uint32_t dbg_pulse_isr = 0;     // handler invocations
+volatile uint32_t dbg_pulse_flag1 = 0;   // invocations with any AFG1 EXTI flag
+volatile uint32_t dbg_pulse_lvl1 = 0;    // ... that also passed the level mask
+volatile uint32_t dbg_pulse_q1 = 0;      // ... that were queued/processed
+
 // General handler for any and all of the start, stop and strobe interrupt signals.
 // The logic is more robust if all of the signals are coalesced and processed together.
 void HandlePulseInterruptSignals() {
   static uint32_t pulse1_handled_time = 0;
   static uint32_t pulse2_handled_time = 0;
   uint32_t now = get_millis();
+  dbg_pulse_isr++;
 
   // Stamp the pulse arrival with the DWT cycle counter NOW (never 0), so the
   // clock-follow period measurement isn't skewed by the modal ADC scan that
   // runs before the pulses are actually processed.
   uint32_t stamp = DWT->CYCCNT | 1;
 
-  // Read all 3 GPIO pins directly right now
-  volatile PulseInputs pulses1 = get_afg1_pulse_interrupts();
-  volatile PulseInputs pulses2 = get_afg2_pulse_interrupts();
+  // Read all 3 GPIO pins directly right now.
+  // flags* are the raw EXTI pending flags (always cleared below); pulses* are
+  // what we act on.
+  volatile PulseInputs flags1 = get_afg1_pulse_interrupts();
+  volatile PulseInputs flags2 = get_afg2_pulse_interrupts();
+  volatile PulseInputs pulses1 = flags1;
+  volatile PulseInputs pulses2 = flags2;
+
+#if MARF_HW == 1
+  // v1 EXTI fires on BOTH edges (the input conditioning inverts, so the
+  // LEADING edge of a jack pulse is the line's FALLING edge). Only act on the
+  // edge where the pulse is ACTIVE (accessors return active-state), so each
+  // pulse is processed exactly once, on its leading edge - the trailing edge
+  // would otherwise read as a second event, and its slow pull-up rise split
+  // Start/Stop into separate events (breaking the start+stop advance).
+  // The raw flags are still cleared for both edges below.
+  {
+    PulseInputs lv1 = get_afg1_pulse_inputs();
+    PulseInputs lv2 = get_afg2_pulse_inputs();
+    pulses1.start &= lv1.start; pulses1.stop &= lv1.stop; pulses1.strobe &= lv1.strobe;
+    pulses2.start &= lv2.start; pulses2.stop &= lv2.stop; pulses2.strobe &= lv2.strobe;
+  }
+#endif
+
+  if (any_pulses_high(flags1)) dbg_pulse_flag1++;
+  if (any_pulses_high(pulses1)) dbg_pulse_lvl1++;
 
   // Inhibit pulse handling for 2ms after anything changes
   if (now - pulse1_handled_time > 2) {
     // Debouncing ... don't trigger if the switches might have bounced back to low values
     if (any_pulses_high(pulses1)) {
+      dbg_pulse_q1++;
       if (controller_job_flags.modal_loop == CONTROLLER_MODAL_NONE) {
         // We may need newly updated values from adc2 to do the right thing.
         // Go into a short modal state and then process the input pulses.
@@ -271,15 +312,16 @@ void HandlePulseInterruptSignals() {
     pulse2_handled_time = 0;
   }
 
-  // Clear all interrupt flags that were handled
+  // Clear all interrupt flags that were raised (both edges on v1, so a
+  // masked-out falling edge can never leave a pending flag re-firing the IRQ)
 
-  if (pulses1.start)  EXTI_ClearITPendingBit(EXTI_LINE_START1);
-  if (pulses1.stop)   EXTI_ClearITPendingBit(EXTI_LINE_STOP1);
-  if (pulses1.strobe) EXTI_ClearITPendingBit(EXTI_LINE_STROBE1);
+  if (flags1.start)  EXTI_ClearITPendingBit(EXTI_LINE_START1);
+  if (flags1.stop)   EXTI_ClearITPendingBit(EXTI_LINE_STOP1);
+  if (flags1.strobe) EXTI_ClearITPendingBit(EXTI_LINE_STROBE1);
 
-  if (pulses2.start)  EXTI_ClearITPendingBit(EXTI_LINE_START2);
-  if (pulses2.stop)   EXTI_ClearITPendingBit(EXTI_LINE_STOP2);
-  if (pulses2.strobe) EXTI_ClearITPendingBit(EXTI_LINE_STROBE2);
+  if (flags2.start)  EXTI_ClearITPendingBit(EXTI_LINE_START2);
+  if (flags2.stop)   EXTI_ClearITPendingBit(EXTI_LINE_STOP2);
+  if (flags2.strobe) EXTI_ClearITPendingBit(EXTI_LINE_STROBE2);
 };
 
 // AFG1 stop interrupt
@@ -538,7 +580,10 @@ void TIM8_UP_TIM13_IRQHandler(void) {
 // This is only used when timer is started by sustain or enable mode
 void TIM3_IRQHandler() {
   TIM3->SR = (uint16_t) ~TIM_IT_Update;
-  uint8_t start_signal = GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_8) == 1;
+  // Read through the accessor: it handles the per-hardware pin AND v1's
+  // inverted input conditioning (the old hardcoded PB8 read silently broke
+  // Sustain/Enable on v1 twice over).
+  uint8_t start_signal = get_afg1_pulse_inputs().start;
   if (AfgCheckStart(AFG1, start_signal)) {
     TIM3->CR1 &= ~TIM_CR1_CEN;
   }
@@ -548,7 +593,7 @@ void TIM3_IRQHandler() {
 // This is only used when timer is started by sustain or enable mode
 void TIM7_IRQHandler() {
   TIM7->SR = (uint16_t) ~TIM_IT_Update;
-  uint8_t start_signal = GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_6) == 1;
+  uint8_t start_signal = get_afg2_pulse_inputs().start;
   if (AfgCheckStart(AFG2, start_signal)) {
     TIM7->CR1 &= ~TIM_CR1_CEN;
   }
