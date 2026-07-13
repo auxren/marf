@@ -5,6 +5,7 @@
 #include <string.h> // memset
 
 #include "delays.h"
+#include "marf_version.h"
 
 #define ADC_PS_SH_PIN	GPIO_Pin_13
 #define ADC_PS_DS_PIN	GPIO_Pin_14
@@ -161,12 +162,63 @@ inline static void adc_mux_send_word(const unsigned long long int data) {
   ADC_POTS_SELECTOR_STORAGE_HIGH;
 }
 
+#if MARF_HW == 1
+
+// ---------------------------------------------------------------------------
+// v1 boards: explicit full-chain channel selection.
+//
+// The optimized partial-shift scheme below (v2) assumes the exact v2 mux
+// shift-register chain. On real v1 hardware it does not land selections where
+// it thinks (proven 2026-07-12: every analog channel frozen under the partial
+// shifts, all working under the stock v1.0 firmware on the same unit). The
+// original v1.0 firmware (build 207) instead writes the ENTIRE 5-byte chain
+// state on every selection - correct by construction on any chain revision.
+// This is that table and strategy, verbatim; the send byte order and latch
+// behaviour of adc_mux_send_word() match v1.0's SendDWord exactly.
+// ---------------------------------------------------------------------------
+
+// Indexed DIRECTLY by our scan pot number: v1.0's reader used the same layout
+// (0-15 voltage sliders via ADC1, 16-23 CV bank via ADC2, 24-39 time sliders
+// via ADC1, 40-71 expander). NOTE: the bank comments in the original v1.0
+// table ("Time1 CH", "Volt1 CH") are mislabeled relative to its own reader;
+// the comments below follow the reader (= the truth).
+static const unsigned long long int v1_ch_sel_data[72] = {
+  0xFFFFFFFFF0, 0xFFFFFFFFF1, 0xFFFFFFFFF2, 0xFFFFFFFFF3,  // Volt 1-4
+  0xFFFFFFFFF4, 0xFFFFFFFFF5, 0xFFFFFFFFF6, 0xFFFFFFFFF7,  // Volt 5-8
+  0xFFFFFFFF0F, 0xFFFFFFFF1F, 0xFFFFFFFF2F, 0xFFFFFFFF3F,  // Volt 9-12
+  0xFFFFFFFF4F, 0xFFFFFFFF5F, 0xFFFFFFFF6F, 0xFFFFFFFF7F,  // Volt 13-16
+  0xFFFFFFF0FF, 0xFFFFFFF1FF, 0xFFFFFFF2FF, 0xFFFFFFF3FF,  // Ext input A-D
+  0xFFFFFFF4FF, 0xFFFFFFF5FF, 0xFFFFFFF6FF, 0xFFFFFFF7FF,  // TM 1/2, Stage 1/2
+  0xFFFFF0FFFF, 0xFFFFF1FFFF, 0xFFFFF2FFFF, 0xFFFFF3FFFF,  // Time 1-4
+  0xFFFFF4FFFF, 0xFFFFF5FFFF, 0xFFFFF6FFFF, 0xFFFFF7FFFF,  // Time 5-8
+  0xFFFF0FFFFF, 0xFFFF1FFFFF, 0xFFFF2FFFFF, 0xFFFF3FFFFF,  // Time 9-12
+  0xFFFF4FFFFF, 0xFFFF5FFFFF, 0xFFFF6FFFFF, 0xFFFF7FFFFF,  // Time 13-16
+  0xFFF0FFFFFF, 0xFFF1FFFFFF, 0xFFF2FFFFFF, 0xFFF3FFFFFF,  // Expander volt 1-4
+  0xFFF4FFFFFF, 0xFFF5FFFFFF, 0xFFF6FFFFFF, 0xFFF7FFFFFF,  // Expander volt 5-8
+  0xFF0FFFFFFF, 0xFF1FFFFFFF, 0xFF2FFFFFFF, 0xFF3FFFFFFF,  // Expander volt 9-12
+  0xFF4FFFFFFF, 0xFF5FFFFFFF, 0xFF6FFFFFFF, 0xFF7FFFFFFF,  // Expander volt 13-16
+  0xF0FFFFFFFF, 0xF1FFFFFFFF, 0xF2FFFFFFFF, 0xF3FFFFFFFF,  // Expander time 1-4
+  0xF4FFFFFFFF, 0xF5FFFFFFFF, 0xF6FFFFFFFF, 0xF7FFFFFFFF,  // Expander time 5-8
+  0x0FFFFFFFFF, 0x1FFFFFFFFF, 0x2FFFFFFFFF, 0x3FFFFFFFFF,  // Expander time 9-12
+  0x4FFFFFFFFF, 0x5FFFFFFFFF, 0x6FFFFFFFFF, 0x7FFFFFFFFF   // Expander time 13-16
+};
+
+static inline void v1_select_pot(uint8_t pot) {
+  adc_mux_send_word(v1_ch_sel_data[pot]);
+}
+
+#endif  // MARF_HW == 1
+
 void AdcMuxResetAllOff() {
   adc_mux_send_word(0xFFFFFFFFFF);
 }
 
 uint8_t AdcMuxReset() {
+#if MARF_HW == 1
+  v1_select_pot(0);                 // full-chain select of voltage slider 1
+#else
   adc_mux_send_word(0xFFFFFFFFF0);
+#endif
   return 0;
 }
 
@@ -193,6 +245,14 @@ void AdcMuxGpioInitialize(void)
 //   3. voltage sliders  aka pots 0 - 15
 
 uint8_t AdcMuxAdvance(uint8_t pot) {
+#if MARF_HW == 1
+  // v1: plain increment through the 40 base positions with an explicit
+  // full-chain mask per selection (no dependence on previous chain state).
+  uint8_t next_pot = (uint8_t) ((pot + 1) % 40);
+  v1_select_pot(next_pot);
+  DELAY_NOPS_120NS();
+  return next_pot;
+#else
   uint8_t next_pot, channel;
 
   // Here is a fancy hack.
@@ -226,6 +286,7 @@ uint8_t AdcMuxAdvance(uint8_t pot) {
   ADC_POTS_SELECTOR_STORAGE_HIGH;
   DELAY_NOPS_120NS();
   return next_pot;
+#endif
 }
 
 // Select next ADC channel and return its index. For expanded modules.
@@ -239,6 +300,12 @@ uint8_t AdcMuxAdvance(uint8_t pot) {
 //   5. expander time sliders aka pots 56 - 71
 
 uint8_t AdcMuxAdvanceExpanded(uint8_t pot) {
+#if MARF_HW == 1
+  uint8_t next_pot = (uint8_t) ((pot + 1) % 72);
+  v1_select_pot(next_pot);
+  DELAY_NOPS_120NS();
+  return next_pot;
+#else
   uint8_t next_pot, channel;
 
   channel = pot & 0x7;
@@ -269,11 +336,16 @@ uint8_t AdcMuxAdvanceExpanded(uint8_t pot) {
   ADC_POTS_SELECTOR_STORAGE_LOW;
   DELAY_CLOCK_20();  // Slightly longer settling time
   ADC_POTS_SELECTOR_STORAGE_HIGH;
-  return next_pot; 
+  return next_pot;
+#endif
 }
 
 // Select one of the adc2 channels explicitly (0-7)
 void AdcMuxSelectAdc2(uint8_t pot) {
+#if MARF_HW == 1
+  adc_mux_send_word(v1_ch_sel_data[16 + (pot & 0x7)]);   // full-chain select
+  DELAY_NOPS_120NS();
+#else
   ADC_POTS_SELECTOR_STORAGE_LOW;
 
   adc_mux_send_nibble(0xF); // Unused nibble
@@ -283,4 +355,5 @@ void AdcMuxSelectAdc2(uint8_t pot) {
   // Activate the shift registers with the new data
   ADC_POTS_SELECTOR_STORAGE_HIGH;
   DELAY_NOPS_120NS();
+#endif
 }
