@@ -84,16 +84,23 @@ v16: rev1
 # toolchain needed). Run with: make test
 HOST_CC    ?= cc
 TEST_SRC    = test/test_core.c test/test_storage.c test/test_scales.c test/test_turing.c \
-              test/test_presets.c test/test_clockfollow.c test/test_support.c \
+              test/test_presets.c test/test_clockfollow.c test/test_afg_bench.c \
+              test/test_v1_invariants.c test/test_support.c \
               src/program.c src/analog_data.c src/storage.c src/scales.c src/turing.c \
-              src/presets.c src/clockfollow.c
+              src/presets.c src/clockfollow.c src/afg.c
 TEST_CFLAGS = -std=c11 -Wall -Itest/shim -I$(SRC_DIR)
 # Link libraries must come AFTER the sources (GNU ld is order-sensitive).
 TEST_LIBS   = -lm
 
+# The suite builds and runs TWICE: once per hardware variant. Validating a
+# change on a v2 bench plus a green `make test` covers the REV1 build's
+# shared logic and its variant-specific contracts (see
+# docs/V1-COMPATIBILITY.md).
 test: | $(BUILD_DIR)
 	$(HOST_CC) $(TEST_CFLAGS) $(TEST_SRC) $(TEST_LIBS) -o $(BUILD_DIR)/run_tests
 	./$(BUILD_DIR)/run_tests
+	$(HOST_CC) $(TEST_CFLAGS) -DMARF_HW=1 $(TEST_SRC) $(TEST_LIBS) -o $(BUILD_DIR)/run_tests_rev1
+	./$(BUILD_DIR)/run_tests_rev1
 
 # ---- User manual (PDF) ------------------------------------------------------
 # Renders the docs/ markdown into build/MARF-Manual.pdf with pandoc + a LaTeX

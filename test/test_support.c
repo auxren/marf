@@ -8,6 +8,15 @@
 /* Backing store for the shim GPIO pointer(s). */
 GPIO_TypeDef _shim_gpio;
 
+/* Backing store for the shim timers (afg.c start-signal timers). */
+TIM_TypeDef _shim_tim3, _shim_tim7;
+
+/* display.c is not compiled for host tests; the shim display.h setters
+ * write these. */
+#include "display.h"
+volatile uDisplayUpdateFlag display_update_flags;
+uint32_t steps_leds_lit;
+
 /* expander.c is not compiled for host tests (it pulls in dip_config/hardware),
  * so provide the one symbol the logic needs. Tests can set this directly. */
 uint8_t has_expander = 0;

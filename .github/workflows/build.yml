@@ -26,8 +26,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run host unit tests
+      - name: Run host unit tests (both hardware variants)
         run: make test HOST_CC=gcc
+
+      - name: V1 compatibility lint
+        run: ./tools/v1_compat_lint.sh
 
   build:
     needs: test
@@ -45,7 +48,7 @@ jobs:
         run: make -j"$(nproc)"
 
       - name: Build (REV1, v1 hardware)
-        run: make -j"$(nproc)" v16
+        run: make -j"$(nproc)" rev1
 
       - name: Report size
         run: |
