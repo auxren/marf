@@ -3,21 +3,24 @@
 // ---------------------------------------------------------------------------
 // Knob -> ratio zones, anchored to the PANEL LEGEND (0.5 .. 1 .. 2 .. 4).
 //
-// The panel's printed "1" sits at about a third of the travel (the classic
-// fake-log taper puts 0.5-1 in the first third), NOT at noon - so the x1 zone
-// is centred there, divides fill the travel below it and multiplies above:
-//   0    .. 1164 : divide,   7 zones  /8 /7 /6 /5 /4 /3 /2 (full CCW = /8)
-//   1165 .. 1664 : x1 (centred on the printed "1", ~raw 1365)
-//   1665 .. 4095 : multiply, 7 zones  x2 x3 x4 x5 x6 x7 x8 (full CW = x8).
+// The pot is audio-taper, so panel marks don't map linearly to counts. The
+// x1 anchor is MEASURED on hardware (calibrated counts, REV1 unit):
+//   printed 0.5 (full CCW) = 0, printed "1" = ~2013 (~49%),
+//   printed 2 = ~3579 (~87%), printed 4 (full CW) = ~4095.
+// The x1 zone is centred on the measured printed-"1"; divides fill the travel
+// below it and multiplies above, in equal count-width zones:
+//   0    .. 1762 : divide,   7 zones  /8 /7 /6 /5 /4 /3 /2 (full CCW = /8)
+//   1763 .. 2263 : x1 (centred on the printed "1", ~2013)
+//   2264 .. 4095 : multiply, 7 zones  x2 x3 x4 x5 x6 x7 x8 (full CW = x8).
 // Note the printed legend is log-spaced and only reaches 4, so above "1" the
 // marks are approximate: turn by ear/count - full CW is always x8.
 // ---------------------------------------------------------------------------
 
-#define CF_X1_LO       1165u
-#define CF_X1_HI       1664u
+#define CF_X1_LO       1763u
+#define CF_X1_HI       2263u
 #define CF_SIDE_ZONES  7u
-#define CF_DIV_ZONE_W  166u    // 1165 / 7
-#define CF_MUL_ZONE_W  347u    // (4096 - 1665) / 7
+#define CF_DIV_ZONE_W  252u    // 1763 / 7
+#define CF_MUL_ZONE_W  262u    // (4096 - 2264) / 7
 #define CF_HYST        40u     // extra counts to move before a zone change
 
 // Zone bounds for a valid ratio.

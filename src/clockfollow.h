@@ -11,8 +11,9 @@
 //
 //   * The Time Multiplier knob selects an integer clock ratio instead of a
 //     continuous multiplier, anchored to the PANEL legend: the printed "1"
-//     (about a third of the travel) = x1, one step per clock; clockwise
-//     multiplies up to x8 at full CW, counter-clockwise divides down to /8.
+//     (measured ~49% of the pot's electrical range - it's an audio-taper pot)
+//     = x1, one step per clock; clockwise multiplies up to x8 at full CW,
+//     counter-clockwise divides down to /8.
 //     All integer ratios are available:
 //         /8 /7 /6 /5 /4 /3 /2  [x1 at printed "1"]  x2 x3 x4 x5 x6 x7 x8
 //

@@ -42,6 +42,15 @@ void AfgAllInitialize() {
   afg2.prev_step_level = 0;
 }
 
+// Fresh-step-onset latch. A step entered from OUTSIDE AfgTick (pulse ISR
+// advance, start-pulse timer) has its step_cnt=0 consumed by the "step_cnt +=
+// ticks" at the top of the next AfgTick window BEFORE the outputs are
+// evaluated - which swallows gates shorter than one 32-tick window entirely
+// (PulseWidth 0's fixed ~1 ms trigger never fired on clocked advances) and
+// started every other gate up to 1 ms late. Armed to 0 on every jump; the
+// output logic holds the pulse high while it is below the trigger width.
+static volatile uint32_t pulse_onset[2] = { 0xFFFFFFFF, 0xFFFFFFFF };
+
 AfgControllerState AfgGetControllerState(uint8_t afg_num) {
   AfgState *afg = (AfgState *) afgs[afg_num];
   AfgControllerState state;
@@ -242,6 +251,7 @@ uint8_t AfgCheckStart(uint8_t afg_num, uint8_t start_signal) {
     afg->step_num = GetNextStep(afg->section, afg->step_num);
     afg->step_width = AfgEffStepWidth(afg_num, afg->section, afg->step_num);
     afg->step_cnt = 0;
+    pulse_onset[afg_num] = 0;
     return 1;
   } else {
     return 0;
@@ -260,6 +270,7 @@ void AfgJumpToStep(uint8_t afg_num, uint8_t step) {
 
   // Reset step counter
   afg->step_cnt = 0;
+  pulse_onset[afg_num] = 0;
 
   // Break out of some modes
   if (afg->mode == MODE_WAIT_HI_Z || afg->mode == MODE_STAY_HI_Z) {
@@ -289,12 +300,20 @@ void AfgReset(uint8_t afg_num) {
 // the lock, and advance according to the current ratio and nudge. `stamp` is
 // the DWT cycle count captured when the pulse interrupt fired; 0 = manual
 // (panel Advance), which never affects the clock lock.
+// SWD branch counters for AfgClockAdvance (debug taps, like the dbg_pulse_*
+// counters in main.c - read over SWD while debugging clock-follow on a unit):
+// [0] entries  [1] panel(stamp=0)  [2] not-locked classic  [3] divide skip
+// [4] rushed skip  [5] pending armed  [6] immediate jump  [7] fresh lock
+volatile uint32_t dbg_cfadv[8] = { 0 };
+
 static void AfgClockAdvance(uint8_t afg_num, uint32_t stamp) {
   AfgState *afg = (AfgState *) afgs[afg_num];
   volatile ClockFollowState *cf = &cfs[afg_num];
 
+  if (afg_num == 0) dbg_cfadv[0]++;
   if (stamp == 0) {
     // Panel advance: behave exactly as always.
+    if (afg_num == 0) dbg_cfadv[1]++;
     AfgJumpToStep(afg_num, GetNextStep(afg->section, afg->step_num));
     return;
   }
@@ -324,8 +343,11 @@ static void AfgClockAdvance(uint8_t afg_num, uint32_t stamp) {
     }
   }
 
+  if (fresh_lock && afg_num == 0) dbg_cfadv[7]++;
+
   if (!cf->active) {
     // Not locked (first pulse, or clock out of range): classic advance.
+    if (afg_num == 0) dbg_cfadv[2]++;
     AfgJumpToStep(afg_num, GetNextStep(afg->section, afg->step_num));
     return;
   }
@@ -334,7 +356,10 @@ static void AfgClockAdvance(uint8_t afg_num, uint32_t stamp) {
   // establishes the lock advances immediately so the response feels instant.
   if (cf->ratio < 0 && !fresh_lock) {
     cf->pulse_count++;
-    if (cf->pulse_count < (uint8_t) (-cf->ratio)) return;
+    if (cf->pulse_count < (uint8_t) (-cf->ratio)) {
+      if (afg_num == 0) dbg_cfadv[3]++;
+      return;
+    }
   }
   cf->pulse_count = 0;
 
@@ -343,6 +368,7 @@ static void AfgClockAdvance(uint8_t afg_num, uint32_t stamp) {
     // The boundary step already started early (nudged down): the pulse only
     // re-arms for the next boundary.
     cf->rushed = 0;
+    if (afg_num == 0) dbg_cfadv[4]++;
     return;
   }
   cf->pending = 0;
@@ -353,9 +379,11 @@ static void AfgClockAdvance(uint8_t afg_num, uint32_t stamp) {
   int32_t n = cf->next_offset;
   if (n > 0) {
     // Late onset: AfgTick counts this down, then advances.
+    if (afg_num == 0) dbg_cfadv[5]++;
     cf->subs_done = 0;
     cf->pending = n;
   } else {
+    if (afg_num == 0) dbg_cfadv[6]++;
     cf->subs_done = 1;    // the pulse-aligned (sub-)step
     AfgJumpToStep(afg_num, GetNextStep(afg->section, afg->step_num));
     CfDrawNextOffset(afg_num);
@@ -628,7 +656,13 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   if (pulse_refire[afg_num] < 0xFFFFFFFFu - ticks) {
     pulse_refire[afg_num] += ticks;
   }
-  uint8_t pulses_on = (afg->step_cnt < pulse_ticks) ||
+  // Fresh onset (see pulse_onset): evaluate BEFORE accumulating, so a jump
+  // armed between tick windows still gets its full trigger width.
+  uint8_t onset_hot = pulse_onset[afg_num] < PULSE_ACTIVE_STEP_WIDTH;
+  if (pulse_onset[afg_num] < 0xFFFFFFFFu - ticks) {
+    pulse_onset[afg_num] += ticks;
+  }
+  uint8_t pulses_on = (afg->step_cnt < pulse_ticks) || onset_hot ||
                       (pulse_refire[afg_num] < pulse_refire_width[afg_num]) ? 1 : 0;
   outputs.all_pulses = pulses_on;
   outputs.pulse1 = pulses_on ? step.b.OutputPulse1 : 0;

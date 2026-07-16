@@ -1,4 +1,69 @@
 Release Notes
+Version 3.2.2  (REV1 / v1 hardware ONLY)
+July 2026
+
+A REV1 measurement-and-fix release, produced with a logic-analyzer +
+debugger closed loop on a real rev 1.0 unit. v2 OWNERS: stay on v3.2 - the
+shared-code changes here are validated on v1 hardware only and ship as v3.3
+after a v2 regression pass.
+
+Changed (REV1)
+--
+1. The clock-ratio zones are re-anchored to MEASURED panel positions: the
+   Time Multiply pot is audio-taper, so the printed "1" sits at ~49% of the
+   electrical range (calibrated ~2013), not at the third the fader-taper
+   theory predicted. The old anchor put the printed "1" one count from the
+   x2/x3 zone edge - reading x3 at "1" and letting knob jitter flip ratios
+   (reported as "pulse width changes with the multiplier knob"). The x1 zone
+   is now centred on the measured mark with ~250 counts of margin each side.
+
+Fixed (REV1)
+--
+1. Short gates were swallowed on externally clocked steps: a step advance
+   driven from a pulse interrupt had its first millisecond consumed before
+   the outputs were evaluated. Pulse-width setting 0 (the fixed ~1 ms
+   trigger) never fired at all while clocked, and every other gate started
+   up to 1 ms late. All step entries now latch a pulse onset, so triggers
+   fire at full width, aligned to the step.
+
+Bench verification (Saleae, external clock x1, ~850 ms period)
+--
+- Ratio: 22/22 and 47/47 pulses at exactly 1:1 with the knob on the
+  printed "1".
+- Pulse width truth curve, all 16 settings: measured within 0.1 percentage
+  point of programmed at every setting (PW0 = 1.000 ms trigger, PW15 = 99%).
+- Humanize: sliders down = dead on the grid (+0.9 ms +/- 0.2 processing
+  latency, zero spread over 47 clocks); sliders at 50% = uniform +/-24% of a
+  step; sliders full up = uniform +/-1/2 step (-49.5%..+47.6% measured),
+  mean centred on the grid at every depth, lock never lost.
+- Lock stability: 10-minute soak, 712/712 pulses, onset +0.98 ms +/- 0.28,
+  zero drift between first and last quarter.
+- Shift register (Turing) engine, traced at the register level over SWD:
+  exactly one shift per clock (24/24), feedback tap correct (24/24), locked
+  loop repeats its 8 values exactly; full slip mutates at the statistically
+  correct rate and never repeats; parked-stage pulse refire at the clock
+  period with the stage's programmed width (53.0% measured).
+- Sustain and Enable stage modes under a real gate: with a fast loop and a
+  sustain stage, zero stage exits occurred inside the gate-high phase over
+  1871 laps (releases align with gate falls); flipped to enable, zero exits
+  inside gate-low over 540 laps (releases align with gate rises).
+
+Known issues / notes (3.2.2)
+--
+- The zone anchors are measured on ONE v1 unit. If v2's Time Multiply pot is
+  linear rather than audio-taper, v2 needs its own anchors - measure before
+  shipping this in a v2 build.
+- Strobe inputs on UNMODIFIED rev 1.0 boards do not work and cannot work:
+  the panel jacks are not electrically connected to the MCU (verified with
+  a live pulse against every analog channel, the full switch chain, and
+  every GPIO). The original rev 1.0 firmware had no strobe support either;
+  strobes were added by the v1.6 board+firmware mod (PB2/PB14). The REV1
+  firmware's PB2/PB14 strobe path itself is verified working (via injected
+  edges): v1.6-modded boards get working strobes, unmodified rev 1.0
+  boards do not - this is a hardware limitation, not a firmware bug.
+
+
+Release Notes
 Version 3.2.1  (REV1 / v1 hardware ONLY)
 July 2026
 
