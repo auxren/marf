@@ -21,7 +21,7 @@
 //       v2: STOP1=PB0 STOP2=PB1 STROBE1=PB5 STROBE2=PB7 START1=PB8 START2=PB6
 //       v1: STOP1=PB0 STOP2=PB1 START1=PB7 START2=PB5 (NO strobe input)
 //     i.e. on v1 the START signals are on PB7/PB5 and there is no strobe jack
-//     (strobe is a panel-only function). This is the "no-strobe" board.
+//     i.e. v1 START on PB7/PB5 with inverted input conditioning.
 //
 // The v1 pin map matches the original v1.0 firmware source (B248 rev 1.0).
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@
   //   AFG2: START 2 = PB5, STOP 2 = PB1, STROBE 2 = PB14
   // v1 strobes are on PB2 (EXTI2) and PB14 (EXTI15_10), and the EXTI trigger is
   // RISING + FALLING (the v1 hardware needs both edges). v2 uses different pins
-  // and rising-only. (The earlier "v1 = no-strobe, PB0/1/5/7" map was a
+  // and rising-only. (An earlier reverse-engineered "PB0/1/5/7, no strobe" map was a
   // reverse-engineered guess and broke start/run on real v1 hardware.)
   #define MARF_PULSE_HAS_START     1
   #define MARF_PULSE_HAS_STROBE    1

@@ -10,9 +10,10 @@ is carried over from v2.66 and should already work. Tests that only apply to one
 revision are marked. See the [user manual](README.md) for how each feature is
 meant to behave.
 
-> **v1 vs v2 pulse wiring** differs (v2: strobe on PB5/PB7, START on PB8/PB6;
-> v1: START on PB7/PB5, no strobe jack). On a **v1** board the strobe-input
-> tests (I3, I5, I8) do not apply — strobe is panel-only there.
+> **v1 (REV1) vs v2 pulse wiring** differs (v2: strobe on PB5/PB7, START on
+> PB8/PB6, rising-edge; v1: START on PB7/PB5 with inverted input
+> conditioning, strobes on PB2/PB14, both-edge). All pulse-input tests apply
+> to both revisions.
 
 ---
 

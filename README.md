@@ -16,7 +16,7 @@ or build it locally with `make manual`.
     It is available for most platforms.
 3.  Download the latest firmware `.hex` from this repo's
     [Releases](https://github.com/auxren/marf/releases). Use the standard image
-    for the SAModular/EMS **v2** board; a separate `*-v1.6-no-strobe.hex` is
+    for the SAModular/EMS **v2** board; a separate `*-REV1.hex` is
     provided for the original **v1.6** board (see
     [Hardware revisions](docs/02-installation-and-flashing.md#hardware-revisions-v2-vs-v16)).
 4.  Flash the new firmware.

@@ -2,13 +2,13 @@
 #
 # Usage:
 #   make            # build build/MARF.elf + .hex + .bin and print size (v2)
-#   make v16        # build the v1.6 (no-strobe) candidate into build-v1.6/
+#   make rev1       # build the REV1 (v1 hardware) image into build-rev1/
 #   make clean      # remove the build directory
 #   make size       # re-print the size of the built elf
 #
 # Hardware revision is selected with MARF_HW (default 2). MARF_HW=1 targets the
-# original v1.x board; see src/marf_version.h. The v1 build is reverse-
-# engineered and UNVERIFIED on real v1 hardware.
+# original v1.x board (REV1); see src/marf_version.h. Validated on real v1
+# hardware as of v3.2.1.
 #
 # Toolchain: the Arm GNU bare-metal toolchain (arm-none-eabi-*) with newlib.
 # Override the prefix or its location if it is not on PATH, e.g.
@@ -66,15 +66,18 @@ vpath %.c $(SRC_DIR) $(DRV_DIR)
 vpath %.s $(SRC_DIR)
 
 # ---- Rules ------------------------------------------------------------------
-.PHONY: all clean size test v16
+.PHONY: all clean size test rev1 v16
 all: $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin size
 
-# ---- v1.6 (no-strobe) candidate build --------------------------------------
+# ---- REV1 (v1 hardware) build -----------------------------------------------
 # Builds the same source for the original v1.x board (MARF_HW=1) into a
-# separate directory so the default v2 build is untouched. The v1 pin map is
-# reverse-engineered and UNVERIFIED on real v1 hardware.
-v16:
-	$(MAKE) MARF_HW=1 BUILD_DIR=build-v1.6 TARGET=MARF-REV1-no-strobe
+# separate directory so the default v2 build is untouched. Validated on real
+# v1 hardware as of v3.2.1.
+rev1:
+	$(MAKE) MARF_HW=1 BUILD_DIR=build-rev1 TARGET=MARF-REV1
+
+# Deprecated alias
+v16: rev1
 
 # ---- Host unit tests --------------------------------------------------------
 # Compiles the pure logic with the host compiler against test/shim (no target

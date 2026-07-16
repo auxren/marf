@@ -3,6 +3,7 @@ Debug/*
 Release/*
 build/
 build-v1.6/
+build-rev1/
 *.log
 /.settings/language.settings.xml
 dist/
