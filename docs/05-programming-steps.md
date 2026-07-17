@@ -74,6 +74,20 @@ The **Time Multiply** knob scales all of that generator's stage times together
 touching individual sliders. At the maximum time range and multiplier, a single
 stage can last around two minutes.
 
+### Very fast stages (audio‑rate operation)
+
+At the opposite extreme — **Range 1 with the time sliders low and the
+multiplier turned down** — stages can get as short as ~1–2 ms. Below roughly
+5 ms per stage the sequence steps faster than LEDs, meters, or ears can
+follow: the step display blurs, gate outputs look dim‑solid, and the voltage
+output reads as a near‑constant level on anything slower than an
+oscilloscope (a scope shows the true fast staircase). **This is expected
+behaviour, not a fault** — the sequencer keeps stepping correctly (the loop
+cycles at up to a few hundred Hz), and it can be played deliberately as a
+crude audio‑rate/wavetable trick. If a patch seems to "freeze at a constant
+voltage" on fast settings, raise the time sliders or the multiplier and it
+will resolve back into discrete steps.
+
 ## Pulses
 
 Each stage can emit **Pulse 1** and/or **Pulse 2** when it becomes active:

@@ -1,3 +1,20 @@
+In development (v3.3 - both hardware variants)
+--
+- Field-report follow-up ("mush at fast settings", both revisions): at the
+  bottom of Range 1 (.03) with the multiplier low, stages reach ~1-2 ms and
+  the sequence blurs into an apparent constant voltage on LEDs/meters. The
+  engine is verified correct at these speeds (host bench: exact 1.00 ms
+  steps, no lockups, full voltage span) - this is audio-rate operation, now
+  documented in the manual (docs/05, "Very fast stages"). Open design
+  decision for 3.3: keep as a feature, clamp a free-run minimum (~2-3 ms),
+  or make the ranges decade-true (3-30 base, which would shift all slider
+  positions). See docs/V1-COMPATIBILITY.md for the validate-on-v2 workflow.
+- Planned: calibration doubles as a hardware self-test (reports channels
+  with implausible spans on the step LEDs - would have field-diagnosed the
+  "10x faster" reports, which turned out to be uncalibrated/attenuated
+  analog reads scaling times down ~8-25x).
+
+
 Release Notes
 Version 3.2.2  (REV1 / v1 hardware ONLY)
 July 2026
