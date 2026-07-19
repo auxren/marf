@@ -3,24 +3,37 @@
 // ---------------------------------------------------------------------------
 // Knob -> ratio zones, anchored to the PANEL LEGEND (0.5 .. 1 .. 2 .. 4).
 //
-// The pot is audio-taper, so panel marks don't map linearly to counts. The
-// x1 anchor is MEASURED on hardware (calibrated counts, REV1 unit):
-//   printed 0.5 (full CCW) = 0, printed "1" = ~2013 (~49%),
-//   printed 2 = ~3579 (~87%), printed 4 (full CW) = ~4095.
+// The two board revisions use DIFFERENT pot tapers, so the panel marks land
+// at different calibrated values and each hardware gets its own MEASURED
+// anchors (four-point knob measurement over SWD, calibrated counts):
+//
+//   REV1 (audio-taper pot):  0.5=0,  "1"=~2013 (49%), "2"=~3579, CW=~4095
+//   v2   (near-linear pot):  0.5=0,  "1"=~1517 (37%), "2"=~2842, CW=~4086
+//
 // The x1 zone is centred on the measured printed-"1"; divides fill the travel
-// below it and multiplies above, in equal count-width zones:
-//   0    .. 1762 : divide,   7 zones  /8 /7 /6 /5 /4 /3 /2 (full CCW = /8)
-//   1763 .. 2263 : x1 (centred on the printed "1", ~2013)
-//   2264 .. 4095 : multiply, 7 zones  x2 x3 x4 x5 x6 x7 x8 (full CW = x8).
-// Note the printed legend is log-spaced and only reaches 4, so above "1" the
-// marks are approximate: turn by ear/count - full CW is always x8.
+// below it and multiplies above, in equal count-width zones. The printed
+// legend is log-spaced and only reaches 4, so above "1" the marks are
+// approximate: turn by ear/count - full CW is always x8.
 // ---------------------------------------------------------------------------
 
-#define CF_X1_LO       1763u
-#define CF_X1_HI       2263u
+#ifndef MARF_HW
+#define MARF_HW 2
+#endif
+
 #define CF_SIDE_ZONES  7u
-#define CF_DIV_ZONE_W  252u    // 1763 / 7
-#define CF_MUL_ZONE_W  262u    // (4096 - 2264) / 7
+#if MARF_HW == 1
+  // REV1: x1 = 1763..2263 (centred on measured 2013)
+  #define CF_X1_LO       1763u
+  #define CF_X1_HI       2263u
+  #define CF_DIV_ZONE_W  252u    // 1763 / 7
+  #define CF_MUL_ZONE_W  262u    // (4096 - 2264) / 7
+#else
+  // v2: x1 = 1267..1767 (centred on measured 1517)
+  #define CF_X1_LO       1267u
+  #define CF_X1_HI       1767u
+  #define CF_DIV_ZONE_W  181u    // 1267 / 7
+  #define CF_MUL_ZONE_W  333u    // (4096 - 1768) / 7
+#endif
 #define CF_HYST        40u     // extra counts to move before a zone change
 
 // Zone bounds for a valid ratio.

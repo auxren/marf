@@ -108,12 +108,19 @@ static void lock_clock(uint32_t period_windows) {
 }
 
 /* ---- tests ----------------------------------------------------------------
- * Knob anchors (see clockfollow.c): x1 zone 1763..2263; /2 zone ends at 1762;
- * x2 zone starts at 2264. 2013 = the measured panel "1". */
+ * Knob anchors are per-hardware (see clockfollow.c: each board's pot taper
+ * was measured separately). Pick the measured panel-"1" and a mid-/2 and
+ * mid-x2 zone value for the variant this binary is built for. */
 
-#define KNOB_X1   2013u
-#define KNOB_DIV2 1650u
-#define KNOB_X2   2400u
+#if MARF_HW == 1
+  #define KNOB_X1   2013u   /* measured "1"; x1 zone 1763..2263 */
+  #define KNOB_DIV2 1650u   /* centre of /2 zone (1512..1762)   */
+  #define KNOB_X2   2400u   /* centre of x2 zone (2264..2525)   */
+#else
+  #define KNOB_X1   1517u   /* measured "1"; x1 zone 1267..1767 */
+  #define KNOB_DIV2 1170u   /* centre of /2 zone (1086..1266)   */
+  #define KNOB_X2   1930u   /* centre of x2 zone (1768..2100)   */
+#endif
 
 static void test_clocked_x1_lock_and_gate(void) {
   printf("bench: clocked x1 lock + 53%% gate\n");
