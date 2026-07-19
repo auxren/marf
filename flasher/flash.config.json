@@ -1,0 +1,12 @@
+{
+  "product_name": "MARF (v2 board)",
+  "firmware": null,
+  "method": "command",
+  "board_drive_names": [],
+  "enter_bootloader_hint": "Power the case DOWN. Take the module out of the case (leave its power cable connected), plug the ST-Link ribbon onto the module's programming header, then power the case back ON. (Afterwards: power down, unplug the ST-Link, remount the module.)",
+  "command": [
+    "STM32_Programmer_CLI -c port=SWD -w {firmware} -v -rst",
+    "st-flash --reset --format ihex write {firmware}",
+    "openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c \"program {firmware} verify reset exit\""
+  ]
+}

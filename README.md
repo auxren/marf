@@ -9,7 +9,23 @@ A full user manual lives in [`docs/`](docs/README.md). A combined **PDF**
 (`*-manual.pdf`) is attached to each [release](https://github.com/auxren/marf/releases),
 or build it locally with `make manual`.
 
-## Installation
+## Flashing your device (the easy way)
+
+Each [release](https://github.com/auxren/marf/releases) ships a one-click
+flasher — the **Easel Weasel**:
+
+1. Download **`MARF-Flasher-V2.zip`** (or **`MARF-Flasher-REV1.zip`** for the
+   original v1 board — pick the one matching your hardware!), and unzip it.
+2. Double-click the file for your computer: `Flash-on-Mac.command`,
+   `Flash-on-Windows.bat`, or `Flash-on-Linux.sh`.
+3. Follow the Weasel's instructions (attach your ST-Link, power on, done).
+
+You still need an ST-Link v2 and one flashing tool installed (`brew install
+stlink` on macOS, `stlink-tools` on Linux, or STM32CubeProgrammer on Windows) —
+the README inside the zip covers it. **On macOS**, the first launch needs
+right-click → **Open** → **Open** (Gatekeeper), one time only.
+
+## Installation (manual method)
 
 1.  Obtain an ST-Link STM32 programmer (v2 recommended, available on Amazon for less than $20).
 2.  Download [STM32CubeProg](https://www.st.com/en/development-tools/stm32cubeprog.html) from [www.st.com](https://www.st.com).
