@@ -1083,6 +1083,11 @@ static void cal_scan_step(void) {
 // save. Captures per-slider and per-input min/max for offset+gain correction,
 // plus the legacy gain-only record so old behaviour survives if the new record
 // is ever lost. The pulse LED/channel swap selections happen during pass 1.
+// Self-test threshold: matches TWOPOINT_MIN_SPAN in analog_data.c - a span
+// below this is the same "fell back to legacy cal" condition, ~24% of full
+// scale. Healthy channels span far more after a real max+min sweep.
+#define CAL_SELFTEST_MIN_SPAN 1000
+
 void ControllerCalibrationLoop() {
     uButtons switches;
     uint16_t v_max[32], v_min[32], t_max[32], t_min[32];
@@ -1176,6 +1181,64 @@ void ControllerCalibrationLoop() {
     PrecomputeCalibration();
     SetTwoPointInputCalibration(adc2_min, adc2_max);
     SetSliderCalibration(v_min, v_max, t_min, t_max);
+
+    // ---- Calibration doubles as a hardware self-test -----------------------
+    // A channel whose captured span is under the two-point threshold fell
+    // back to legacy calibration; after a completed max+min pass that means
+    // a dead or badly attenuated analog path (mis-muxed board revision,
+    // wrong firmware image for the board, broken slider/pot). That exact
+    // fault class reached the field as "the module runs ~10x too fast"
+    // (dead time sliders / Time Multiply reading zero) - so report it on
+    // the panel instead of finishing silently.
+    {
+      uint8_t n_steps = Is_Expander_Present() ? 32 : 16;
+      uint32_t v_fail = 0, t_fail = 0, knob_fail = 0;
+      for (uint8_t i = 0; i < n_steps; i++) {
+        if ((int) v_max[i] - (int) v_min[i] < CAL_SELFTEST_MIN_SPAN) v_fail |= 1UL << i;
+        if ((int) t_max[i] - (int) t_min[i] < CAL_SELFTEST_MIN_SPAN) t_fail |= 1UL << i;
+      }
+      // Of the CV bank only the two Time Multiply knobs are guaranteed to be
+      // swept during calibration (the external jacks may be unpatched), so
+      // only they are self-tested.
+      if ((int) adc2_max[ADC_TIMEMULTIPLY_Ch_1] - (int) adc2_min[ADC_TIMEMULTIPLY_Ch_1]
+          < CAL_SELFTEST_MIN_SPAN) knob_fail |= 1UL << 0;
+      if ((int) adc2_max[ADC_TIMEMULTIPLY_Ch_2] - (int) adc2_min[ADC_TIMEMULTIPLY_Ch_2]
+          < CAL_SELFTEST_MIN_SPAN) knob_fail |= 1UL << 1;
+
+      if (v_fail || t_fail || knob_fail) {
+        // Hold in the report until either Stage Address ADVANCE is pressed.
+        // Phases (cycling ~1.2 s each, only non-empty ones):
+        //   Display I lit   = failing VOLTAGE sliders on the step LEDs
+        //   Display II lit  = failing TIME sliders
+        //   both lit        = failing Time Multiply knobs (step LED 1 / 2)
+        // The failing-channel LEDs FLASH so the report can't be mistaken for
+        // a normal display.
+        uint32_t phases[3] = { v_fail, t_fail, knob_fail };
+        uint8_t phase = (v_fail == 0) ? ((t_fail == 0) ? 2 : 1) : 0;
+        uint16_t tick = 0;
+        while (1) {
+          switches.value = HC165_ReadSwitches();
+          if (!switches.b.StageAddress1Advance || !switches.b.StageAddress2Advance) break;
+
+          if (phase == 0)      { DISPLAY_LED_I_ON;  DISPLAY_LED_II_OFF; }
+          else if (phase == 1) { DISPLAY_LED_I_OFF; DISPLAY_LED_II_ON;  }
+          else                 { DISPLAY_LED_I_ON;  DISPLAY_LED_II_ON;  }
+
+          // ~300 ms on / ~150 ms off flash of the failing channels
+          uint32_t lit = (tick % 225 < 150) ? phases[phase] : 0;
+          if (Is_Expander_Present()) LED_STEP_SendWordExpanded(~lit);
+          else                       LED_STEP_SendWord((uint16_t) ~lit);
+
+          delay_ms(2);
+          tick++;
+          if (tick >= 600) {          // next non-empty phase every ~1.2 s
+            tick = 0;
+            do { phase = (uint8_t) ((phase + 1) % 3); } while (phases[phase] == 0);
+          }
+        }
+        update_display();             // hand the LEDs back to the normal driver
+      }
+    }
 
     DISPLAY_LED_I_OFF;
     DISPLAY_LED_II_OFF;

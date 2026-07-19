@@ -1,18 +1,75 @@
-In development (v3.3 - both hardware variants)
+Release Notes
+Version 3.3  (BOTH hardware variants - v2 and REV1 converge)
+July 2026
+
+The convergence release: the first since 3.2 to ship BOTH board images from
+one validated codebase. v2 users get everything added during the REV1
+bring-up releases (3.2.1/3.2.2); REV1 users get the new feature work. Both
+variants were bench-validated against the same measured dataset (logic
+analyzer + debugger closed loop), and every release now also ships
+one-click flasher zips.
+
+New (both variants)
 --
-- Field-report follow-up ("mush at fast settings", both revisions): at the
-  bottom of Range 1 (.03) with the multiplier low, stages reach ~1-2 ms and
-  the sequence blurs into an apparent constant voltage on LEDs/meters. The
-  engine is verified correct at these speeds (host bench: exact 1.00 ms
-  steps, no lockups, full voltage span) - this is audio-rate operation, now
-  documented in the manual (docs/05, "Very fast stages"). Open design
-  decision for 3.3: keep as a feature, clamp a free-run minimum (~2-3 ms),
-  or make the ranges decade-true (3-30 base, which would shift all slider
-  positions). See docs/V1-COMPATIBILITY.md for the validate-on-v2 workflow.
-- Planned: calibration doubles as a hardware self-test (reports channels
-  with implausible spans on the step LEDs - would have field-diagnosed the
-  "10x faster" reports, which turned out to be uncalibrated/attenuated
-  analog reads scaling times down ~8-25x).
+1. Calibration doubles as a hardware self-test: finishing a calibration now
+   checks every swept control's captured range. Dead or badly attenuated
+   channels (broken slider, wrong image for the board, mis-muxed board
+   revision) are reported on the panel - flashing step LEDs identify the
+   failing channels (Display I = voltage sliders, Display II = time
+   sliders, both = Time Multiply knobs) - instead of finishing silently.
+   This field-diagnoses the fault class behind "the module runs ~10x too
+   fast" (time sliders reading zero). See the manual, Calibration.
+2. One-click firmware flashing: releases now include MARF-Flasher-V2.zip
+   and MARF-Flasher-REV1.zip - unzip, double-click the launcher for your
+   OS, follow the instructions. Needs an ST-Link and one common flashing
+   tool; the zip's README covers it.
+
+Changed (both variants)
+--
+1. Clock-ratio zones are anchored PER HARDWARE to measured pot positions:
+   the two board revisions use different Time Multiply pot tapers (v2
+   near-linear, printed "1" at ~37% of range; REV1 audio-taper, ~49%), so
+   each build centres its x1 zone on its own board's measured printed "1".
+   With this, both boards lock x1 at the panel's "1" - verified on both.
+2. Very fast stage times are now documented as audio-rate operation (see
+   the manual, "Very fast stages"): at the bottom of Range 1 with the
+   multiplier low, stages reach ~1-2 ms and the sequence intentionally
+   blurs into audio-rate stepping. Verified engine-correct at these
+   speeds; kept as a feature.
+
+New for v2 users since 3.2 (shipped to REV1 in 3.2.1/3.2.2)
+--
+1. Shift-register clocks re-fire the playing stage's pulses, scaled to the
+   incoming clock period; an actively-clocking input suppresses the
+   step-on-entry soft-normal for 2 s (no double clocking).
+2. The pulse-onset fix: gates driven by external clock pulses start at full
+   width - pulse-width 0's fixed ~1 ms trigger now fires while clocked
+   (it previously never fired), and all clocked gates start up to 1 ms
+   earlier.
+
+Bench verification (both units, identical stimulus and analysis)
+--
+- x1 lock at the printed "1" on each board's own anchors: 1:1, zero missed
+  pulses (soaks: REV1 712/712 over 10 min; v2 1978/1978 over 10 min), no
+  drift, onset latency ~+0.9 ms on both.
+- Pulse-width truth curve, all 16 settings: within 0.3 percentage point of
+  programmed on both boards.
+- Humanize: dead-on at slider-down; uniform +/-1/4 step at 50%; uniform
+  +/-1/2 step at full - matching distributions on both boards.
+- Shift-register engine, sustain/enable: hardware-verified on REV1
+  (v3.2.2); on v2 covered by the dual-variant host bench (same engine).
+
+Known issues / notes (3.3)
+--
+- External clock pulses should be comfortably wider than 0.1 ms: very
+  narrow pulses can be dropped by the input conditioning (measured ~16%
+  loss at 0.1 ms on a v2 unit). Most pulse sources are far wider.
+- The zone anchors are measured on one unit of each revision; if your
+  unit's printed "1" does not read x1, calibrate first, then report.
+- Strobe inputs on UNMODIFIED rev 1.0 boards remain non-functional by
+  hardware (jacks not wired to the MCU; see 3.2.2 notes). v1.6-modded
+  boards have working strobes.
+- The v1 expander remains unvalidated on real hardware.
 
 
 Release Notes

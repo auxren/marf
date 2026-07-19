@@ -65,6 +65,35 @@ subsequent power‑up the firmware verifies it; if the calibration data is missi
 or corrupt, the module falls back to a safe uncalibrated (unity) scaling so it
 still runs, but you should recalibrate for correct behaviour.
 
+## Calibration doubles as a hardware self‑test
+
+Since 3.3, finishing a calibration also checks that every swept control
+actually **moved** through a healthy range. A channel whose captured span is
+implausibly small (under ~25 % of full scale) indicates a dead or badly
+attenuated analog path — a broken slider, the wrong firmware image for the
+board revision, or a board whose analog readings need investigation. This is
+the fault class behind "the module suddenly runs about 10× too fast":
+time sliders that read (near) zero pin every stage to its fastest time.
+
+If any channel fails, the module **does not finish silently**. It holds a
+fault report on the panel, cycling through up to three phases (~1 s each):
+
+| Panel indicator | Flashing step LEDs show |
+|---|---|
+| **Display I** lit | failing **voltage** sliders (LED n = stage n) |
+| **Display II** lit | failing **time** sliders |
+| **both** lit | failing **Time Multiply** knobs (LED 1 = generator I, LED 2 = II) |
+
+Press either **Stage Address Advance** button to dismiss the report. The
+calibration is still saved — but treat flagged channels as suspect: repeat
+the calibration making sure to sweep them fully, and if a channel fails
+again, it is a hardware fault (or the wrong image for your board revision).
+
+A calibration where every control was swept properly finishes silently, as
+before. External input jacks are **not** self‑tested (they may legitimately
+be unpatched during calibration); only the sliders and the Time Multiply
+knobs are checked.
+
 ## Calibration survives firmware updates
 
 Calibration is stored in the module's external EEPROM, **not** in the chip that
