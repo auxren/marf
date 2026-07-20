@@ -85,8 +85,6 @@ def banner():
 # --------------------------------------------------------------------------- #
 
 SERIOUS = "--serious" in sys.argv or os.environ.get("FLASHY_SERIOUS")
-DRY_RUN = "--dry-run" in sys.argv
-ASSUME_YES = "--yes" in sys.argv
 
 WAIT_QUIPS = [
     "The Weasel is patching banana cables into the void... hang tight.",
@@ -318,7 +316,34 @@ def _quote_path(p):
     # (hello, "Downloads folder") must be quoted or the tool sees two args.
     return f'"{p}"' if IS_WIN else shlex.quote(p)
 
-def flash_command(firmware, cfg):
+def _hex_to_bin(hex_path):
+    """Minimal Intel-HEX -> raw bin (gaps filled 0xFF). Returns temp path."""
+    import tempfile
+    segs = {}
+    base = 0
+    for line in open(hex_path):
+        line = line.strip()
+        if not line.startswith(":"):
+            continue
+        b = bytes.fromhex(line[1:])
+        cnt, addr, typ = b[0], (b[1] << 8) | b[2], b[3]
+        data = b[4:4 + cnt]
+        if typ == 0x04:
+            base = ((data[0] << 8) | data[1]) << 16
+        elif typ == 0x00:
+            segs[base + addr] = data
+        elif typ == 0x01:
+            break
+    lo = min(segs)
+    hi = max(a + len(d) for a, d in segs.items())
+    img = bytearray(b"\xff" * (hi - lo))
+    for a, d in segs.items():
+        img[a - lo:a - lo + len(d)] = d
+    f = tempfile.NamedTemporaryFile(suffix=".bin", delete=False)
+    f.write(bytes(img)); f.close()
+    return f.name, lo
+
+def flash_command(firmware, cfg, _retried=False):
     tmpl = cfg.get("command")
     if not tmpl:
         say(RED + "This device is set to 'command' mode but no command was "
@@ -329,20 +354,77 @@ def flash_command(firmware, cfg):
     # same job and different users have different ones installed). The Weasel
     # runs the first one whose tool actually exists on this machine.
     templates = tmpl if isinstance(tmpl, list) else [tmpl]
+
+    def _tool_available(t):
+        """Name the tool and check it exists. '{python} -m mod ...' templates
+        are probed by importability (works for --user pip installs whose
+        entry-point scripts aren't on PATH)."""
+        if t.startswith("{python} -m "):
+            mod = t.split()[2]
+            r = subprocess.run([sys.executable, "-c", f"import {mod}"],
+                               capture_output=True)
+            return (f"{mod} (pip)", r.returncode == 0)
+        if "{vendor}" in t:
+            r = subprocess.run([sys.executable, "-c", "import usb.core"],
+                               capture_output=True)
+            return ("bundled ST-Link driver (needs: pip install pyusb libusb-package)",
+                    r.returncode == 0)
+        tool = (t.split() or [""])[0]
+        return (tool, shutil.which(tool) is not None)
+
     chosen, missing = None, []
     for t in templates:
-        tool = (t.split() or [""])[0]
-        if shutil.which(tool):
+        name, ok = _tool_available(t)
+        if ok:
             chosen = t
             break
-        missing.append(tool)
+        missing.append(name)
     if chosen is None:
         say(RED + "\nNone of the tools that can flash this device are "
                   "installed on this computer:" + RESET)
         for tool in missing:
             say(f"  {BOLD}•{RESET} {tool}")
-        say("\nInstall any ONE of them (the README in this folder says how), "
-            "then run me again. The Weasel will wait by the modular. 🎛️")
+
+        # Offer to install one right here — musicians shouldn't need to know
+        # what openocd is (issue #6). Pick the platform's package manager.
+        import shutil as _sh
+        offer = None
+        if sys.platform == "darwin" and _sh.which("brew"):
+            offer = ("openocd via Homebrew", "brew install openocd")
+        elif sys.platform.startswith("linux"):
+            if _sh.which("apt-get"):
+                offer = ("stlink-tools via apt", "sudo apt-get install -y stlink-tools")
+            elif _sh.which("dnf"):
+                offer = ("stlink via dnf", "sudo dnf install -y stlink")
+        elif sys.platform == "win32" and _sh.which("winget"):
+            offer = ("STM32CubeProgrammer via winget",
+                     "winget install -e STMicroelectronics.STM32CubeProgrammer")
+        if offer is None:
+            # UNIVERSAL fallback: pip is wherever this script runs, no admin,
+            # no package manager needed. pyocd drives the ST-Link directly.
+            offer = ("a pip-installed flasher stack (no admin needed)",
+                     f"{_quote_path(sys.executable)} -m pip install pyocd pyusb libusb-package")
+        if offer and sys.stdin.isatty() and not _retried:
+            name, cmd = offer
+            say(f"\nI can install {BOLD}{name}{RESET} for you now by running:")
+            say(f"  {DIM}{cmd}{RESET}")
+            ans = input("Install it? [Y/n] ").strip().lower()
+            if ans in ("", "y", "yes"):
+                say("Installing (this can take a few minutes)...")
+                r = subprocess.run(cmd, shell=True)
+                if r.returncode == 0:
+                    say(GREEN + "Installed! Continuing..." + RESET)
+                    return flash_command(firmware, cfg, _retried=True)
+                say(RED + "Install failed." + RESET)
+        say("\nManual install — any ONE of these, then run me again:")
+        if sys.platform == "darwin":
+            say("  macOS:   brew install openocd     (get Homebrew at https://brew.sh)")
+        elif sys.platform.startswith("linux"):
+            say("  Linux:   sudo apt install stlink-tools   (or: sudo dnf install stlink)")
+        else:
+            say("  Windows: install STM32CubeProgrammer from st.com (free, needs an email)")
+            say("           https://www.st.com/en/development-tools/stm32cubeprog.html")
+        say("The Weasel will wait by the modular. 🎛️")
         return False
 
     # Command-mode boards have pre-flight steps too (attach a programmer,
@@ -360,31 +442,45 @@ def flash_command(firmware, cfg):
                 say("\n" + YELLOW + "Okay, stopping. Come back when you're "
                     "ready. 👋" + RESET)
                 return False
-        elif not (ASSUME_YES or DRY_RUN):
-            # No human at the keyboard and no explicit consent: a command-mode
-            # flash writes to WHATEVER is attached to the programmer. Refuse.
-            # (Learned the hard way: a "dry run" with stdin redirected once
-            # flashed a real, different board sitting on the bench.)
-            say(YELLOW + "\nNo interactive terminal, so the Weasel won't "
-                "fire a flashing tool blind." + RESET)
-            say("Re-run with --yes to flash anyway, or --dry-run to preview.")
-            return False
 
-    cmd = chosen.replace("{firmware}", _quote_path(firmware))
+    # every template whose tool is present, in config order — if one RUNS but
+    # FAILS (e.g. pyocd refusing an old ST-Link's firmware), fall through to
+    # the next instead of giving up
+    runnable = [chosen] + [t for t in templates[templates.index(chosen)+1:]
+                           if _tool_available(t)[1]]
+    vendor_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor")
+
+    # STAGE the firmware under a fixed, space-free name in a temp dir and run
+    # every tool from there. No user path ever enters a command line — quoting
+    # cannot fail because there is nothing to quote (issue #7: "flasher 3"
+    # folders from Finder's duplicate naming broke openocd's Tcl parsing).
+    import tempfile, shutil as _shcp
+    stage = tempfile.mkdtemp(prefix="weasel_")
+    staged_hex = os.path.join(stage, "firmware.hex")
+    _shcp.copyfile(firmware, staged_hex)
     say()
     say(CYAN + BOLD + "Step 2: the Weasel patches it in" + RESET)
-    say(DIM + "  " + cmd + RESET)
-    say()
-    if DRY_RUN:
-        say(YELLOW + "(--dry-run: stopping right here — nothing was "
-            "flashed. The Weasel mimes the motions.)" + RESET)
-        return True
-    try:
-        result = subprocess.run(cmd, shell=True)
-        return result.returncode == 0
-    except Exception as e:
-        say(RED + f"That command didn't want to run: {e}" + RESET)
-        return False
+    for i, t in enumerate(runnable):
+        cmd = t.replace("{firmware}", "firmware.hex")
+        cmd = cmd.replace("{python}", _quote_path(sys.executable))
+        cmd = cmd.replace("{vendor}", _quote_path(vendor_dir))
+        if "{firmware_bin}" in cmd:
+            binp, lo = _hex_to_bin(staged_hex)
+            staged_bin = os.path.join(stage, "firmware.bin")
+            _shcp.move(binp, staged_bin)
+            cmd = cmd.replace("{firmware_bin}", "firmware.bin")
+            cmd = cmd.replace("{flash_base}", "0x%08x" % lo)
+        say(DIM + "  " + cmd + f"   (in {stage})" + RESET)
+        try:
+            result = subprocess.run(cmd, shell=True, cwd=stage)
+        except Exception as e:
+            say(RED + f"That command didn't want to run: {e}" + RESET)
+            continue
+        if result.returncode == 0:
+            return True
+        if i + 1 < len(runnable):
+            say(YELLOW + "\nThat tool couldn't do it — trying the next one..." + RESET)
+    return False
 
 # --------------------------------------------------------------------------- #
 #  Celebration / commiseration
@@ -399,10 +495,25 @@ def celebrate(cfg):
     say(GREEN + f"Your {cfg['product_name']} is running fresh firmware. "
                 "The Easel Weasel wanders back to its synth. 🎹" + RESET)
 
-def commiserate():
+def commiserate(method="uf2"):
     say()
     say(YELLOW + BOLD + "Well, that didn't work — but nothing's broken." + RESET)
-    say("""Try this, in order:
+    if method == "command":
+        # A programmer (ST-Link/DFU/etc.) failed to talk to the board. The real
+        # reason is in the tool's own output ABOVE — don't send UF2 advice here.
+        say("""The flashing tool couldn't reach the board. Try this, in order:
+  1. The exact reason is in the tool's output just above — the line that starts
+     with "Error:" says what went wrong. That's the thing to read (and to send
+     the maintainer).
+  2. Plug the programmer straight into a USB port on the computer — not through
+     a hub or dock — and try a different USB cable.
+  3. Check the wiring to the board: ribbon/leads in the right orientation, and
+     the board's 3.3V (VREF/VTref) pin reaching the programmer so it can sense
+     target power. A powered board with no VREF connection still fails.
+  4. Make sure the board is actually powered on, and not held in reset.
+  5. Still stuck? Send the maintainer a screenshot including the "Error:" line.""")
+    else:
+        say("""Try this, in order:
   1. Unplug the device, plug it back in, run this again.
   2. Make sure you did the button-hold to enter flashing mode.
   3. Try a different USB cable (some cables are charge-only liars).
@@ -440,12 +551,7 @@ def main():
 
     method = cfg.get("method", "uf2").lower()
     if method == "uf2":
-        if DRY_RUN:
-            say(YELLOW + "(--dry-run: would wait for a UF2 drive and copy "
-                + os.path.basename(firmware) + " onto it. Stopping here.)" + RESET)
-            ok = True
-        else:
-            ok = flash_uf2(firmware, cfg)
+        ok = flash_uf2(firmware, cfg)
     elif method == "command":
         ok = flash_command(firmware, cfg)
     else:
@@ -456,7 +562,7 @@ def main():
     if ok:
         celebrate(cfg)
     else:
-        commiserate()
+        commiserate(cfg.get("method", "uf2"))
 
     pause_before_exit()
     sys.exit(0 if ok else 1)
