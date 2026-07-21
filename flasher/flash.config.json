@@ -8,6 +8,6 @@
     "STM32_Programmer_CLI -c port=SWD -w {firmware} -v -rst",
     "st-flash --reset --format ihex write {firmware}",
     "openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c \"program {firmware} verify reset exit\"",
-    "{python} {vendor}/pystlink/pystlink.py flash:erase:verify:{flash_base}:{firmware_bin}"
+    "{python} {vendor}/pystlink/pystlink.py flash:erase:verify:{flash_base}:{firmware_bin} reset"
   ]
 }
