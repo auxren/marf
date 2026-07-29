@@ -108,6 +108,10 @@ void DisableContinuousStageAddress(uint8_t afg_num);
 // Calculate the length of the step, based on time settings and time multiplier
 void AfgRecalculateStepWidths();
 
+// Clocked-mode humanize master switch (1 = time sliders humanize, default;
+// 0 = sliders only feed the Time OUT voltage). Toggled by the panel chord.
+extern volatile uint8_t humanize_enabled;
+
 // Get the number of ticks remaining in the current step.
 // A return value of 0xFFFFFFFF indicates that the step is ended.
 uint32_t AfgGetStepTicksRemaining(uint8_t afg_num);

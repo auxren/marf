@@ -206,12 +206,15 @@ void ControllerMainLoop() {
     uint8_t turing_chord = !switches.b.OutputQuantize && !switches.b.SourceExternal;
     uint8_t pulse_width_chord = !switches.b.TimeSourceExternal && !switches.b.TimeRange1
                                 && switches.b.OutputQuantize && switches.b.SourceExternal;
+    uint8_t humanize_chord = !switches.b.TimeSourceExternal && !switches.b.TimeRange4
+                                && switches.b.OutputQuantize && switches.b.SourceExternal;
     // Once the pulse-width chord is seen, stay "engaged" (suppressing programming)
     // until BOTH chord switches are released. They are momentary, so one can slip
     // during the hold; without this latch the still-held .03/Time-Source switch
     // would stamp every step that plays past while running.
-    uint8_t pw_either_held = !switches.b.TimeSourceExternal || !switches.b.TimeRange1;
-    if (pulse_width_chord) pulse_width_engaged = 1;
+    uint8_t pw_either_held = !switches.b.TimeSourceExternal || !switches.b.TimeRange1
+                                || !switches.b.TimeRange4;
+    if (pulse_width_chord || humanize_chord) pulse_width_engaged = 1;
     else if (!pw_either_held) pulse_width_engaged = 0;
     if (!turing_chord && !pulse_width_engaged) {
       ControllerApplyProgrammingSwitches(&switches);
@@ -708,6 +711,8 @@ void ControllerProcessTuringConfig(uButtons * key) {
 void ControllerProcessPulseWidth(uButtons * key) {
   static uint8_t active = 0;
   static uint8_t pending_restore = 0;
+  static uint8_t hum_release_pending = 0;
+  static uint8_t hum_latched = 0;      /* one humanize toggle per chord press */
   static uint16_t snap_t[32];
   static uint16_t last_t[32];         // last-loop positions, to spot the moving one
   static uint8_t moved_t[32];
@@ -717,8 +722,11 @@ void ControllerProcessPulseWidth(uButtons * key) {
   uint8_t max = get_max_step();
   uint8_t ts_ext_held = !key->b.TimeSourceExternal;
   uint8_t tr03_held   = !key->b.TimeRange1;          // the ".03" time range switch
-  uint8_t either_held = ts_ext_held || tr03_held;
-  uint8_t chord = ts_ext_held && tr03_held &&
+  uint8_t tr30_held   = !key->b.TimeRange4;          // the "30" time range switch
+  uint8_t either_held = ts_ext_held || tr03_held || tr30_held;
+  uint8_t chord = ts_ext_held && tr03_held && !tr30_held &&
+                  key->b.OutputQuantize && key->b.SourceExternal;
+  uint8_t hum_chord = ts_ext_held && tr30_held && !tr03_held &&
                   key->b.OutputQuantize && key->b.SourceExternal;
 
   // Currently focused step.
@@ -764,7 +772,31 @@ void ControllerProcessPulseWidth(uButtons * key) {
     scale_select_bar = 1;
     scale_select_active = 1;
     pending_restore = 1;               // restore the step's time src/range on exit
+  } else if (hum_chord) {
+    // Time Source External + "30" Time Range: toggle whether the time sliders
+    // humanize while externally clocked. With it OFF the sliders stop touching
+    // clocked timing and act purely as the Time OUT voltage source. The step
+    // display answers: full bar = humanize ON, single LED = OFF. Same
+    // non-destructive treatment as the pulse-width chord (the held switches
+    // would otherwise program the focused step's time source/range).
+    if (!hum_latched) {
+      hum_latched = 1;
+      humanize_enabled ^= 1;
+      scale_select_freeze = 1;
+    }
+    hum_release_pending = 1;
+    scale_select_value = humanize_enabled ? 15 : 0;
+    scale_select_binary = 0;
+    scale_select_bar = 1;
+    scale_select_active = 1;
+    pending_restore = 1;
   } else {
+    if (hum_release_pending) {
+      hum_release_pending = 0;
+      hum_latched = 0;
+      scale_select_freeze = 0;
+      scale_select_active = 0;
+    }
     if (active) {
       // Chord just released: pin the moved time sliders so their step times
       // don't jump to the width position.

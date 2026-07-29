@@ -58,6 +58,21 @@ starts following the clock:
   immediately even right after a program load or randomize (slider pinning
   never applies to it).
 
+- **Sliders‑as‑voltages mode (humanize off).** Hold **Time Source External +
+  the "30" Time Range switch** together to toggle humanize globally. The step
+  display answers: a **full bar** means humanize is ON (the behaviour above);
+  a **single LED** means it is OFF — the time sliders then stop affecting
+  clocked timing entirely and become a pure voltage row for the **Time OUT**,
+  a second sequence you can dial in without touching the groove.
+
+  In this mode, a stage with **Quantize** enabled applies the sequence's
+  **scale and root** to its Time OUT voltage — the same quantizer as the
+  voltage output — so the time‑slider row can play in key: two independent
+  melodies from one generator, one per output. Stages with Quantize off stay
+  raw/continuous. The toggle always powers up ON (the classic behaviour);
+  like the pulse‑width chord, holding it never reprograms the focused
+  stage's time source or range.
+
 - **Everything else still works.** Programmed pulses and the reference output
   scale to the clocked step length; **Enable / Sustain** stages still hold and
   release from the Start input; **Strobe** still jumps; loops still loop. While

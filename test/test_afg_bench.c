@@ -25,6 +25,8 @@
 #include "analog_data.h"
 #include "program.h"
 #include "turing.h"
+#include "dip_config.h"
+#include "scales.h"
 #include "clockfollow.h"
 #include "constants.h"
 
@@ -40,6 +42,7 @@ void run_afg_bench_tests(void);
 
 extern volatile uint32_t millis;          /* test_support.c; get_millis() reads it */
 extern volatile uint32_t dbg_cfadv[8];    /* afg.c SWD taps: [3]=div skip [6]=jump */
+extern volatile uint8_t humanize_enabled; /* afg.c: clocked-humanize master switch */
 
 #define WINDOW_TICKS 32u                            /* 1 ms at 32 kHz */
 #define CYCLES_PER_TICK (168000000u / AFG_TICK_FREQUENCY)
@@ -352,6 +355,84 @@ static void test_time_out_scaling(void) {
 #endif
 }
 
+/* With humanize disabled, full-up time sliders must leave clocked timing
+ * completely untouched: onsets dead on the grid like sliders-down. */
+static void test_humanize_disable_switch(void) {
+  printf("bench: humanize_enabled=0 kills slider timing influence\n");
+  bench_setup(KNOB_X1);
+  set_pw_all(0);
+  for (int i = 0; i < 32; i++) slider_raw_t[i] = 4095;   /* full humanize pos */
+  humanize_enabled = 0;
+
+  const uint32_t P = 30;
+  lock_clock(P);
+  for (int p = 0; p < 8; p++) {
+    ProgrammedOutputs first = {0};
+    uint32_t late = 0;
+    for (uint32_t i = 0; i < P; i++) {
+      ProgrammedOutputs o = win(no_pulses);
+      if (i == 0) first = o;
+      else if (o.all_pulses) late++;
+    }
+    clock_pulse();
+    if (p > 0) {
+      CHECK(first.all_pulses == 1);   /* trigger right on the pulse */
+      CHECK(late == 0);               /* and nowhere else in the period */
+    }
+  }
+  humanize_enabled = 1;
+}
+
+/* In sliders-as-voltages mode, a Quantize-enabled stage's Time OUT must land
+ * exactly on scale notes (same math as the voltage output); with humanize on
+ * (default) the Time OUT must stay the raw slider. */
+static void test_time_out_quantize(void) {
+  printf("bench: Time OUT quantizes in sliders-as-voltages mode\n");
+  bench_setup(KNOB_X1);
+  uDipConfig dip = {0};
+  SetVoltageRange(dip);                       /* 2V/oct: semitone_offset 68.25 */
+  uint16_t raw = 1234;
+  sliders[0].TLevel = raw;
+  steps[0].b.Quantize = 1;
+  afg_scale[0] = 0;                           /* chromatic */
+  afg_root[0] = 0;
+
+  humanize_enabled = 1;                       /* default: raw slider */
+  ProgrammedOutputs o = win(no_pulses);
+#if MARF_HW == 1
+  CHECK(o.time == raw);
+#else
+  CHECK(o.time == raw >> 2);
+#endif
+
+  humanize_enabled = 0;                       /* voltages mode: quantized */
+  o = win(no_pulses);
+  int semi = (int) (raw * quantizer_magic + 0.5f);
+  uint16_t expect = (uint16_t) (semi * semitone_offset);
+#if MARF_HW == 1
+  CHECK(o.time == expect);
+#else
+  CHECK(o.time == expect >> 2);
+#endif
+  CHECK(o.time != (
+#if MARF_HW == 1
+      raw
+#else
+      raw >> 2
+#endif
+      ));                                     /* it actually moved to the note */
+
+  /* Quantize bit off -> raw even in voltages mode */
+  steps[0].b.Quantize = 0;
+  o = win(no_pulses);
+#if MARF_HW == 1
+  CHECK(o.time == raw);
+#else
+  CHECK(o.time == raw >> 2);
+#endif
+  humanize_enabled = 1;
+}
+
 void run_afg_bench_tests(void) {
   test_clocked_x1_lock_and_gate();
   test_onset_trigger_after_isr_advance();
@@ -360,5 +441,7 @@ void run_afg_bench_tests(void) {
   test_sustain_under_gate();
   test_enable_under_gate();
   test_humanize_stays_locked();
+  test_humanize_disable_switch();
+  test_time_out_quantize();
   test_time_out_scaling();
 }

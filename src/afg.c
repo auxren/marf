@@ -162,9 +162,15 @@ static inline uint16_t cf_nudge_slider(uint8_t step_num) {
 // (from the main loop) so raising/lowering a slider is heard immediately, not
 // one pass later; only the random unit is fixed per occurrence, so the
 // rush/late direction can't flip mid-step (the unit's sign is stable).
+// Panel toggle (Time Source External + "30" Time Range chord, controller.c):
+// with humanize disabled the time sliders stop affecting clocked timing
+// entirely, freeing them to be used purely as the Time OUT voltage source.
+volatile uint8_t humanize_enabled = 1;
+
 static void CfRefreshNextOffset(uint8_t afg_num) {
   volatile AfgState *afg = afgs[afg_num];
   volatile ClockFollowState *cf = &cfs[afg_num];
+  if (!humanize_enabled) { cf->next_offset = 0; return; }
   uint8_t next = GetNextStep(afg->section, afg->step_num);
   cf->next_offset = cf_humanize_offset(
       cf->next_unit,
@@ -593,11 +599,25 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   afg->step_level = output_voltage;
 
   // Set AFG time out value. v1 has a 12-bit Time/Ref DAC, v2 a 10-bit one.
+  // Normally the raw time slider; in sliders-as-voltages mode (clocked
+  // humanize disabled via the panel chord) a stage with Quantize on gets the
+  // SAME scale treatment as the voltage output - the time-slider bank becomes
+  // a second, quantized melody row on the Time OUT.
+  {
+    float tlev = (float) get_time_slider_level(afg->step_num);
+    if (!humanize_enabled && step.b.Quantize) {
+      int t_semi = (int) (tlev * quantizer_magic + 0.5f);
+      t_semi = scale_quantize_semitone(afg_scale[afg_num], afg_root[afg_num], t_semi);
+      tlev = (float) t_semi * semitone_offset;
+      if (tlev > 4095.0f) tlev = 4095.0f;
+      if (tlev < 0.0f) tlev = 0.0f;
+    }
 #if MARF_HW == 1
-  outputs.time = get_time_slider_level(afg->step_num);          // full 12 bits
+    outputs.time = (uint16_t) tlev;                             // full 12 bits
 #else
-  outputs.time = get_time_slider_level(afg->step_num) >> 2;     // 10 bits
+    outputs.time = ((uint16_t) tlev) >> 2;                      // 10 bits
 #endif
+  }
 
   if (afg->step_cnt < afg->step_width) {
     // Set AFG reference out value (slopes down to 0 over the course of the step)

@@ -1,4 +1,36 @@
 Release Notes
+Version 3.3.1  (RELEASE CANDIDATE - both hardware variants)
+July 2026
+
+New (both variants)
+--
+1. Sliders-as-voltages mode: holding Time Source External + the "30" Time
+   Range switch toggles clocked humanize globally (step display: full bar =
+   humanize ON, single LED = OFF). With humanize OFF the time sliders stop
+   affecting clocked timing entirely and act purely as the Time OUT voltage
+   row - use the groove controls as a second sequence without touching the
+   groove. Defaults to ON at power-up; the chord is non-destructive to the
+   focused stage's programming (same treatment as the pulse-width chord).
+2. Quantized Time OUT: in sliders-as-voltages mode, a stage with Quantize
+   enabled applies the sequence's scale and root to its Time OUT voltage -
+   the same quantizer as the voltage output. Two independent in-key melodies
+   from one generator, one per output. Stages with Quantize off stay
+   raw/continuous. (Default behaviour with humanize ON is unchanged: Time
+   OUT mirrors the raw slider, as always.)
+
+Verification
+--
+- Virtual bench (both variants, 6217 + 6221 checks): humanize-off leaves
+  clocked onsets dead on the grid with sliders full up; Time OUT lands
+  exactly on scale notes when quantized, stays raw with the Quantize bit
+  off or humanize on.
+- Release-candidate status: awaiting hardware validation of the chord and
+  quantized Time OUT levels on a v2 bench before final release.
+
+Docs: manual chapter "Running & clocking" -> "Sliders-as-voltages mode".
+
+
+Release Notes
 Version 3.3  (BOTH hardware variants - v2 and REV1 converge)
 July 2026
 
