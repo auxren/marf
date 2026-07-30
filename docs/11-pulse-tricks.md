@@ -28,6 +28,40 @@ The **Start** input also releases holds:
 Combine these with programmed stages to build sequences that wait for, or are
 shaped by, external events.
 
+## Patch idea: per‑stage clock ratios (self‑patch)
+
+*Needs 3.3.1's sliders‑as‑voltages mode.*
+
+With the generator locked to an external clock and **humanize toggled off**
+(Time Source External + "30" Time Range chord — see
+[Sliders‑as‑voltages mode](08-running-and-clocking.md)), the time sliders are
+a free voltage row on the **Time OUT**. Now self‑patch:
+
+> **Time OUT → Time Multiply CV input** (same generator), with the Time
+> Multiply knob parked fully counter‑clockwise.
+
+The Time Multiply CV sums with the knob and the clock‑ratio zones re‑read
+continuously — so **each stage's time slider now selects that stage's own
+clock ratio**. Stage 1 in the ×4 zone plays sixteenths, stage 2 in ×2 plays
+eighths, stage 3 in ÷8 stretches across eight clock pulses: a per‑stage
+polymetric ratchet sequencer from one patch cable.
+
+Behaviour worth knowing (verified against the firmware):
+
+- **Divide stages are exact** — a ÷N stage lasts exactly N clock pulses, and
+  **×1 stages** land exactly on the clock.
+- **Multiply stages subdivide the clock period they start in.** Runs of the
+  same multiply ratio are clean (four ×4 stages = perfect sixteenths); a
+  multiply stage entered mid‑cycle fills the *remainder* of that cycle —
+  deterministic, and part of the charm.
+- There are **15 zones (÷8 … ×8)** across the CV range with hysteresis, so a
+  dialed‑in slider stays put. Enabling **Quantize** on those stages snaps the
+  sliders to reproducible voltages, which makes zone‑dialing repeatable —
+  and the ratio pattern recallable with saved programs.
+- The knob is the **base** the CV adds to: parking it CCW gives the sliders
+  the whole zone range; parking it at "1" lets a small CV push ratios up
+  from unity instead.
+
 ## Stacking pulses to multiple destinations
 
 If you want to fan one pulse source out to several pulse inputs at once, the
