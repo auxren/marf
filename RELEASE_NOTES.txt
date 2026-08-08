@@ -1,4 +1,76 @@
 Release Notes
+Version 3.4  (both hardware variants)
+August 2026
+
+Finalizes the 3.3.1 release candidate (sliders-as-voltages mode and
+quantized Time OUT, below) and fixes three quantizer/output-path defects
+found during hardware validation of the quantizer against an external
+V/oct-to-MIDI converter.
+
+Fixed (both variants)
+--
+1. Quantized note chatter: the quantizer re-reads its input (slider or
+   external CV) live every ~1 ms window, so a slider parked on the
+   decision boundary between two semitones re-rolled the note as ADC
+   dither crossed it - bursts of adjacent-note flips mid-step. The
+   chromatic rounding now latches the chosen note per stage and only
+   switches once the input moves 1/8 semitone past the halfway boundary:
+   a parked slider holds its note indefinitely, while a deliberately
+   moved slider still switches (~12 cents later than before,
+   imperceptible). Bench: a 16-step quantized sequence captured through a
+   V/oct MIDI converter dropped from 26% of steps chattering to 15%, and
+   every remaining event was traced to a downstream volts-per-octave
+   configuration mismatch, not the firmware (see note below).
+2. Held-stage slew with Sloped off: the per-tick output's "sloped" flag
+   was left uninitialized on the not-running path (stopped stage,
+   sustain/enable hold, external-clock hold, continuous mode past the
+   stage time). Stack garbage could mark the output as sloping and add a
+   spurious ~1 ms ramp to level changes on a held stage. Now explicitly
+   cleared.
+3. CV out rounds to the nearest DAC code: a cast-precedence slip made the
+   internal DAC truncate the computed level, leaving every output up to
+   1 LSB (~2.4 mV, ~3 cents) flat.
+
+New (both variants; finalized from the 3.3.1 release candidate)
+--
+1. Sliders-as-voltages mode: holding Time Source External + the "30" Time
+   Range switch toggles clocked humanize globally (step display: full bar
+   = humanize ON, single LED = OFF). With humanize OFF the time sliders
+   stop affecting clocked timing entirely and act purely as the Time OUT
+   voltage row - a second sequence without touching the groove. Defaults
+   to ON at power-up; the chord is non-destructive to the focused stage's
+   programming.
+2. Quantized Time OUT: in sliders-as-voltages mode, a stage with Quantize
+   enabled applies the sequence's scale and root to its Time OUT voltage -
+   two independent in-key melodies from one generator, one per output.
+   Stages with Quantize off stay raw; default behaviour with humanize ON
+   is unchanged. The Time OUT quantizer carries the same anti-chatter
+   latch as the voltage output.
+
+Note: quantized pitch into 1 V/oct gear
+--
+The quantizer emits exact note centers in the volts-per-octave selected by
+the DIP switch. In 1.2 V/oct (Buchla) mode, two of every five notes land
+~8 mV from a 1 V/oct semitone boundary, so a downstream 1 V/oct quantizer
+or MIDI converter can flip between adjacent notes on its own input noise.
+That is a configuration mismatch, not a firmware fault: set the DIP to
+1 V/oct (or the downstream device to 1.2 V/oct) and every note lands
+dead-center with ~40 mV of margin.
+
+Verification
+--
+- Host suite grows quantizer-hysteresis coverage (both variants, 7034 +
+  7038 checks green): fresh-latch parity with the plain quantizer,
+  boundary parking with dither in both latch directions, deliberate
+  sweeps and jumps, composition with the scale snap.
+- v2 hardware: SWD inspection of the running unit confirmed stable
+  per-stage note latches consistent with the live slider values, and a
+  DAC output register frozen on the exact note-center code for the held
+  stage.
+- Calibration format unchanged; updating does not force recalibration.
+
+
+Release Notes
 Version 3.3.1  (RELEASE CANDIDATE - both hardware variants)
 July 2026
 

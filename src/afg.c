@@ -444,6 +444,10 @@ void AfgProcessModeChanges(uint8_t afg_num, PulseInputs pulses, uint32_t stamp) 
 static volatile uint32_t pulse_refire[2] = { 0xFFFFFFFF, 0xFFFFFFFF };
 static volatile uint32_t pulse_refire_width[2] = { 0, 0 };
 
+// Per-stage quantizer hysteresis latch for the quantized Time OUT
+// (sliders-as-voltages mode); see scale_quantize_semitone_hyst.
+static volatile int16_t quantize_time_state[32];
+
 void AfgTuringPulseRefire(uint8_t afg_num, uint32_t period_ticks) {
   volatile AfgState *afg = afgs[afg_num];
   uStep step = get_step_programming(afg->section, afg->step_num);
@@ -590,9 +594,9 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   // In Turing mode, an external-source step plays this stage's shift register
   // instead of its external input. (Other external-source steps are soft-
   // normalled to their slider value inside GetStepVoltage.)
-  uint8_t turing_global = afg->step_num + (afg->section << 4);
+  uint8_t stage_global = afg->step_num + (afg->section << 4);
   uint8_t use_override = turing_enabled[afg_num] && step.b.VoltageSource;
-  uint16_t override_v = use_override ? turing_value(&turing_machines[turing_global]) : 0;
+  uint16_t override_v = use_override ? turing_value(&turing_machines[stage_global]) : 0;
   output_voltage = GetStepVoltage(afg->section, afg->step_num,
                                   afg_scale[afg_num], afg_root[afg_num],
                                   override_v, use_override);
@@ -606,8 +610,9 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
   {
     float tlev = (float) get_time_slider_level(afg->step_num);
     if (!humanize_enabled && step.b.Quantize) {
-      int t_semi = (int) (tlev * quantizer_magic + 0.5f);
-      t_semi = scale_quantize_semitone(afg_scale[afg_num], afg_root[afg_num], t_semi);
+      int t_semi = scale_quantize_semitone_hyst(afg_scale[afg_num], afg_root[afg_num],
+                                                tlev * quantizer_magic,
+                                                &quantize_time_state[stage_global]);
       tlev = (float) t_semi * semitone_offset;
       if (tlev > 4095.0f) tlev = 4095.0f;
       if (tlev < 0.0f) tlev = 0.0f;
@@ -635,8 +640,11 @@ ProgrammedOutputs AfgTick(uint8_t afg_num, PulseInputs pulses, uint8_t ticks) {
           (output_voltage - afg->prev_step_level) * ((float) afg->step_cnt / (float) afg->step_width);
     }
   } else {
-    // No reference output when not running
+    // No reference output when not running.
     outputs.ref = 0;
+    // `outputs` is a stack local: the flag must be written on this path too,
+    // or the DAC stage reads garbage and can slew a held stage's level.
+    outputs.sloped = 0;
   }
 
   outputs.voltage = afg->step_level;

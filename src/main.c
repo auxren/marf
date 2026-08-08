@@ -424,7 +424,7 @@ void TIM4_IRQHandler() {
 
   // Update internal dac (fast)
   DAC_SetChannel1Data(DAC_Align_12b_R,
-      (uint16_t) sloping_output.level + 0.5);
+      (uint16_t) (sloping_output.level + 0.5f));
 
   tick_counter -= 1;
   __enable_irq();
@@ -495,7 +495,7 @@ void TIM5_IRQHandler() {
 
   // Update internal dac (fast)
   DAC_SetChannel2Data(DAC_Align_12b_R,
-      (uint16_t) sloping_output.level + 0.5);
+      (uint16_t) (sloping_output.level + 0.5f));
 
   tick_counter -= 1;
   __enable_irq();

@@ -129,3 +129,20 @@ int scale_quantize_semitone(uint8_t scale, int root, int semitone) {
   }
   return semitone;                          // unreachable for a non-empty mask
 }
+
+int scale_quantize_semitone_hyst(uint8_t scale, int root, float pos,
+                                 volatile int16_t *state) {
+  int semi = (int) (pos + 0.5f);
+  if (*state != 0) {
+    int prev = *state - 1;
+    float d = pos - (float) prev;
+    if (semi != prev &&
+        d < (0.5f + QUANTIZER_HYSTERESIS) &&
+        d > -(0.5f + QUANTIZER_HYSTERESIS)) {
+      // Still inside the guard band around the current note: hold it.
+      semi = prev;
+    }
+  }
+  *state = (int16_t) (semi + 1);
+  return scale_quantize_semitone(scale, root, semi);
+}

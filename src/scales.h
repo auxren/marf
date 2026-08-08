@@ -76,6 +76,21 @@ uint8_t root_from_slider(uint16_t level);
 // the input unchanged for SCALE_CHROMATIC or an out-of-range scale id.
 int scale_quantize_semitone(uint8_t scale, int root, int semitone);
 
+// Guard band, in semitones, past the halfway point before the quantizer
+// switches to the neighbouring note. Slider ADC dither through the smoother
+// is a couple of codes (~6 cents); an eighth of a semitone swallows that
+// while staying imperceptible when a slider is moved by hand.
+#define QUANTIZER_HYSTERESIS 0.125f
+
+// Chromatic rounding with hysteresis, then the scale snap above. `pos` is the
+// input in semitone units (level * quantizer_magic). `state` is a per-stage
+// latch: 0 = no note chosen yet, otherwise 1 + the last chromatic index. An
+// input parked near a note boundary keeps its note until it moves
+// QUANTIZER_HYSTERESIS past the halfway point; anything further away is
+// accepted immediately, so a deliberately moved slider behaves as before.
+int scale_quantize_semitone_hyst(uint8_t scale, int root, float pos,
+                                 volatile int16_t *state);
+
 // The 12-bit pitch-class mask for a scale (for tests / a future UI).
 uint16_t scale_mask(uint8_t scale);
 

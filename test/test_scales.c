@@ -82,6 +82,58 @@ static void test_every_scale_nonempty(void) {
   }
 }
 
+static void test_hysteresis_fresh_matches_plain(void) {
+  printf("test_hysteresis_fresh_matches_plain\n");
+  /* With no note latched (state 0), the hyst variant must round to nearest
+     and scale-snap exactly like the plain quantizer. */
+  for (int tenths = 0; tenths <= 1200; tenths += 3) {
+    float pos = tenths / 10.0f;
+    int16_t state = 0;
+    int plain = scale_quantize_semitone(SCALE_MAJOR, 0, (int) (pos + 0.5f));
+    CHECK(scale_quantize_semitone_hyst(SCALE_MAJOR, 0, pos, &state) == plain);
+    CHECK(state != 0);
+  }
+}
+
+static void test_hysteresis_holds_at_boundary(void) {
+  printf("test_hysteresis_holds_at_boundary\n");
+  /* A stage parked on the 33/34 boundary with ADC dither must not flap. */
+  int16_t state = 0;
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.40f, &state) == 33);
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.52f, &state) == 33);
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.48f, &state) == 33);
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.60f, &state) == 33);
+  /* ...and the same parked just past the boundary, latched high. */
+  state = 0;
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.60f, &state) == 34);
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.45f, &state) == 34);
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.55f, &state) == 34);
+}
+
+static void test_hysteresis_deliberate_move_switches(void) {
+  printf("test_hysteresis_deliberate_move_switches\n");
+  /* Sweeping past boundary + guard band must switch, in both directions. */
+  int16_t state = 0;
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.00f, &state) == 33);
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.70f, &state) == 34);
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 33.30f, &state) == 33);
+  /* A big jump (new step, preset recall, turing value) lands immediately. */
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 59.40f, &state) == 59);
+  CHECK(scale_quantize_semitone_hyst(SCALE_CHROMATIC, 0, 12.10f, &state) == 12);
+}
+
+static void test_hysteresis_with_scale_snap(void) {
+  printf("test_hysteresis_with_scale_snap\n");
+  /* Hysteresis acts on the chromatic index; the scale snap still applies.
+     C major: chromatic 6 snaps up to 7. */
+  int16_t state = 0;
+  CHECK(scale_quantize_semitone_hyst(SCALE_MAJOR, 0, 5.90f, &state) == 7);
+  /* Dither around the 5/6 chromatic boundary keeps the latched index 6. */
+  CHECK(scale_quantize_semitone_hyst(SCALE_MAJOR, 0, 5.55f, &state) == 7);
+  /* Well below the boundary: chromatic 5 is in scale. */
+  CHECK(scale_quantize_semitone_hyst(SCALE_MAJOR, 0, 5.30f, &state) == 5);
+}
+
 void run_scales_tests(void) {
   test_masks();
   test_chromatic_identity();
@@ -89,4 +141,8 @@ void run_scales_tests(void) {
   test_root_shift();
   test_pentatonic_and_octave();
   test_every_scale_nonempty();
+  test_hysteresis_fresh_matches_plain();
+  test_hysteresis_holds_at_boundary();
+  test_hysteresis_deliberate_move_switches();
+  test_hysteresis_with_scale_snap();
 }

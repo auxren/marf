@@ -143,6 +143,9 @@ void RandomizeProgram(uint8_t section) {
   }
 }
 
+// Per-stage quantizer hysteresis latch (see scale_quantize_semitone_hyst).
+static volatile int16_t quantize_note_state[32];
+
 float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t root,
                      uint16_t override_value, uint8_t use_override) {
   float voltage_level = 0.0; // stay in floating point throughout!
@@ -191,12 +194,14 @@ float GetStepVoltage(uint8_t section, uint8_t step_num, uint8_t scale, uint8_t r
   }
 
   if (steps[step_num].b.Quantize) {
-    // Quantize to the nearest note of the active scale.
-    // Convert to a chromatic semitone index (rounded to nearest), snap that
-    // into the selected scale, then convert back to a voltage. The default
-    // SCALE_CHROMATIC snaps to the nearest semitone -- the original behaviour.
-    int semitone = (int) (voltage_level * quantizer_magic + 0.5f);
-    semitone = scale_quantize_semitone(scale, root, semitone);
+    // Quantize to the nearest note of the active scale. The input is re-read
+    // live every tick window, so the chromatic rounding carries hysteresis: a
+    // slider parked on the boundary between two semitones must not re-toggle
+    // the note as ADC dither crosses it. The default SCALE_CHROMATIC snaps to
+    // the nearest semitone -- the original behaviour.
+    int semitone = scale_quantize_semitone_hyst(scale, root,
+                                                voltage_level * quantizer_magic,
+                                                &quantize_note_state[step_num]);
     voltage_level = (float) semitone * semitone_offset;
   }
 
