@@ -19,6 +19,19 @@ Quantizing works in semitone space and tracks the volts‑per‑octave
 snaps to the nearest in‑scale semitone for your system. On a tie the higher note
 is chosen.
 
+Since v3.4 the chosen note is **latched per stage**: a slider sitting exactly on
+the boundary between two semitones holds one steady note instead of flickering
+between the two on electrical noise. Moving the slider still changes the note
+as always — the latch only releases once the slider travels about an eighth of
+a semitone past the boundary, which you won't perceive.
+
+**Feeding other quantized gear:** quantized stages emit exact note centers *in
+the module's own volts‑per‑octave*. If a downstream quantizer or CV‑to‑MIDI
+converter expects a **different** V/oct (e.g. the MARF on 1.2 V/oct into a
+1 V/oct Eurorack device), many notes land near the *other* grid's note
+boundaries and the downstream device may flicker between two adjacent notes on
+its own input noise. Match the volts‑per‑octave on both sides.
+
 ## Selecting a scale and root
 
 Hold the **Quantize** switch and use the sliders as selectors for the

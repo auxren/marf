@@ -24,7 +24,18 @@ the slider (min‑to‑max sweep always works) to free it. See
 **Pitch is off / doesn't track across the range.**
 Recalibrate ([Calibration](03-calibration.md)) and confirm the V/oct
 [DIP switches](04-front-panel-reference.md#dip-switches) match your system
-(1 V, 1.2 V or 2 V per octave).
+(1 V, 1.2 V or 2 V per octave). Note the DIP switches are read **once at
+power‑up** — after changing one, power‑cycle the module.
+
+**A downstream quantizer or CV‑to‑MIDI converter flickers between two adjacent
+notes on some stages.**
+The MARF's quantized output is steady (since v3.4) and lands on exact note
+centers *in its own volts‑per‑octave*. If the downstream device is set to a
+**different** V/oct, some of those centers sit within a few millivolts of the
+other grid's note boundaries and the downstream device flips on its own input
+noise. Set both devices to the same volts‑per‑octave (see the V/oct
+[DIP switches](04-front-panel-reference.md#dip-switches)) — and power‑cycle the
+MARF after changing the DIP.
 
 **My saved programs / calibration were ignored after updating the firmware.**
 This firmware uses a checksummed, versioned storage format and ignores data

@@ -167,3 +167,13 @@ it happens. The displayed generator resets to its first stage afterward.
 
 If neither 1 nor 2 is on, the module uses **2 V/octave**. Changing these affects
 voltage scaling and quantizing; recalibrate if you change them.
+
+Two things to know when changing DIP switches:
+
+- The switches are read **once at power‑up** — flipping one while the module is
+  running does nothing until the next power cycle.
+- The electrical **on** position is the one that closes the switch to ground,
+  and depending on the switch body fitted this may read as the opposite of the
+  printed ON marking. If the scaling isn't what you expect (e.g. everything
+  plays a fifth‑ish sharp or flat against your other gear), flip the relevant
+  switch the other way and power‑cycle before suspecting anything else.
