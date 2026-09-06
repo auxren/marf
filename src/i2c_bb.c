@@ -168,10 +168,16 @@ static volatile uint8_t slv_shift;
 static volatile uint8_t slv_in_ack;  // ACK clock cycle in progress
 static volatile uint8_t slv_gc;      // current transaction is the general call
 
-// Stretch-timeout failsafe (design note: non-negotiable). TIM10 runs one-shot
-// at 1 MHz; it is armed exactly while we clamp SCL and disarmed on release, so
-// it can only ever fire if a bug leaves the clamp behind -- in which case it
-// force-releases the bus rather than wedging the whole case's preset bus.
+// Line-hold failsafe (design note: non-negotiable). TIM10 runs one-shot at
+// 1 MHz and is armed for the whole time we hold EITHER line down: the SCL
+// clamp, and -- just as important -- the ACK bit, during which SDA is driven
+// low and is not released until the next SCL falling edge. If the master ever
+// stops clocking mid-frame, a held ACK is the worse of the two failures: no
+// device can raise SDA, so nobody on the bus can form a START or STOP and the
+// whole case's preset bus is dead. Observed on the bench 2026-09-06, jammed by
+// a 9-byte frame from another module that ended after four bytes.
+// On expiry it force-releases both lines and goes quiet until a START or STOP
+// resynchronizes us.
 static void failsafe_arm(void) {
   TIM10->CNT = 0;
   TIM10->CR1 |= TIM_CR1_CEN;
@@ -248,7 +254,11 @@ void I2CBB_SclIsr(void) {
       SDA_DRIVE_LOW();
       slv_in_ack = 1;
       SCL_RELEASE();
-      failsafe_disarm();
+      // NO disarm here: SDA stays driven low for the whole ACK bit, and it is
+      // only released on the next SCL falling edge. If the master stops
+      // clocking in between, a held ACK jams the bus for every device on it
+      // (nobody can raise SDA to make a START or STOP), which is worse than a
+      // held clock. Leave the failsafe running until the ACK is released.
     } else {
       // Someone else's transaction (including any read): no ACK from us, and
       // no per-bit interrupts until the next START/STOP. This is what makes
@@ -264,7 +274,7 @@ void I2CBB_SclIsr(void) {
     SDA_DRIVE_LOW();
     slv_in_ack = 1;
     SCL_RELEASE();
-    failsafe_disarm();
+    // NO disarm here -- see the address-ACK path above.
   }
 }
 
@@ -280,6 +290,7 @@ void I2CBB_SdaIsr(void) {
     // STOP. Close any open general-call frame and return to full listening.
     if (slv_gc) push_ev(BUS200E_EV_STOP);
     slv_gc = 0;
+    if (slv_in_ack) { SDA_RELEASE(); failsafe_disarm(); }
     slv_in_ack = 0;
     if (slv_state == SLV_QUIET) slave_listen_scl();
     slv_state = SLV_IDLE;
@@ -289,6 +300,7 @@ void I2CBB_SdaIsr(void) {
     // again whatever we were doing. An open frame is abandoned; the parser
     // sees the new EV_START and drops the partial.
     if (slv_state == SLV_QUIET) slave_listen_scl();
+    if (slv_in_ack) { SDA_RELEASE(); failsafe_disarm(); }
     slv_state = SLV_ADDR;
     slv_bits = 0;
     slv_shift = 0;
