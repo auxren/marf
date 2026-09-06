@@ -204,16 +204,21 @@ static volatile uint8_t slv_state = SLV_IDLE;
 static volatile uint8_t slv_bits;    // data bits sampled this byte
 static volatile uint8_t slv_shift;
 static volatile uint8_t slv_in_ack;  // ACK clock cycle in progress
+// Bench experiment gates (never ship). Suppressing our ACK is safe to TEST on a
+// populated bus because the general-call ACK is the wired-OR of every slave --
+// the 259e, 251e and CSR still ACK, so the master sees what it expects. With
+// both off, frames complete 100%; with both on, ~55%. These split that in two.
 #ifndef BUS200E_NO_ACK
 #define BUS200E_NO_ACK 0
 #endif
-#if BUS200E_NO_ACK
-// Bench experiment (never ship): decode without ever driving SDA. Safe on a
-// populated bus because the general-call ACK is the wired-OR of every slave --
-// the 259e, 251e and CSR still ACK, so the master sees exactly what it expects.
-// If frames complete with this on, our SDA driving is what stops the master.
-#define SDA_DRIVE_LOW()  ((void)0)
+#ifndef BUS200E_ACK_ADDR
+#define BUS200E_ACK_ADDR (!BUS200E_NO_ACK)   // ACK the general-call address byte
 #endif
+#ifndef BUS200E_ACK_DATA
+#define BUS200E_ACK_DATA (!BUS200E_NO_ACK)   // ACK each payload byte
+#endif
+#define SDA_ACK_ADDR()  do { if (BUS200E_ACK_ADDR) SDA_DRIVE_LOW(); } while (0)
+#define SDA_ACK_DATA()  do { if (BUS200E_ACK_DATA) SDA_DRIVE_LOW(); } while (0)
 
 static volatile uint8_t slv_gc;      // current transaction is the general call
 
@@ -333,9 +338,16 @@ void I2CBB_SclIsr(void) {
     // byte-boundary path below has always guarded this (late_falls); the ACK
     // release must too.
     if (!scl) {
+      // Clamp SCL first so the master cannot begin the next bit, drop the ACK,
+      // then hold the clock down for a fixed settle while SDA rises. See
+      // I2CBB_ACK_SETTLE_US in i2c_bb.h for why this exists and why the wait is
+      // a fixed time rather than a poll on SDA.
+      uint32_t t0;
       failsafe_arm();
       SCL_DRIVE_LOW();
       SDA_RELEASE();
+      t0 = CLOCK_SOURCE_GET_TIMER();
+      while ((CLOCK_SOURCE_GET_TIMER() - t0) < (I2CBB_ACK_SETTLE_US * 168u)) { }
       SCL_RELEASE();
       failsafe_disarm();
     } else {
@@ -383,7 +395,7 @@ void I2CBB_SclIsr(void) {
       slv_state = SLV_DATA;
       push_ev(BUS200E_EV_START);
       i2cbb_stats.gc_frames++;
-      SDA_DRIVE_LOW();
+      SDA_ACK_ADDR();
       slv_in_ack = 1;
       SCL_RELEASE();
       // NO disarm here: SDA stays driven low for the whole ACK bit, and it is
@@ -403,7 +415,7 @@ void I2CBB_SclIsr(void) {
     // Completed general-call payload byte.
     push_ev(slv_shift);
     i2cbb_stats.bytes++;
-    SDA_DRIVE_LOW();
+    SDA_ACK_DATA();
     slv_in_ack = 1;
     SCL_RELEASE();
     // NO disarm here -- see the address-ACK path above.

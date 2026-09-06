@@ -90,6 +90,21 @@
 // under two byte times, which gives the master a chance to carry on rather
 // than time out.
 #define I2CBB_STRETCH_TIMEOUT_US 150u   // failsafe force-release of a held line
+// After dropping an ACK, hold SCL low this long so SDA can actually rise before
+// the master is allowed to start the next bit. MEASURED: SDA rise is 880 ns
+// typical and 960 ns worst on this bus (96% of the I2C standard-mode budget),
+// on top of a 0.56 us typical release latency.
+//
+// Why it is needed: a multi-master master monitors SDA while transmitting. If
+// the next bit is a 1 it releases SDA and expects to read a 1; reading our 0 is
+// arbitration loss and it abandons the frame. Proved on the bench 2026-09-06 --
+// short V2 frames, which have no following byte, ran 30/30 while long PRIMO
+// frames on the same firmware in the same minute ran 16/28.
+//
+// It must be a FIXED settle, not a wait for SDA to read high: when the master's
+// next bit is a 0 it pulls SDA straight back down and a condition wait never
+// completes (that version measured worse -- dead gaps went from ~20 to 80+).
+#define I2CBB_ACK_SETTLE_US      2u
 
 #define I2CBB_MASTER_HALF_US     10u    // master half-bit (~50 kHz)
 #define I2CBB_BUSFREE_US         100u   // both lines high this long = bus idle
