@@ -11,3 +11,6 @@ build-refactor/
 *.log
 /.settings/language.settings.xml
 dist/
+
+# throwaway build trees from build-matrix checks
+build-*/

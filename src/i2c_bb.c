@@ -13,36 +13,92 @@
 // ---------------------------------------------------------------------------
 // Pin mapping, derived entirely from the BUS200E_PINS_* selection in i2c_bb.h.
 // ---------------------------------------------------------------------------
-#if BUS200E_PINS_PB3_PB4 && BUS200E_PINS_PA9_PA10
+// SCL and SDA carry their own port, so a mapping may straddle GPIOA and
+// GPIOB (the v2 default does). Where both land on one port the two sets are
+// simply identical and the generated code is the same as before.
+#if (BUS200E_PINS_PB3_PB4 + BUS200E_PINS_PA10_PB3 + BUS200E_PINS_PB3_PA10 + \
+     BUS200E_PINS_PA9_PA10) != 1
 #error "select exactly one BUS200E_PINS_* mapping"
 #endif
 
 #if BUS200E_PINS_PB3_PB4
 
-#define BUS_GPIO        GPIOB
-#define BUS_RCC         RCC_AHB1Periph_GPIOB
-#define BUS_PORTSOURCE  EXTI_PortSourceGPIOB
+#define SCL_GPIO        GPIOB
+#define SCL_RCC         RCC_AHB1Periph_GPIOB
+#define SCL_PORTSOURCE  EXTI_PortSourceGPIOB
 #define SCL_PIN         GPIO_Pin_3
 #define SCL_PINSOURCE   GPIO_PinSource3
 #define SCL_EXTI        EXTI_Line3
 #define SCL_IRQN        EXTI3_IRQn
+#define SDA_GPIO        GPIOB
+#define SDA_RCC         RCC_AHB1Periph_GPIOB
+#define SDA_PORTSOURCE  EXTI_PortSourceGPIOB
 #define SDA_PIN         GPIO_Pin_4
 #define SDA_PINSOURCE   GPIO_PinSource4
 #define SDA_EXTI        EXTI_Line4
 #define SDA_IRQN        EXTI4_IRQn
+
+#elif BUS200E_PINS_PA10_PB3
+
+// TO COMPUTER header: pin 2 = UART_RX = PA10 (SCL), pin 4 = TDO = PB3 (SDA).
+// SCL on EXTI15_10 costs nothing here: v2 sets MARF_PULSE_HAS_EXTI2_15 = 0,
+// so that vector has no other tenant and the clamp-first ISR still enters
+// with no dispatch check in front of it.
+#if MARF_HW == 1
+#error "PA10 is a DIP switch on the v1 board; this mapping is v2-only"
+#endif
+#define SCL_GPIO        GPIOA
+#define SCL_RCC         RCC_AHB1Periph_GPIOA
+#define SCL_PORTSOURCE  EXTI_PortSourceGPIOA
+#define SCL_PIN         GPIO_Pin_10
+#define SCL_PINSOURCE   GPIO_PinSource10
+#define SCL_EXTI        EXTI_Line10
+#define SCL_IRQN        EXTI15_10_IRQn    // free on v2
+#define SDA_GPIO        GPIOB
+#define SDA_RCC         RCC_AHB1Periph_GPIOB
+#define SDA_PORTSOURCE  EXTI_PortSourceGPIOB
+#define SDA_PIN         GPIO_Pin_3
+#define SDA_PINSOURCE   GPIO_PinSource3
+#define SDA_EXTI        EXTI_Line3
+#define SDA_IRQN        EXTI3_IRQn
+
+#elif BUS200E_PINS_PB3_PA10
+
+// The same two header pins with clock and data swapped, for when nothing
+// decodes and the orientation is the suspect.
+#if MARF_HW == 1
+#error "PA10 is a DIP switch on the v1 board; this mapping is v2-only"
+#endif
+#define SCL_GPIO        GPIOB
+#define SCL_RCC         RCC_AHB1Periph_GPIOB
+#define SCL_PORTSOURCE  EXTI_PortSourceGPIOB
+#define SCL_PIN         GPIO_Pin_3
+#define SCL_PINSOURCE   GPIO_PinSource3
+#define SCL_EXTI        EXTI_Line3
+#define SCL_IRQN        EXTI3_IRQn
+#define SDA_GPIO        GPIOA
+#define SDA_RCC         RCC_AHB1Periph_GPIOA
+#define SDA_PORTSOURCE  EXTI_PortSourceGPIOA
+#define SDA_PIN         GPIO_Pin_10
+#define SDA_PINSOURCE   GPIO_PinSource10
+#define SDA_EXTI        EXTI_Line10
+#define SDA_IRQN        EXTI15_10_IRQn    // free on v2
 
 #elif BUS200E_PINS_PA9_PA10
 
 #if MARF_HW == 1
 #error "PA9/PA10 are DIP switches on the v1 board; this mapping is v2-only"
 #endif
-#define BUS_GPIO        GPIOA
-#define BUS_RCC         RCC_AHB1Periph_GPIOA
-#define BUS_PORTSOURCE  EXTI_PortSourceGPIOA
+#define SCL_GPIO        GPIOA
+#define SCL_RCC         RCC_AHB1Periph_GPIOA
+#define SCL_PORTSOURCE  EXTI_PortSourceGPIOA
 #define SCL_PIN         GPIO_Pin_9
 #define SCL_PINSOURCE   GPIO_PinSource9
 #define SCL_EXTI        EXTI_Line9
 #define SCL_IRQN        EXTI9_5_IRQn      // shared with the pulse inputs
+#define SDA_GPIO        GPIOA
+#define SDA_RCC         RCC_AHB1Periph_GPIOA
+#define SDA_PORTSOURCE  EXTI_PortSourceGPIOA
 #define SDA_PIN         GPIO_Pin_10
 #define SDA_PINSOURCE   GPIO_PinSource10
 #define SDA_EXTI        EXTI_Line10
@@ -54,12 +110,12 @@
 
 // Open-drain line control: BSRRH drives low (clamp), BSRRL releases (the bus
 // pull-ups make the high level). IDR reads the actual line state.
-#define SCL_READ()     ((BUS_GPIO->IDR & SCL_PIN) != 0)
-#define SDA_READ()     ((BUS_GPIO->IDR & SDA_PIN) != 0)
-#define SCL_DRIVE_LOW()  (BUS_GPIO->BSRRH = SCL_PIN)
-#define SCL_RELEASE()    (BUS_GPIO->BSRRL = SCL_PIN)
-#define SDA_DRIVE_LOW()  (BUS_GPIO->BSRRH = SDA_PIN)
-#define SDA_RELEASE()    (BUS_GPIO->BSRRL = SDA_PIN)
+#define SCL_READ()     ((SCL_GPIO->IDR & SCL_PIN) != 0)
+#define SDA_READ()     ((SDA_GPIO->IDR & SDA_PIN) != 0)
+#define SCL_DRIVE_LOW()  (SCL_GPIO->BSRRH = SCL_PIN)
+#define SCL_RELEASE()    (SCL_GPIO->BSRRL = SCL_PIN)
+#define SDA_DRIVE_LOW()  (SDA_GPIO->BSRRH = SDA_PIN)
+#define SDA_RELEASE()    (SDA_GPIO->BSRRL = SDA_PIN)
 
 volatile I2CBB_Stats i2cbb_stats;
 
@@ -258,6 +314,12 @@ void TIM1_UP_TIM10_IRQHandler(void) {
 #if BUS200E_PINS_PB3_PB4
 void EXTI3_IRQHandler(void) { I2CBB_SclIsr(); }
 void EXTI4_IRQHandler(void) { I2CBB_SdaIsr(); }
+#elif BUS200E_PINS_PA10_PB3
+void EXTI15_10_IRQHandler(void) { I2CBB_SclIsr(); }
+void EXTI3_IRQHandler(void) { I2CBB_SdaIsr(); }
+#elif BUS200E_PINS_PB3_PA10
+void EXTI3_IRQHandler(void) { I2CBB_SclIsr(); }
+void EXTI15_10_IRQHandler(void) { I2CBB_SdaIsr(); }
 #elif BUS200E_PINS_PA9_PA10
 // SCL (PA9, EXTI9) shares EXTI9_5 with the pulse inputs; main.c calls
 // I2CBB_SclIsr() from that handler. SDA gets the (v2-free) EXTI15_10 vector.
@@ -429,7 +491,7 @@ void I2CBB_Init(void) {
   EXTI_InitTypeDef exti;
   NVIC_InitTypeDef nvic;
 
-  RCC_AHB1PeriphClockCmd(BUS_RCC, ENABLE);
+  RCC_AHB1PeriphClockCmd(SCL_RCC | SDA_RCC, ENABLE);
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM10, ENABLE);
 
@@ -437,15 +499,17 @@ void I2CBB_Init(void) {
   // 0, which would clamp the bus during init).
   SCL_RELEASE();
   SDA_RELEASE();
-  gpio.GPIO_Pin = SCL_PIN | SDA_PIN;
   gpio.GPIO_Mode = GPIO_Mode_OUT;
   gpio.GPIO_OType = GPIO_OType_OD;      // only ever pull low; 5 V bus pull-ups
   gpio.GPIO_PuPd = GPIO_PuPd_NOPULL;
   gpio.GPIO_Speed = GPIO_Speed_25MHz;
-  GPIO_Init(BUS_GPIO, &gpio);
+  gpio.GPIO_Pin = SCL_PIN;
+  GPIO_Init(SCL_GPIO, &gpio);
+  gpio.GPIO_Pin = SDA_PIN;
+  GPIO_Init(SDA_GPIO, &gpio);           // same port = same result as one call
 
-  SYSCFG_EXTILineConfig(BUS_PORTSOURCE, SCL_PINSOURCE);
-  SYSCFG_EXTILineConfig(BUS_PORTSOURCE, SDA_PINSOURCE);
+  SYSCFG_EXTILineConfig(SCL_PORTSOURCE, SCL_PINSOURCE);
+  SYSCFG_EXTILineConfig(SDA_PORTSOURCE, SDA_PINSOURCE);
 
   exti.EXTI_Line = SCL_EXTI | SDA_EXTI;
   exti.EXTI_Mode = EXTI_Mode_Interrupt;
@@ -481,13 +545,17 @@ void I2CBB_Init(void) {
 void I2CBB_DiagProbe(uint8_t *raw, uint8_t *pulled) {
   // PUPDR holds two bits per pin: 00 = none, 01 = pull-up. The pins are
   // configured with no pull, so restoring means clearing the field.
-  const uint32_t mask = (3u << (SCL_PINSOURCE * 2)) | (3u << (SDA_PINSOURCE * 2));
-  const uint32_t pu   = (1u << (SCL_PINSOURCE * 2)) | (1u << (SDA_PINSOURCE * 2));
+  const uint32_t scl_mask = 3u << (SCL_PINSOURCE * 2);
+  const uint32_t scl_pu   = 1u << (SCL_PINSOURCE * 2);
+  const uint32_t sda_mask = 3u << (SDA_PINSOURCE * 2);
+  const uint32_t sda_pu   = 1u << (SDA_PINSOURCE * 2);
   *raw = (uint8_t) ((SCL_READ() ? 1 : 0) | (SDA_READ() ? 2 : 0));
-  BUS_GPIO->PUPDR = (BUS_GPIO->PUPDR & ~mask) | pu;
+  SCL_GPIO->PUPDR = (SCL_GPIO->PUPDR & ~scl_mask) | scl_pu;
+  SDA_GPIO->PUPDR = (SDA_GPIO->PUPDR & ~sda_mask) | sda_pu;
   delay_us(50);   // ~40 k internal pull-up into pin + wire capacitance
   *pulled = (uint8_t) ((SCL_READ() ? 1 : 0) | (SDA_READ() ? 2 : 0));
-  BUS_GPIO->PUPDR &= ~mask;
+  SCL_GPIO->PUPDR &= ~scl_mask;
+  SDA_GPIO->PUPDR &= ~sda_mask;
 }
 #endif
 

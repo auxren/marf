@@ -54,17 +54,27 @@ BUS200E_DIAG ?= 0
 # debug ring but never act on a preset. Implied by BUS200E_DIAG. Use it to prove
 # the wiring before letting the bus write to the EEPROM.
 BUS200E_RXLOG_ONLY ?= 0
-# Which pins the bus is wired to: auto (per-hardware default: PA9/PA10 on v2,
-# PB3/PB4 on v1), pb34, or pa910. See docs/200e-BUS-WIRING.md.
+# Which pins the bus is wired to. Names read SCL then SDA.
+#   auto      per-hardware default: pa10pb3 on v2, pb34 on v1
+#   pa10pb3   TO COMPUTER header: SCL = pin 2 (PA10), SDA = pin 4 (PB3)
+#   pb3pa10   the same two pins with clock and data swapped
+#   pb34      STLINK header: SCL = pin 13 (PB3), SDA = pin 3 (PB4)
+#   pa910     contradicted by the v2.5 schematic (PA9 has no net); do not use
+#             unless a board revision is known to route it
+# See docs/200e-BUS-WIRING.md.
 BUS200E_PINS ?= auto
 ifeq ($(BUS200E_PINS),pb34)
   BUS200E_PIN_DEF = -DBUS200E_PINS_PB3_PB4=1
+else ifeq ($(BUS200E_PINS),pa10pb3)
+  BUS200E_PIN_DEF = -DBUS200E_PINS_PA10_PB3=1
+else ifeq ($(BUS200E_PINS),pb3pa10)
+  BUS200E_PIN_DEF = -DBUS200E_PINS_PB3_PA10=1
 else ifeq ($(BUS200E_PINS),pa910)
   BUS200E_PIN_DEF = -DBUS200E_PINS_PA9_PA10=1
 else ifeq ($(BUS200E_PINS),auto)
   BUS200E_PIN_DEF =
 else
-  $(error BUS200E_PINS must be auto, pb34 or pa910 (got "$(BUS200E_PINS)"))
+  $(error BUS200E_PINS must be auto, pa10pb3, pb3pa10, pb34 or pa910 (got "$(BUS200E_PINS)"))
 endif
 
 DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW) \

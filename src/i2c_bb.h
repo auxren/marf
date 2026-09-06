@@ -27,21 +27,48 @@
 // (port, EXTI lines, IRQ vectors, SYSCFG sources) follows from it in i2c_bb.c.
 // Override from the command line (-DBUS200E_PINS_PB3_PB4=1) to force one.
 //
-// Defaults: BENCH-VERIFIED 2026-08-13 on the v2 unit -- a weak-pull wiggle
-// firmware + Saleae capture confirmed the "TO COMPUTER" header carries
-// PA9/PA10 (solderless attachment), so v2 defaults to it. v1 keeps PB3/PB4
-// (PA9/PA10 are its DIP switches; PB3/PB4 continuity still unverified there).
-#if !defined(BUS200E_PINS_PB3_PB4) && !defined(BUS200E_PINS_PA9_PA10)
+// Defaults: taken from the manufacturer's schematic (Model 248 v2.5), which
+// prints the LQFP64 pin numbers on the MCU symbol:
+//   41 = PA8  = UART_CLK -> TO COMPUTER pin 1 AND DIP position 4 (expander)
+//   42 = PA9  = no net   -> not connected anywhere on the board
+//   43 = PA10 = UART_RX  -> TO COMPUTER pin 2                    (free)
+//   55 = PB3  = TDO      -> TO COMPUTER pin 4 and STLINK pin 13  (free)
+//   56 = PB4  = TRST     -> STLINK pin 3                         (free)
+// The only free pins brought out to a connector are PA10, PB3 and PB4, and
+// PA10 + PB3 sit two apart on the otherwise-unused TO COMPUTER header. That
+// is the v2 default because it leaves the debug header alone: an attached
+// ST-Link DRIVES nTRST (PB4), so a bus wire there fights the debugger, while
+// PB3 on STLINK pin 13 is only TDO, an input on the debugger's side.
+// v1 keeps PB3/PB4 (PA10 is one of its DIP switches; PB3/PB4 continuity on
+// the v1 board is still unverified).
+//
+// Names read SCL_SDA. Both TO COMPUTER orientations are provided on purpose:
+// swapped clock and data decode nothing at all, which on the LEDs is
+// indistinguishable from a dead bus, so the other orientation is a rebuild
+// rather than a resolder.
+//   PA10_PB3: SCL = header pin 2, SDA = header pin 4   (default)
+//   PB3_PA10: SCL = header pin 4, SDA = header pin 2
+#if !defined(BUS200E_PINS_PB3_PB4) && !defined(BUS200E_PINS_PA9_PA10) && \
+    !defined(BUS200E_PINS_PB3_PA10) && !defined(BUS200E_PINS_PA10_PB3)
 #if MARF_HW == 1
 #define BUS200E_PINS_PB3_PB4   1
 #else
-#define BUS200E_PINS_PA9_PA10  1
+#define BUS200E_PINS_PA10_PB3  1
 #endif
 #endif
 #ifndef BUS200E_PINS_PB3_PB4
-#define BUS200E_PINS_PB3_PB4   0   // SCL = PB3 (EXTI3), SDA = PB4 (EXTI4)
+#define BUS200E_PINS_PB3_PB4   0   // SCL = PB3  (EXTI3),  SDA = PB4  (EXTI4)
+#endif
+#ifndef BUS200E_PINS_PA10_PB3
+#define BUS200E_PINS_PA10_PB3  0   // SCL = PA10 (EXTI10), SDA = PB3  (EXTI3)
+#endif
+#ifndef BUS200E_PINS_PB3_PA10
+#define BUS200E_PINS_PB3_PA10  0   // SCL = PB3  (EXTI3),  SDA = PA10 (EXTI10)
 #endif
 #ifndef BUS200E_PINS_PA9_PA10
+// Contradicted by the v2.5 schematic: PA9 has no net. An earlier Saleae
+// capture read as PA9 was almost certainly PA8 on the adjacent leg. Kept only
+// in case some other board revision routes it; never select it unverified.
 #define BUS200E_PINS_PA9_PA10  0   // SCL = PA9 (EXTI9),  SDA = PA10 (EXTI10)
 #endif
 

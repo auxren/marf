@@ -5,9 +5,9 @@ a preset manager (a 225e, a Studio H WPM, or anything else that speaks the bus)
 can save and recall the module's 30 programs.
 
 > **Status: not yet validated on hardware.** The firmware side is written and
-> tested; the attachment point on the board is still being confirmed. Where a
-> step is unverified this document says so. Do not treat it as a finished
-> recipe yet.
+> tested, and the attachment pins are now confirmed against the Model 248 v2.5
+> schematic, but no MARF has yet been seen decoding real bus traffic. Where a
+> step is unverified this document says so.
 
 ---
 
@@ -46,55 +46,70 @@ not reach that slot.
 
 ## Step 2: pick the attachment point on the module
 
-This is the part that is still open. There are three candidates, easiest first.
-Only one wire pair is needed.
+The Model 248 v2.5 schematic prints the LQFP64 pin numbers on the MCU symbol,
+so the pins below are read off the manufacturer's drawing rather than guessed.
 
-### Option A: the "TO COMPUTER" header (v2 boards, solderless at the module)
+| MCU pin | Port | Net | Brought out to | Free? |
+|---|---|---|---|---|
+| 41 | PA8 | UART_CLK | TO COMPUTER pin 1, **and DIP position 4** | no, it is the expander switch |
+| 42 | PA9 | *(none)* | nowhere | free but unreachable |
+| 43 | PA10 | UART_RX | TO COMPUTER pin 2 | **yes** |
+| 46 | PA13 | TMS | STLINK pin 7, DIP position 3 | no, SWDIO |
+| 49 | PA14 | TCK | TO COMPUTER pin 3, STLINK pin 9 | no, SWCLK |
+| 50 | PA15 | TDI | STLINK pin 5, DIP position 2 | no, the 1 V/oct switch |
+| 55 | PB3 | TDO | TO COMPUTER pin 4, STLINK pin 13 | **yes** |
+| 56 | PB4 | TRST | STLINK pin 3 | **yes** |
 
-The v2 board carries an unlabelled multi-pin header silkscreened **TO
-COMPUTER**. A logic-analyzer capture on 2026-08-13 confirmed one of its pins is
-**PA9**. The second pin of interest is either PA10 or PA11 and that is **not yet
-resolved**. If it is PA10, this is the best option available: push two jumpers
-onto the header and the only soldering is at the power connector.
+Three pins are both free and reachable: PA10, PB3 and PB4.
 
-If it turns out to be PA11, this option is dead on v2, because PA11 is the
-1.2 V/oct DIP input.
+### Option A: the TO COMPUTER header (recommended)
 
-> One pin on this header measured **−10.4 V** (the negative rail). Keep probes
-> and jumpers off it.
+The 2x5 header silkscreened **TO COMPUTER** carries only four signals, and two
+of them are free and adjacent in the same column.
 
-- SCL → **PA9**
-- SDA → **PA10**
+- SCL to **header pin 2** (UART_RX, PA10)
+- SDA to **header pin 4** (TDO, PB3)
 
-Build the firmware with `BUS200E_PINS=pa910`.
+Build with `BUS200E_PINS=pa10pb3`, which is also what plain `auto` selects on
+v2. No soldering at the module: two jumpers push onto the header.
 
-### Option B: the programming header (solderless at the module)
+This is the recommendation because it leaves the debug header alone. See the
+warning under option B for why that matters.
 
-The 2×10 boxed header marked **STLINK** is a standard 20-pin ARM debug
-connector. On a standard pinout, **pin 13 is TDO (PB3)** and **pin 3 is nTRST
-(PB4)** — both unused by this firmware, both 5 V tolerant. If the MARF board
-actually routes those two positions, a two-wire IDC or DuPont plug does the job
-with no soldering at the module.
+> Header pin 6 is **+5 V** and sits directly below pin 4, and header pin 10 is
+> **−15 V**. Keep probes and jumpers off both.
 
-**Not verified against the MARF board.** Beep it out before trusting it.
+If nothing decodes later, suspect the orientation before suspecting the bus.
+Swapped clock and data produce no decode at all, which on the LEDs is
+indistinguishable from a dead bus. Rebuild with `BUS200E_PINS=pb3pa10` to try
+the other way round rather than resoldering.
 
-Note the tradeoff: the ST-Link and the bus wires then compete for one
-connector, so you cannot debug and run on the bus at the same time.
+### Option B: the programming header
 
-- SCL → **pin 13 (PB3)**
-- SDA → **pin 3 (PB4)**
+The 2x10 boxed header marked **STLINK** is a full standard 20-pin ARM JTAG
+connector, confirmed against the schematic: **pin 3 is TRST (PB4)** and **pin
+13 is TDO (PB3)**.
 
-Build with `BUS200E_PINS=pb34` (this is the default on v1/REV1).
+- SCL to **pin 13 (PB3)**
+- SDA to **pin 3 (PB4)**
 
-### Option C: directly to the MCU legs (works on every board)
+Build with `BUS200E_PINS=pb34`. This is the default on v1 and REV1.
 
-The fallback, and the only route on **v1 hardware**, where PA9 and PA10 are
-already used as DIP switch inputs.
+> **Do not leave the ST-Link plugged in with this option.** nTRST is an
+> *output* from the debugger, so an attached ST-Link actively drives your SDA
+> line and fights the bus. Option A avoids this entirely: PB3 also appears on
+> STLINK pin 13, but that is TDO, an input on the debugger's side, so it is
+> harmless.
+
+### Option C: directly to the MCU legs
+
+The fallback, and the only route on **v1 hardware**, where PA10 is a DIP switch
+input.
 
 On the LQFP64 package, counting anticlockwise along the edge that ends at the
 pin-1 corner: **leg 55 is PB3** and **leg 56 is PB4**. Useful anchors on the
-same edge for orientation: leg 46 is SWDIO (PA13), leg 49 is SWCLK (PA14), and
-leg 54 is PD2, which beeps out to the EEPROM chip select.
+same edge: leg 46 is SWDIO (PA13), leg 49 is SWCLK (PA14), and leg 54 is PD2,
+which beeps out to the EEPROM chip select.
 
 This is fine-pitch soldering onto a 0.5 mm pin. Use thin enamelled wire, tack
 it down with strain relief, and beep each leg to its neighbours afterwards to
@@ -102,7 +117,13 @@ make sure you did not bridge anything.
 
 Build with `BUS200E_PINS=pb34`.
 
----
+### Not an option: PA9
+
+Earlier revisions of this document proposed PA9 as an attachment point, on the
+strength of a logic-analyzer capture. The schematic shows **PA9 has no net at
+all**, so that capture was almost certainly reading PA8 on the adjacent leg.
+The `pa910` build option still exists in case some other board revision routes
+PA9, but do not select it without verifying continuity first.
 
 ## Step 3: verify the pins are free before you wire them
 
@@ -145,7 +166,7 @@ stages, and each one only proves the next is worth trying.
 ### 6a. Diagnostic build: prove the bus reaches the MCU
 
 ```
-make BUS200E_ENABLE=1 BUS200E_DIAG=1 BUS200E_PINS=pb34
+make BUS200E_ENABLE=1 BUS200E_DIAG=1 BUS200E_PINS=pa10pb3
 ```
 
 This build is **receive-only** — it can never touch a saved preset — and it
@@ -163,8 +184,10 @@ a logic analyzer:
 | 9–12 | count of START conditions, low nibble, LED 9 is the least significant bit |
 | 13–16 | count of general-call command frames, low nibble, LED 13 is the least significant bit |
 
-Flash it, then **unplug the ST-Link** before reading the LEDs, since the
-debugger drives some of these pins itself.
+Flash it, then read the LEDs. With **option A** the debugger shares no line
+with the bus, so it can stay plugged in. With **option B or C** you must
+**unplug the ST-Link** first, because it drives nTRST and will make a dead bus
+look like a live one.
 
 Read LEDs 1 to 4:
 
@@ -180,7 +203,7 @@ manager is not addressing commands the way this firmware expects.
 ### 6b. Receive-only build: watch real commands, still no writes
 
 ```
-make BUS200E_ENABLE=1 BUS200E_RXLOG_ONLY=1 BUS200E_PINS=pb34
+make BUS200E_ENABLE=1 BUS200E_RXLOG_ONLY=1 BUS200E_PINS=pa10pb3
 ```
 
 Same safety as the diagnostic build, without the LED overlay. Decoded commands
@@ -191,7 +214,7 @@ expect.
 ### 6c. Live build: save and recall actually work
 
 ```
-make BUS200E_ENABLE=1 BUS200E_PINS=pb34
+make BUS200E_ENABLE=1 BUS200E_PINS=pa10pb3
 ```
 
 Only flash this once 6a or 6b has shown real command frames arriving. This
@@ -226,9 +249,9 @@ panel recall leave the module in identical state.
 These are the things still to be settled on real hardware. They are listed
 because they change the wiring or the firmware, not because they are optional.
 
-- **Which pins the TO COMPUTER header carries.** PA9 is confirmed; the second
-  pin is PA10 or PA11, and that decides whether option A exists at all.
-- **Whether the STLINK header routes TDO and nTRST**, which decides option B.
+- **Whether the wires actually reach a live bus.** Every pin above is confirmed
+  from the schematic, but no MARF has yet been observed decoding a real preset
+  bus. Step 6a is what settles it.
 - **The module's own bus address.** `BUS200E_MODULE_ADDR` currently defaults to
   0x3C, chosen only to avoid every address seen in the published preset dumps.
   It is not confirmed against a real system's enumeration, and card backup and
