@@ -145,8 +145,9 @@ static volatile uint8_t fs_scl_last = 1;
 //   bits 2-5 slv_bits         bits 6-7 slv_state
 //   bits 8-9 slv_in_ack   bit 10 = the ISR's OWN second read of SCL
 // High 16 bits: time since the previous edge, in 0.1 us units (saturating).
-// Rolling window: the failure is at the END of a frame (byte 5 of 5), so keep
-// the LAST FS_TRACE_N edges before the failsafe froze it, not the first.
+// Anchored at the START condition and capped at FS_TRACE_N. A full frame is
+// 6 bytes x 9 clocks x 2 edges = 108 edges, so 128 holds an entire frame from
+// its start, and freezing on the failsafe keeps the frame that actually broke.
 #define FS_TRACE_N 128
 volatile uint32_t fs_trace[FS_TRACE_N];   // low 16 = state, high 16 = dt in 0.1us
 volatile uint32_t fs_trace_n;
@@ -205,6 +206,17 @@ static volatile uint8_t slv_shift;
 static volatile uint8_t slv_in_ack;  // ACK clock cycle in progress
 static volatile uint8_t slv_gc;      // current transaction is the general call
 
+// Last SCL level we ACTED on. A real bus strictly alternates, so an interrupt
+// reporting the level we already processed is for an edge that never happened.
+// Bench-measured 2026-09-06: 7 such entries in 1253, i.e. 0.56%, which over a
+// 108-edge frame is 0.6 per frame -- 45% of frames carry at least one, and the
+// observed failure rate was 42-46%. They are glitches shorter than a logic
+// analyzer's 80 ns sample period, invisible on a capture but long enough to
+// set an EXTI pending bit. Each one samples a data bit twice or consumes a
+// clock, which shifts every byte boundary after it: a captured failing frame
+// read 00 04 00 44 2c where 00 04 00 22 16 was sent -- 0x44 = 0x22 << 1.
+static volatile uint8_t  slv_scl_lvl = 1;   // the bus idles high
+
 // Line-hold failsafe (design note: non-negotiable). TIM10 runs one-shot at
 // 1 MHz and is armed for the whole time we hold EITHER line down: the SCL
 // clamp, and -- just as important -- the ACK bit, during which SDA is driven
@@ -242,20 +254,37 @@ static void slave_listen_scl(void) {
 }
 
 void I2CBB_SclIsr(void) {
+  uint8_t scl;
   if (!(EXTI->PR & SCL_EXTI)) return;
   EXTI->PR = SCL_EXTI;
+
+  // Read the line ONCE and decide everything from that value. Reading it again
+  // further down is its own hazard: the bus rises in 720-960 ns and an
+  // instruction takes 6 ns, so two reads inside one ISR can legitimately
+  // disagree.
+  scl = (uint8_t) (SCL_READ() ? 1 : 0);
+  // Alternation filter: a real bus strictly alternates, so an interrupt
+  // reporting the level we already acted on is for an edge that never happened.
+  // (A time-based filter was tried and REMOVED: the stamp is taken when the ISR
+  // runs, not when the edge occurred, so ISR latency makes legitimate edges look
+  // too close together and it rejected real ones -- 16/24 dropped to 12/24.)
+  if (scl == slv_scl_lvl) {
+    i2cbb_stats.glitches++;
+    return;
+  }
+  slv_scl_lvl = scl;
 #if BUS200E_FORENSIC
   {
     uint8_t lvl = (uint8_t) (SCL_READ() ? 1 : 0);
     fs_scl_isr++;
     if (lvl == fs_scl_last) fs_scl_same++;
     fs_scl_last = lvl;
-    if (!fs_trace_frozen) {
+    if (!fs_trace_frozen && fs_trace_n < FS_TRACE_N) {
       uint32_t now = CLOCK_SOURCE_GET_TIMER();
       uint32_t dt  = (now - fs_t_prev) / 17u;      /* 168 MHz -> ~0.1 us units */
       fs_t_prev = now;
       if (dt > 0xFFFFu) dt = 0xFFFFu;
-      fs_trace[fs_trace_n % FS_TRACE_N] = (uint32_t) (lvl
+      fs_trace[fs_trace_n] = (uint32_t) (lvl
                              | ((SDA_READ() ? 1u : 0u) << 1)
                              | ((slv_bits & 0xFu) << 2)
                              | ((slv_state & 3u) << 6)
@@ -281,7 +310,7 @@ void I2CBB_SclIsr(void) {
     //   slv_in_ack == 2  clock went high; the next SCL event ends the ACK
     // Arriving here with ==1 and SCL already low means we missed the rising
     // edge, so the high phase is over and releasing now is correct too.
-    if (slv_in_ack == 1 && SCL_READ()) {
+    if (slv_in_ack == 1 && scl) {
       slv_in_ack = 2;
       return;
     }
@@ -292,7 +321,7 @@ void I2CBB_SclIsr(void) {
     // byte boundary after it -- decoded frames come out as garbage. The
     // byte-boundary path below has always guarded this (late_falls); the ACK
     // release must too.
-    if (!SCL_READ()) {
+    if (!scl) {
       failsafe_arm();
       SCL_DRIVE_LOW();
       SDA_RELEASE();
@@ -311,7 +340,7 @@ void I2CBB_SclIsr(void) {
     return;
   }
 
-  if (SCL_READ()) {
+  if (scl) {
     // Rising edge: sample the data bit (SDA is stable while SCL is high).
     if ((slv_state == SLV_ADDR || slv_state == SLV_DATA) && slv_bits < 8) {
       slv_shift = (uint8_t) ((slv_shift << 1) | (SDA_READ() ? 1 : 0));
@@ -326,7 +355,7 @@ void I2CBB_SclIsr(void) {
 
   if (slv_bits != 8) return;   // mid-byte falling edge: nothing to do
 
-  if (SCL_READ()) {
+  if (SCL_READ()) {   /* re-read deliberately: time has passed since entry */
     // We are so late that SCL is already high again -- clamping now would
     // corrupt the current clock. Give up on this byte's ACK window; the
     // START/STOP logic resynchronizes us on the next transaction.
@@ -378,6 +407,8 @@ void I2CBB_SdaIsr(void) {
   // phase are ordinary data setup (or our own ACK) and are ignored.
   if (!SCL_READ()) return;
 
+  slv_scl_lvl = (uint8_t) (SCL_READ() ? 1 : 0);   // resync the edge tracker
+
   if (SDA_READ()) {
     // STOP. Close any open general-call frame and return to full listening.
 #if BUS200E_FORENSIC
@@ -396,6 +427,7 @@ void I2CBB_SdaIsr(void) {
     // sees the new EV_START and drops the partial.
 #if BUS200E_FORENSIC
     if (slv_in_ack) fs_start_during_ack++;
+    if (!fs_trace_frozen) fs_trace_n = 0;   /* anchor the trace to this frame */
 #endif
     if (slv_state == SLV_QUIET) slave_listen_scl();
     if (slv_in_ack) { SDA_RELEASE(); failsafe_disarm(); }

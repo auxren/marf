@@ -90,6 +90,7 @@
 // under two byte times, which gives the master a chance to carry on rather
 // than time out.
 #define I2CBB_STRETCH_TIMEOUT_US 150u   // failsafe force-release of a held line
+
 #define I2CBB_MASTER_HALF_US     10u    // master half-bit (~50 kHz)
 #define I2CBB_BUSFREE_US         100u   // both lines high this long = bus idle
 #define I2CBB_MASTER_TIMEOUT_MS  5u     // cap on any single stretch/idle wait
@@ -125,6 +126,7 @@ typedef struct {
   uint32_t ring_overflows;    // slave events lost (superloop too slow)
   uint32_t stretch_timeouts;  // failsafe fired; must stay 0
   uint32_t late_falls;        // byte-boundary ISR ran after SCL rose again
+  uint32_t glitches;          // SCL interrupts for an edge that never happened
 } I2CBB_Stats;
 extern volatile I2CBB_Stats i2cbb_stats;
 

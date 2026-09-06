@@ -22,6 +22,7 @@
 #include "display.h"
 #include "controller.h"
 #include "cycle_counter.h"
+#include "afg_critical.h"
 #include "eprom.h"
 #include "presets.h"
 #include "constants.h"
@@ -159,8 +160,12 @@ void mADC_init(void)
   ADC_InjectedChannelConfig(ADC2, ADC_Channel_1, 1 , ADC_SampleTime_480Cycles);
 
   // ADC interrupts init
+  // Tier 0 belongs to the 200e bus EXTIs (set in I2CBB_Init, which runs after
+  // this). Equal preemption priority on Cortex-M means NO preemption, so
+  // sharing tier 0 made a bus edge wait for whichever handler was running.
+  // Relative order among the pre-existing handlers is unchanged.
   nvicStructure.NVIC_IRQChannel = ADC_IRQn;
-  nvicStructure.NVIC_IRQChannelPreemptionPriority = 0;
+  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 1 : 0;
   nvicStructure.NVIC_IRQChannelSubPriority = 0;
   nvicStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&nvicStructure);
@@ -209,7 +214,7 @@ void mInterruptInit(void) {
   NVIC_Init(&NVIC_InitStructure);
 
   NVIC_InitStructure.NVIC_IRQChannel = EXTI9_5_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority 	= 0x00; // highest
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority 	= BUS200E_ENABLE ? 0x01 : 0x00;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority 				= 0x00;
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
@@ -217,13 +222,13 @@ void mInterruptInit(void) {
 #if MARF_PULSE_HAS_EXTI2_15
   // v1 strobes sit on PB2 (EXTI2) and PB14 (EXTI15_10), which need their own IRQs.
   NVIC_InitStructure.NVIC_IRQChannel = EXTI2_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 0x01 : 0x00;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
 
   NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 0x01 : 0x00;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
@@ -381,7 +386,9 @@ void TIM4_IRQHandler() {
 
   // Clear interrupt flag for Timer 4
   TIM4->SR = (uint16_t) ~TIM_IT_Update;
-  __disable_irq();
+  AfgCritState crit = AFG_CRIT_TIMER_ENTER();
+  uint8_t  dac_pending = 0;
+  uint16_t dac_time = 0, dac_ref = 0;
 
   // We will recalculate the function every TICKS_WINDOW (32) ticks.
   // If the step has less ticks than that left, then process only until the end of the step.
@@ -426,9 +433,12 @@ void TIM4_IRQHandler() {
       PULSE_LED_I_2_OFF;
     }
 
-    // Update the external dacs (slow)
-    MAX5135_DAC_send(MAX5135_DAC_CH_0, afg1_outputs.time);
-    MAX5135_DAC_send(MAX5135_DAC_CH_1, afg1_outputs.ref);
+    // Blocking SPI (~5.5 us measured). Stage it and send after the
+    // critical section: TIM4/TIM5 cannot preempt each other and no
+    // other handler touches SPI2, so nothing races.
+    dac_pending = 1;
+    dac_time = afg1_outputs.time;
+    dac_ref  = afg1_outputs.ref;
   }
 
   // Interpolate output
@@ -439,7 +449,13 @@ void TIM4_IRQHandler() {
       (uint16_t) (sloping_output.level + 0.5f));
 
   tick_counter -= 1;
-  __enable_irq();
+  afg_crit_exit(crit);
+
+  // Outside the critical section: blocking SPI to the external DACs.
+  if (dac_pending) {
+    MAX5135_DAC_send(MAX5135_DAC_CH_0, dac_time);
+    MAX5135_DAC_send(MAX5135_DAC_CH_1, dac_ref);
+  }
 };
 
 /*
@@ -454,7 +470,9 @@ void TIM5_IRQHandler() {
 
   // Clear interrupt flag for Timer 5
   TIM5->SR = (uint16_t) ~TIM_IT_Update;
-  __disable_irq();
+  AfgCritState crit = AFG_CRIT_TIMER_ENTER();
+  uint8_t  dac_pending = 0;
+  uint16_t dac_time = 0, dac_ref = 0;
 
   // We will recalculate the function every TICKS_WINDOW (32) ticks.
   // If the step has less ticks than that left, then process only until the end of the step.
@@ -497,9 +515,12 @@ void TIM5_IRQHandler() {
        PULSE_LED_II_2_OFF;
      }
 
-     // Update the external dacs (slow)
-     MAX5135_DAC_send(MAX5135_DAC_CH_2, afg2_outputs.time);
-     MAX5135_DAC_send(MAX5135_DAC_CH_3, afg2_outputs.ref);
+     // Blocking SPI (~5.5 us measured). Stage it and send after the
+     // critical section: TIM4/TIM5 cannot preempt each other and no
+     // other handler touches SPI2, so nothing races.
+     dac_pending = 1;
+     dac_time = afg2_outputs.time;
+     dac_ref  = afg2_outputs.ref;
   }
 
   // Interpolate output
@@ -510,7 +531,13 @@ void TIM5_IRQHandler() {
       (uint16_t) (sloping_output.level + 0.5f));
 
   tick_counter -= 1;
-  __enable_irq();
+  afg_crit_exit(crit);
+
+  // Outside the critical section: blocking SPI to the external DACs.
+  if (dac_pending) {
+    MAX5135_DAC_send(MAX5135_DAC_CH_2, dac_time);
+    MAX5135_DAC_send(MAX5135_DAC_CH_3, dac_ref);
+  }
 };
 
 
@@ -545,13 +572,13 @@ void mTimersInit(void) {
   TIM_ITConfig(TIM5, TIM_IT_Update, ENABLE);
 
   nvicStructure.NVIC_IRQChannel = TIM4_IRQn;
-  nvicStructure.NVIC_IRQChannelPreemptionPriority = 1;
+  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 2 : 1;
   nvicStructure.NVIC_IRQChannelSubPriority = 1;
   nvicStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&nvicStructure);
 
   nvicStructure.NVIC_IRQChannel = TIM5_IRQn;
-  nvicStructure.NVIC_IRQChannelPreemptionPriority = 1;
+  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 2 : 1;
   nvicStructure.NVIC_IRQChannelSubPriority = 1;
   nvicStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&nvicStructure);

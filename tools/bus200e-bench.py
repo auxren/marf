@@ -91,28 +91,42 @@ def report(out):
     print("dead gaps >50us         : %d" % len(gaps))
     if spans:
         print("transaction span        : %.0f - %.0f us" % (min(spans), max(spans)))
-    print("\ncontrol to beat: " + CONTROL)
-    return len(ok) == len(txn) and not gaps
+    print("control to beat: " + CONTROL)
+    return (len(ok), len(txn))
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--frames", type=int, default=24)
+    ap.add_argument("--frames", type=int, default=60)
+    ap.add_argument("--runs", type=int, default=3,
+                    help="repeat the whole capture; single runs are too noisy")
     ap.add_argument("--delay", type=float, default=0.4)
     ap.add_argument("--base", default="http://192.168.0.122:8080/wpm/")
     ap.add_argument("--keep", metavar="DIR", help="keep the CSVs here")
     a = ap.parse_args()
-    out = a.keep or tempfile.mkdtemp(prefix="bus200e-")
-    os.makedirs(out, exist_ok=True)
-    capture(out, a.frames, a.base, a.delay)
-    good = report(out)
-    if not a.keep:
-        for f in ("i2c.csv", "digital.csv"):
-            try:
-                os.remove(os.path.join(out, f))
-            except OSError:
-                pass
-    return 0 if good else 1
+    rates = []
+    for r in range(a.runs):
+        out = a.keep or tempfile.mkdtemp(prefix="bus200e-")
+        os.makedirs(out, exist_ok=True)
+        capture(out, a.frames, a.base, a.delay)
+        print("run %d/%d" % (r + 1, a.runs))
+        rates.append(report(out))
+        if not a.keep:
+            for f in ("i2c.csv", "digital.csv"):
+                try:
+                    os.remove(os.path.join(out, f))
+                except OSError:
+                    pass
+        print()
+    pct = [100.0 * ok / max(n, 1) for ok, n in rates]
+    print("=" * 58)
+    print("intact-frame rate over %d runs: %s" % (a.runs, ", ".join("%.0f%%" % p for p in pct)))
+    print("  mean %.0f%%   spread %.0f points" % (sum(pct) / len(pct), max(pct) - min(pct)))
+    print("  A SINGLE RUN IS NOT A RESULT. Measured 2026-09-06, three identical")
+    print("  50-frame runs gave 60/44/64%, so anything under ~20 points apart is")
+    print("  noise. Compare means across runs, never one capture against another.")
+    print("  control (MARF passive): 100%")
+    return 0 if all(ok == n for ok, n in rates) else 1
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 #include "controller.h"
+#include "afg_critical.h"
 
 #include <stddef.h>
 #include <string.h>  // memcpy
@@ -1238,13 +1239,15 @@ void ControllerCalibrationLoop() {
     }
     marf_stored_twopoint_finalize(&tp);
 
-    __disable_irq();
+    // Long blocking EEPROM erase+write. Targeted mask, not __disable_irq():
+    // a global disable here would swallow 200e bus edges for the whole op.
+    AfgCritState cal_crit = AFG_CRIT_THREAD_ENTER();
     CAT25512_erase();
     CAT25512_write_block(eprom_memory.analog_cal_data.start,
         (unsigned char *) &cal, eprom_memory.analog_cal_data.size);
     CAT25512_write_block(eprom_memory.twopoint_cal_data.start,
         (unsigned char *) &tp, eprom_memory.twopoint_cal_data.size);
-    __enable_irq();
+    afg_crit_exit(cal_crit);
     adc_resume();
 
     // Apply immediately (no reboot needed).
@@ -1610,9 +1613,10 @@ void ControllerScanAdcLoop() {
     WriteOtherCvWithoutSmoothing(i, new_readings[i]);
   }
 
-  // Now process the pending events
-  // Disable all irq including the function generators
-  __disable_irq();
+  // Now process the pending events. Mask only the handlers that touch AFG
+  // state -- NOT every interrupt. This block contains a delay_us(10) and both
+  // AfgProcessModeChanges calls, long enough to swallow 200e bus edges.
+  AfgCritState pulse_crit = AFG_CRIT_THREAD_ENTER();
   if (any_pulses_high(controller_job_flags.afg1_interrupts)) {
     AfgProcessModeChanges(AFG1, controller_job_flags.afg1_interrupts,
                           controller_job_flags.afg1_pulse_stamp);
@@ -1633,7 +1637,7 @@ void ControllerScanAdcLoop() {
   controller_job_flags.adc_mux_shift_out = 1;
   controller_job_flags.inhibit_adc = 1;
   controller_job_flags.modal_loop = CONTROLLER_MODAL_NONE;
-  __enable_irq();
+  afg_crit_exit(pulse_crit);
   adc_resume();
 }
 
