@@ -232,6 +232,7 @@ static volatile uint8_t slv_gc;      // current transaction is the general call
 // clock, which shifts every byte boundary after it: a captured failing frame
 // read 00 04 00 44 2c where 00 04 00 22 16 was sent -- 0x44 = 0x22 << 1.
 static volatile uint8_t  slv_scl_lvl = 1;   // the bus idles high
+static volatile uint8_t  slv_sda_confirmed;  // SDA level that survived the confirm
 
 // Line-hold failsafe (design note: non-negotiable). TIM10 runs one-shot at
 // 1 MHz and is armed for the whole time we hold EITHER line down: the SCL
@@ -279,6 +280,20 @@ void I2CBB_SclIsr(void) {
   // instruction takes 6 ns, so two reads inside one ISR can legitimately
   // disagree.
   scl = (uint8_t) (SCL_READ() ? 1 : 0);
+  // Confirm the level before believing the edge. A slow SCL edge crosses the
+  // input threshold more than once, and because chatter ALTERNATES (high, low,
+  // high) a level-only filter passes every re-crossing -- which double-samples
+  // a data bit and drifts the byte framing. See I2CBB_SCL_CONFIRM_NS.
+  {
+    uint32_t t0 = CLOCK_SOURCE_GET_TIMER();
+    while ((CLOCK_SOURCE_GET_TIMER() - t0) < ((I2CBB_SCL_CONFIRM_NS * 168u) / 1000u)) { }
+    if ((uint8_t) (SCL_READ() ? 1 : 0) != scl) {
+      i2cbb_stats.glitches++;
+      EXTI->PR = SCL_EXTI;       // swallow the re-crossing we just rode out
+      return;
+    }
+  }
+
   // Alternation filter: a real bus strictly alternates, so an interrupt
   // reporting the level we already acted on is for an edge that never happened.
   // (A time-based filter was tried and REMOVED: the stamp is taken when the ISR
@@ -430,9 +445,28 @@ void I2CBB_SdaIsr(void) {
   // phase are ordinary data setup (or our own ACK) and are ignored.
   if (!SCL_READ()) return;
 
-  slv_scl_lvl = (uint8_t) (SCL_READ() ? 1 : 0);   // resync the edge tracker
+  // Confirm the level before believing it. A slow SDA edge crosses the input
+  // threshold several times (measured: 4-16 ns re-crossings on one edge), and
+  // every re-crossing here would be read as a spurious START or STOP -- which
+  // resets the frame, puts the bit counter in the wrong place, and ends with us
+  // asserting an ACK at a moment that the master reads as a bus error. See
+  // I2CBB_SDA_CONFIRM_NS for why this is a duration test and not a level test.
+  {
+    uint8_t v0 = (uint8_t) (SDA_READ() ? 1 : 0);
+    uint32_t t0 = CLOCK_SOURCE_GET_TIMER();
+    while ((CLOCK_SOURCE_GET_TIMER() - t0) < ((I2CBB_SDA_CONFIRM_NS * 168u) / 1000u)) { }
+    if ((uint8_t) (SDA_READ() ? 1 : 0) != v0) {
+      i2cbb_stats.glitches++;
+      EXTI->PR = SDA_EXTI;      // swallow the re-crossing we just rode out
+      return;
+    }
+    if (!SCL_READ()) return;    // the phase ended while we confirmed
+    slv_sda_confirmed = v0;
+  }
 
-  if (SDA_READ()) {
+  slv_scl_lvl = 1;                                 // resync the edge tracker
+
+  if (slv_sda_confirmed) {
     // STOP. Close any open general-call frame and return to full listening.
 #if BUS200E_FORENSIC
     if (slv_in_ack) fs_stop_during_ack++;

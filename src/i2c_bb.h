@@ -105,6 +105,34 @@
 // next bit is a 0 it pulls SDA straight back down and a condition wait never
 // completes (that version measured worse -- dead gaps went from ~20 to 80+).
 #define I2CBB_ACK_SETTLE_US      2u
+// How long an SDA level must persist before we believe it is a START or STOP.
+// MEASURED at 500 MS/s on the live bus 2026-09-06: a slow SDA edge (880 ns
+// typical, 960 ns worst -- 96% of the I2C standard-mode budget) crosses the
+// input threshold more than once, giving runs of 4, 8, 10, 12 and 16 ns sitting
+// on a single edge. At 12.5 MS/s these are invisible, which is why they were
+// missed for so long.
+//
+// Alternation CANNOT filter chatter, because chatter alternates by definition:
+// high, low, high all look like legitimate opposite edges. Only duration
+// separates them. 400 ns is 25x the longest chatter run seen and a small
+// fraction of the 5 us phase, so it cannot swallow a real START or STOP.
+#define I2CBB_SDA_CONFIRM_NS   400u
+// Same treatment for SCL, and this is the one that matters. Chatter on a rising
+// edge reads as high, low, high -- three interrupts that ALTERNATE, so the
+// level filter passes all three: we sample the bit, take a spurious falling
+// path, then sample the SAME bit again. One extra bit of drift per chattering
+// edge, after which we ACK on a data bit and the master loses arbitration and
+// abandons the frame.
+//
+// PROVED on the bench 2026-09-06 at 500 MS/s: at the final ACK of every
+// truncated frame (8 of 8) SDA was pulled down after 1421 ns -- our ISR
+// latency -- while healthy ACKs on the same bus are pulled down in 324 ns by
+// the hardware slaves. Nobody else was ACKing there, because for them it was
+// not a byte boundary.
+//
+// Measured SCL chatter runs are 4-40 ns; 300 ns is over 7x that and a small
+// fraction of the 5 us phase.
+#define I2CBB_SCL_CONFIRM_NS   300u
 
 #define I2CBB_MASTER_HALF_US     10u    // master half-bit (~50 kHz)
 #define I2CBB_BUSFREE_US         100u   // both lines high this long = bus idle
