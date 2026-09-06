@@ -4,6 +4,9 @@ Release/*
 build/
 build-v1.6/
 build-rev1/
+build-bus*/
+build-diag*/
+build-default-check/
 *.log
 /.settings/language.settings.xml
 dist/

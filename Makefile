@@ -42,7 +42,17 @@ INCLUDES = \
 
 # Target hardware revision: 2 (default, SAModular/EMS v2) or 1 (v1.x board).
 MARF_HW ?= 2
-DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW)
+
+# 200e preset-bus attachment (docs/DESIGN-200e-bus.md). Off by default; build
+# with BUS200E_ENABLE=1 to compile the bus code in. The first enabled build is
+# RX-log-only (decoded bus commands land in a debug ring; no actions taken).
+BUS200E_ENABLE ?= 0
+# BUS200E_DIAG=1 (with BUS200E_ENABLE=1) paints the bus pin levels and counters
+# on the step LEDs for bring-up without SWD; see src/i2c_bb.h. Never ship it.
+BUS200E_DIAG ?= 0
+
+DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW) \
+  -DBUS200E_ENABLE=$(BUS200E_ENABLE) -DBUS200E_DIAG=$(BUS200E_DIAG)
 
 # ---- Flags ------------------------------------------------------------------
 CPU = -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
@@ -85,10 +95,12 @@ v16: rev1
 HOST_CC    ?= cc
 TEST_SRC    = test/test_core.c test/test_storage.c test/test_scales.c test/test_turing.c \
               test/test_presets.c test/test_clockfollow.c test/test_afg_bench.c \
-              test/test_v1_invariants.c test/test_support.c \
+              test/test_v1_invariants.c test/test_bus200e.c test/test_support.c \
               src/program.c src/analog_data.c src/storage.c src/scales.c src/turing.c \
-              src/presets.c src/clockfollow.c src/afg.c
-TEST_CFLAGS = -std=c11 -Wall -Itest/shim -I$(SRC_DIR)
+              src/presets.c src/clockfollow.c src/afg.c src/bus200e.c
+# The host suite always builds the (pure) bus engine, whatever the target build
+# gates it to.
+TEST_CFLAGS = -std=c11 -Wall -Itest/shim -I$(SRC_DIR) -DBUS200E_ENABLE=1
 # Link libraries must come AFTER the sources (GNU ld is order-sensitive).
 TEST_LIBS   = -lm
 

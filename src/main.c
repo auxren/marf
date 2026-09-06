@@ -29,6 +29,11 @@
 #include "turing.h"
 #include "marf_version.h"
 
+#if BUS200E_ENABLE
+#include "i2c_bb.h"
+#include "bus200e.h"
+#endif
+
 // Dip switch state
 volatile uDipConfig dip_config;
 
@@ -340,6 +345,12 @@ void EXTI1_IRQHandler() {
 
 // Interrupt handler for start and strobe signals both sections.
 void EXTI9_5_IRQHandler() {
+#if BUS200E_ENABLE && BUS200E_PINS_PA9_PA10
+  // Bus SCL (PA9, EXTI9) shares this vector; its ISR checks and clears its
+  // own pending bit and must run first (it may need to clamp SCL).
+  I2CBB_SclIsr();
+  if (!(EXTI->PR & MARF_PULSE_EXTI_LINES)) return;
+#endif
   delay_us(2);
   HandlePulseInterruptSignals();
 }
@@ -714,6 +725,14 @@ int main(void) {
   DisplayAllInitialize();
   ModeLedPwmInit();
   turing_machines_init();
+
+#if BUS200E_ENABLE
+  // 200e preset bus (docs/DESIGN-200e-bus.md). Must follow mInterruptInit():
+  // its EXTI_DeInit() would wipe the bus EXTI lines. NULL ops = the RX-log-only
+  // first build -- decoded commands land in the bus200e debug ring, no actions.
+  I2CBB_Init();
+  Bus200eInit(0);
+#endif
 
   // Settle down
   delay_ms(50);

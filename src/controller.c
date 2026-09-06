@@ -18,6 +18,11 @@
 #include "scales.h"
 #include "turing.h"
 
+#if BUS200E_ENABLE
+#include "i2c_bb.h"
+#include "bus200e.h"
+#endif
+
 // Step selected for editing (0-31)
 volatile uint8_t edit_mode_step_num = 0;
 volatile uint8_t edit_mode_section = 0;
@@ -290,6 +295,39 @@ void ControllerMainLoop() {
       mode_led_breathe = turing_enabled[disp_afg] && fs.b.VoltageSource;
     }
 
+
+#if BUS200E_ENABLE
+    // 200e preset bus: drain the slave event queue into the parser and run
+    // one chunk of any pending card transfer (superloop context only).
+    {
+      uint16_t bus_ev;
+      while (I2CBB_GetSlaveEvent(&bus_ev)) Bus200eFeedEvent(bus_ev);
+      Bus200eTask();
+    }
+#if BUS200E_DIAG
+    // Bring-up readout on the step LEDs (lit = 1), overriding the step display:
+    //   1 SCL high (no pull)      2 SDA high (no pull)
+    //   3 SCL high (pull-up on)   4 SDA high (pull-up on)
+    //   5 heartbeat ~1 Hz         6 stretch failsafe fired
+    //   7 late fall seen          8 traffic for other addresses seen
+    //   9-12 STARTs seen, low nibble (LED 9 = LSB)
+    //  13-16 general-call frames, low nibble (LED 13 = LSB)
+    {
+      uint8_t raw, pulled;
+      uint32_t lit = 0;
+      I2CBB_DiagProbe(&raw, &pulled);
+      lit |= (uint32_t) (raw & 3u);
+      lit |= (uint32_t) (pulled & 3u) << 2;
+      lit |= ((get_millis() >> 9) & 1u) << 4;
+      lit |= (i2cbb_stats.stretch_timeouts ? 1u : 0u) << 5;
+      lit |= (i2cbb_stats.late_falls ? 1u : 0u) << 6;
+      lit |= (i2cbb_stats.quieted ? 1u : 0u) << 7;
+      lit |= (i2cbb_stats.starts & 0xFu) << 8;
+      lit |= (i2cbb_stats.gc_frames & 0xFu) << 12;
+      steps_leds_lit = 0xFFFFFFFFu & ~lit;
+    }
+#endif
+#endif
 
     // Flush LEDs every 20ms.
     // Shifting out to the leds is kind of slow, so rate limit the update to 50 Hz.
