@@ -22,6 +22,12 @@ repository.
 11. [Pulse tricks](11-pulse-tricks.md) — useful pulse‑input behaviours
 12. [Troubleshooting](12-troubleshooting.md) — LED signals, recovery, common issues
 
+## Beyond the manual
+
+- [200e preset bus wiring](200e-BUS-WIRING.md) — the two-wire rework that lets a
+  Buchla preset manager save and recall the module's programs. Experimental,
+  not yet validated on hardware.
+
 A combined **PDF** of this manual (`MARF-Manual.pdf`) is attached to each
 [release](https://github.com/auxren/marf/releases). To build it yourself:
 

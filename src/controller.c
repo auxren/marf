@@ -1357,8 +1357,100 @@ void ControllerLoadCalibration() {
 
 
 // Load program loop
-void ControllerLoadProgramLoop() {
+// ---------------------------------------------------------------------------
+// Slot-level save/load, shared by the front-panel modal loops and (when built
+// with BUS200E_ENABLE) the 200e preset bus. One code path means a bus recall
+// and a panel recall put the module in exactly the same state; the panel loops
+// add only their blocking animations on top.
+//
+// Both run in superloop context (never an ISR): they touch the live program
+// state and talk to the external EEPROM over SPI.
+// ---------------------------------------------------------------------------
+
+// Capture the running program into `out` and stamp magic/version/CRC.
+void ControllerCaptureProgram(StoredProgram *out) {
+  // Prevent slider updates from landing mid-copy.
+  controller_job_flags.inhibit_adc = 1;
+  memcpy((void *) out->payload.steps, (void *) steps, sizeof(steps));
+  memcpy((void *) out->payload.sliders, (void *) sliders, sizeof(sliders));
+  controller_job_flags.inhibit_adc = 0;
+
+  // Per-sequence scale/root and each AFG's stage shift (section).
+  for (uint8_t a = 0; a < 2; a++) {
+    out->payload.scale[a] = afg_scale[a];
+    out->payload.root[a]  = afg_root[a];
+  }
+  out->payload.section[0] = AfgGetControllerState(AFG1).section;
+  out->payload.section[1] = AfgGetControllerState(AFG2).section;
+
+  marf_stored_program_finalize(out);
+}
+
+// Apply a stored record to the running program. Returns 1 if it was valid and
+// applied, 0 if it was empty/old-format/corrupt (live state left untouched).
+int ControllerApplyProgram(const StoredProgram *in) {
+  if (!marf_stored_program_valid(in)) return 0;
+
+  memcpy((void *) steps, (void *) in->payload.steps, sizeof(steps));
+  memcpy((void *) sliders, (void *) in->payload.sliders, sizeof(sliders));
+
+  // Restore per-sequence scale/root (clamped defensively).
+  for (uint8_t a = 0; a < 2; a++) {
+    uint8_t sc = in->payload.scale[a];
+    uint8_t rt = in->payload.root[a];
+    afg_scale[a] = (sc < SCALE_COUNT) ? sc : SCALE_CHROMATIC;
+    afg_root[a]  = (rt < 12) ? rt : 0;
+  }
+
+  // Restore each AFG's saved stage shift (section). The factory presets are
+  // two-part and save AFG 2 on stages 17-32, so loading one and starting both
+  // generators plays the whole arrangement with no manual shift. (Sections only
+  // apply on a 16-slider board; with the expander all 32 stages share one
+  // section, so leave the shift alone.)
+  if (!Is_Expander_Present()) {
+    AfgSetSection(AFG1, in->payload.section[0] & 1);
+    AfgSetSection(AFG2, in->payload.section[1] & 1);
+  }
+
+  // Pin sliders and reset to step 1
+  pin_all_sliders();
+  AfgReset(AFG1);
+  AfgReset(AFG2);
+  return 1;
+}
+
+// Capture the running program into EEPROM slot `slot` (0..15). Returns 1 on
+// success, 0 if the slot number is out of range.
+int ControllerSaveProgramToSlot(uint8_t slot) {
   StoredProgram saved_program = {};
+  if (slot >= 16) return 0;
+
+  ControllerCaptureProgram(&saved_program);
+  CAT25512_write_block(
+      eprom_memory.programs[slot].start,
+      (unsigned char *) &saved_program,
+      eprom_memory.programs[slot].size);
+
+  // This slot is now the user's: protect it from factory bank updates.
+  FactoryMarkUserSave(slot);
+  return 1;
+}
+
+// Load EEPROM slot `slot` (0..15) into the running program. Returns 1 on
+// success, 0 if the slot is out of range or holds no valid record.
+int ControllerLoadProgramFromSlot(uint8_t slot) {
+  StoredProgram saved_program = {};
+  if (slot >= 16) return 0;
+
+  CAT25512_read_block(
+      eprom_memory.programs[slot].start,
+      (unsigned char *) &saved_program,
+      eprom_memory.programs[slot].size);
+
+  return ControllerApplyProgram(&saved_program);
+}
+
+void ControllerLoadProgramLoop() {
   uint8_t program_num = 0;
   uButtons previous_switches, switches;
   uint32_t switch_last_read_time = 0;
@@ -1398,41 +1490,8 @@ void ControllerLoadProgramLoop() {
         }
         StepLedsLightSingleStep(program_num);
       } else if (!switches.b.ClearUp) {
-        // Load program.
-        // Read from EPROM into temporary saved_program
-        CAT25512_read_block(
-            eprom_memory.programs[program_num].start,
-            (unsigned char *) &saved_program,
-            eprom_memory.programs[program_num].size);
-
-        if (marf_stored_program_valid(&saved_program)) {
-          // Copy from saved_program to steps and sliders
-          memcpy((void *) steps, (void *) saved_program.payload.steps, sizeof(steps));
-          memcpy((void *) sliders, (void *) saved_program.payload.sliders, sizeof(sliders));
-
-          // Restore per-sequence scale/root (clamped defensively)
-          for (uint8_t a = 0; a < 2; a++) {
-            uint8_t sc = saved_program.payload.scale[a];
-            uint8_t rt = saved_program.payload.root[a];
-            afg_scale[a] = (sc < SCALE_COUNT) ? sc : SCALE_CHROMATIC;
-            afg_root[a]  = (rt < 12) ? rt : 0;
-          }
-
-          // Restore each AFG's saved stage shift (section). The factory presets
-          // are two-part and save AFG 2 on stages 17-32, so loading one and
-          // starting both generators plays the whole arrangement with no manual
-          // shift. (Sections only apply on a 16-slider board; with the expander
-          // all 32 stages share one section, so leave the shift alone.)
-          if (!Is_Expander_Present()) {
-            AfgSetSection(AFG1, saved_program.payload.section[0] & 1);
-            AfgSetSection(AFG2, saved_program.payload.section[1] & 1);
-          }
-
-          // Pin sliders and reset to step 1
-          pin_all_sliders();
-          AfgReset(AFG1);
-          AfgReset(AFG2);
-
+        // Load program (same path the 200e bus uses).
+        if (ControllerLoadProgramFromSlot(program_num)) {
           // Cute little animation
           RunLoadProgramAnimation();
         } else {
@@ -1460,7 +1519,6 @@ void ControllerLoadProgramLoop() {
 // Save program loop
 void ControllerSaveProgramLoop() {
   uint8_t program_num = 0;
-  StoredProgram saved_program = {};
   uButtons previous_switches, switches;
   uint32_t switch_last_read_time = 0;
   uint32_t now = 0;
@@ -1499,31 +1557,8 @@ void ControllerSaveProgramLoop() {
         }
         StepLedsLightSingleStep(program_num);
       } else if (!switches.b.ClearDown) {
-        // Save program
-        // Copy from steps and sliders to temp saved_program.
-        // Prevent updates to slider values during this time.
-        controller_job_flags.inhibit_adc = 1;
-        memcpy((void *) saved_program.payload.steps, (void *) steps, sizeof(steps));
-        memcpy((void *) saved_program.payload.sliders, (void *) sliders, sizeof(sliders));
-        controller_job_flags.inhibit_adc = 0;
-
-        // Capture per-sequence scale/root and each AFG's stage shift (section)
-        for (uint8_t a = 0; a < 2; a++) {
-          saved_program.payload.scale[a] = afg_scale[a];
-          saved_program.payload.root[a]  = afg_root[a];
-        }
-        saved_program.payload.section[0] = AfgGetControllerState(AFG1).section;
-        saved_program.payload.section[1] = AfgGetControllerState(AFG2).section;
-
-        // Stamp magic/version/CRC, then write the record to the EPROM
-        marf_stored_program_finalize(&saved_program);
-        CAT25512_write_block(
-            eprom_memory.programs[program_num].start,
-            (unsigned char *) &saved_program,
-            eprom_memory.programs[program_num].size);
-
-        // This slot is now the user's: protect it from factory bank updates.
-        FactoryMarkUserSave(program_num);
+        // Save program (same path the 200e bus uses).
+        ControllerSaveProgramToSlot(program_num);
 
         // Run cute animation
         RunSaveProgramAnimation();

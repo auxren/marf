@@ -32,6 +32,7 @@
 #if BUS200E_ENABLE
 #include "i2c_bb.h"
 #include "bus200e.h"
+#include "bus200e_ops.h"
 #endif
 
 // Dip switch state
@@ -728,10 +729,16 @@ int main(void) {
 
 #if BUS200E_ENABLE
   // 200e preset bus (docs/DESIGN-200e-bus.md). Must follow mInterruptInit():
-  // its EXTI_DeInit() would wipe the bus EXTI lines. NULL ops = the RX-log-only
-  // first build -- decoded commands land in the bus200e debug ring, no actions.
+  // its EXTI_DeInit() would wipe the bus EXTI lines.
   I2CBB_Init();
+#if BUS200E_RXLOG_ONLY || BUS200E_DIAG
+  // Bring-up build: NULL ops. Decoded commands land in the bus200e debug ring
+  // and nothing acts on them, so a stray frame can never touch a saved preset
+  // while the wiring is still being proven.
   Bus200eInit(0);
+#else
+  Bus200eInit(&bus200e_target_ops);
+#endif
 #endif
 
   // Settle down

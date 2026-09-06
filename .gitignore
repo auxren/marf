@@ -7,6 +7,7 @@ build-rev1/
 build-bus*/
 build-diag*/
 build-default-check/
+build-refactor/
 *.log
 /.settings/language.settings.xml
 dist/

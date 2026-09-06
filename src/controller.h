@@ -6,6 +6,7 @@
 #include "HC165.h"
 #include "afg.h"
 #include "analog_data.h"
+#include "storage.h"   // StoredProgram, for the shared slot save/load
 
 #define CONTROLLER_MODAL_NONE 0
 #define CONTROLLER_MODAL_LOAD 1
@@ -90,6 +91,13 @@ void ControllerLoadCalibration();
 void ControllerLoadProgramLoop();
 
 void ControllerSaveProgramLoop();
+
+// Slot-level save/load shared by the front panel and the 200e preset bus.
+// Superloop context only (they touch live program state and the SPI EEPROM).
+void ControllerCaptureProgram(StoredProgram *out);
+int ControllerApplyProgram(const StoredProgram *in);   // 1 = applied, 0 = invalid
+int ControllerSaveProgramToSlot(uint8_t slot);         // 1 = ok, 0 = bad slot
+int ControllerLoadProgramFromSlot(uint8_t slot);       // 1 = ok, 0 = bad/empty
 
 void ControllerScanAdcLoop();
 

@@ -114,6 +114,51 @@ static void test_primo_recall_save(void) {
   CHECK(Bus200eLogTotal() == 2);
 }
 
+/* The whole point of the attachment: every one of our program slots must be
+   both storable and recallable from the bus, in both framings. */
+static void test_all_slots_round_trip(void) {
+  printf("test_all_slots_round_trip\n");
+
+  /* PRIMO framing: recall then save every slot. */
+  reset(&fake_ops);
+  for (uint8_t i = 0; i < BUS200E_SLOT_COUNT; i++) FRAME(0x00, i);
+  CHECK(n_recall == BUS200E_SLOT_COUNT);
+  for (uint8_t i = 0; i < BUS200E_SLOT_COUNT; i++) CHECK(recall_calls[i] == i);
+
+  for (uint8_t i = 0; i < BUS200E_SLOT_COUNT; i++) FRAME(0x01, i);
+  CHECK(n_save == BUS200E_SLOT_COUNT);
+  for (uint8_t i = 0; i < BUS200E_SLOT_COUNT; i++) CHECK(save_calls[i] == i);
+
+  /* pre-PRIMO framing: same coverage. */
+  reset(&fake_ops);
+  for (uint8_t i = 0; i < BUS200E_SLOT_COUNT; i++) FRAME(0x04, 0x00, 0x22, 0x01, i);
+  CHECK(n_recall == BUS200E_SLOT_COUNT);
+  for (uint8_t i = 0; i < BUS200E_SLOT_COUNT; i++) CHECK(recall_calls[i] == i);
+
+  for (uint8_t i = 0; i < BUS200E_SLOT_COUNT; i++) FRAME(0x04, 0x00, 0x22, 0x02, i);
+  CHECK(n_save == BUS200E_SLOT_COUNT);
+  for (uint8_t i = 0; i < BUS200E_SLOT_COUNT; i++) CHECK(save_calls[i] == i);
+}
+
+/* A full-bank backup must cover every slot exactly once, in order, at
+   consecutive record-sized offsets -- so a card holds the whole module. */
+static void test_backup_covers_every_slot(void) {
+  printf("test_backup_covers_every_slot\n");
+  reset(&fake_ops);
+  FRAME(0x2D, BUS200E_MODULE_ADDR, 0x00, 0x00, 0x00);
+
+  /* Run the job to completion; the cap proves it terminates. */
+  for (int guard = 0; guard < BUS200E_SLOT_COUNT + 4 && Bus200eJobActive(); guard++)
+    Bus200eTask();
+
+  CHECK(!Bus200eJobActive());
+  CHECK(n_cw == BUS200E_SLOT_COUNT);
+  for (int i = 0; i < n_cw && i < BUS200E_SLOT_COUNT; i++) {
+    CHECK(cw_calls[i].off == (uint32_t) i * sizeof(StoredProgram));
+    CHECK(cw_calls[i].len == sizeof(StoredProgram));
+  }
+}
+
 static void test_pre_primo_recall_save(void) {
   printf("test_pre_primo_recall_save\n");
   reset(&fake_ops);
@@ -317,6 +362,8 @@ static void test_log_ring(void) {
 void run_bus200e_tests(void) {
   test_primo_recall_save();
   test_pre_primo_recall_save();
+  test_all_slots_round_trip();
+  test_backup_covers_every_slot();
   test_remote_enable_gating();
   test_preset_range_gating();
   test_null_ops_logs_only();
