@@ -79,9 +79,17 @@
 #define BUS200E_DIAG 0
 #endif
 
-// Timing parameters -- conservative first guesses, marked for verification on
-// the logic analyzer against a real bus before they are trusted.
-#define I2CBB_STRETCH_TIMEOUT_US 1000u  // failsafe force-release of clamped SCL
+// Timing parameters. The stretch timeout is MEASURED (Saleae Logic Pro 16 on a
+// live 200e bus with a Studio H WPM, 2026-09-06); the rest are still guesses.
+//
+// Measured on that bus: SCL half-period 5.55 us mean (~90 kHz), a five-byte
+// PRIMO frame ~600 us, and the longest legitimate stretch we ever impose is
+// 17 us. The old 1000 us was ~90 bit times: when a fault did pin a line, the
+// master had abandoned the frame long before the failsafe let go. 150 us is
+// still 8x the worst real stretch, so it cannot fire spuriously, but it is
+// under two byte times, which gives the master a chance to carry on rather
+// than time out.
+#define I2CBB_STRETCH_TIMEOUT_US 150u   // failsafe force-release of a held line
 #define I2CBB_MASTER_HALF_US     10u    // master half-bit (~50 kHz)
 #define I2CBB_BUSFREE_US         100u   // both lines high this long = bus idle
 #define I2CBB_MASTER_TIMEOUT_MS  5u     // cap on any single stretch/idle wait

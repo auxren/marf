@@ -117,6 +117,25 @@
 #define SDA_DRIVE_LOW()  (SDA_GPIO->BSRRH = SDA_PIN)
 #define SDA_RELEASE()    (SDA_GPIO->BSRRL = SDA_PIN)
 
+#ifndef BUS200E_FORENSIC
+#define BUS200E_FORENSIC 0
+#endif
+#if BUS200E_FORENSIC
+// Bench forensics (gated; never shipped). The logic analyzer showed every
+// truncated frame is the same failure: we assert the ACK, release SCL, and then
+// never release the ACK, so the master stalls looking at SDA low with SCL high
+// until our 1 ms failsafe frees it. These record WHICH path left the ACK
+// asserted, rather than inferring it.
+volatile uint8_t  fs_state, fs_in_ack, fs_gc, fs_bits, fs_scl, fs_sda;
+volatile uint32_t fs_fires;                 // failsafe firings
+volatile uint32_t fs_start_during_ack;      // START seen while we held the ACK
+volatile uint32_t fs_stop_during_ack;       // STOP  seen while we held the ACK
+volatile uint32_t fs_quiet_during_ack;      // went quiet while we held the ACK
+volatile uint32_t fs_scl_isr;               // SCL ISR entries that we acted on
+volatile uint32_t fs_scl_same;              // entries where the level had NOT changed
+static volatile uint8_t fs_scl_last = 1;
+#endif
+
 volatile I2CBB_Stats i2cbb_stats;
 
 // ---------------------------------------------------------------------------
@@ -189,6 +208,9 @@ static void failsafe_disarm(void) {
 }
 
 static void slave_go_quiet(void) {
+#if BUS200E_FORENSIC
+  if (slv_in_ack) fs_quiet_during_ack++;
+#endif
   EXTI->IMR &= ~SCL_EXTI;
   slv_state = SLV_QUIET;
   slv_gc = 0;
@@ -204,23 +226,37 @@ static void slave_listen_scl(void) {
 void I2CBB_SclIsr(void) {
   if (!(EXTI->PR & SCL_EXTI)) return;
   EXTI->PR = SCL_EXTI;
-
-  if (SCL_READ()) {
-    // Rising edge: sample the data bit (SDA is stable while SCL is high).
-    if (!slv_in_ack && (slv_state == SLV_ADDR || slv_state == SLV_DATA) &&
-        slv_bits < 8) {
-      slv_shift = (uint8_t) ((slv_shift << 1) | (SDA_READ() ? 1 : 0));
-      slv_bits++;
-    }
-    return;
+#if BUS200E_FORENSIC
+  {
+    // Count ISR entries and, separately, entries where the pin level is the
+    // same as the last time we looked. On a clean bus every entry alternates;
+    // a surplus of same-level entries means one physical transition is firing
+    // several EXTIs (slow edge across the input threshold), which would inflate
+    // the bit counter and make us ACK mid-byte.
+    uint8_t lvl = (uint8_t) (SCL_READ() ? 1 : 0);
+    fs_scl_isr++;
+    if (lvl == fs_scl_last) fs_scl_same++;
+    fs_scl_last = lvl;
   }
-
-  // Falling edge: byte boundaries. Clamp-first: stretch SCL before doing any
-  // work, so the master cannot clock past us however late this ISR ran.
-  if (slv_state != SLV_ADDR && slv_state != SLV_DATA) return;
+#endif
 
   if (slv_in_ack) {
-    // End of the ACK clock: stop ACKing, set up for the next byte.
+    // While the ACK is asserted the edge MUST NOT be inferred from the pin
+    // level. If this ISR runs late the line is already high again, the
+    // level test below would take the "rising edge" branch and return, and
+    // SDA would stay pinned low until the failsafe fired -- the master stalls
+    // looking at SDA low with SCL high and abandons the frame. Every truncated
+    // frame in the 2026-09-06 logic-analyzer capture was exactly this: a dead
+    // gap of 996-997 us (the 1 ms failsafe) with SCL high and SDA held low.
+    // Count the ACK clock's own edges instead of guessing from the level:
+    //   slv_in_ack == 1  ACK asserted, waiting for the clock to go high
+    //   slv_in_ack == 2  clock went high; the next SCL event ends the ACK
+    // Arriving here with ==1 and SCL already low means we missed the rising
+    // edge, so the high phase is over and releasing now is correct too.
+    if (slv_in_ack == 1 && SCL_READ()) {
+      slv_in_ack = 2;
+      return;
+    }
     failsafe_arm();
     SCL_DRIVE_LOW();
     SDA_RELEASE();
@@ -231,6 +267,19 @@ void I2CBB_SclIsr(void) {
     failsafe_disarm();
     return;
   }
+
+  if (SCL_READ()) {
+    // Rising edge: sample the data bit (SDA is stable while SCL is high).
+    if ((slv_state == SLV_ADDR || slv_state == SLV_DATA) && slv_bits < 8) {
+      slv_shift = (uint8_t) ((slv_shift << 1) | (SDA_READ() ? 1 : 0));
+      slv_bits++;
+    }
+    return;
+  }
+
+  // Falling edge: byte boundaries. Clamp-first: stretch SCL before doing any
+  // work, so the master cannot clock past us however late this ISR ran.
+  if (slv_state != SLV_ADDR && slv_state != SLV_DATA) return;
 
   if (slv_bits != 8) return;   // mid-byte falling edge: nothing to do
 
@@ -288,6 +337,9 @@ void I2CBB_SdaIsr(void) {
 
   if (SDA_READ()) {
     // STOP. Close any open general-call frame and return to full listening.
+#if BUS200E_FORENSIC
+    if (slv_in_ack) fs_stop_during_ack++;
+#endif
     if (slv_gc) push_ev(BUS200E_EV_STOP);
     slv_gc = 0;
     if (slv_in_ack) { SDA_RELEASE(); failsafe_disarm(); }
@@ -299,6 +351,9 @@ void I2CBB_SdaIsr(void) {
     // START (or repeated START): a fresh address byte follows, so listen
     // again whatever we were doing. An open frame is abandoned; the parser
     // sees the new EV_START and drops the partial.
+#if BUS200E_FORENSIC
+    if (slv_in_ack) fs_start_during_ack++;
+#endif
     if (slv_state == SLV_QUIET) slave_listen_scl();
     if (slv_in_ack) { SDA_RELEASE(); failsafe_disarm(); }
     slv_state = SLV_ADDR;
@@ -315,6 +370,13 @@ void I2CBB_SdaIsr(void) {
 void TIM1_UP_TIM10_IRQHandler(void) {
   if (!(TIM10->SR & TIM_SR_UIF)) return;
   TIM10->SR = (uint16_t) ~TIM_SR_UIF;
+#if BUS200E_FORENSIC
+  fs_state = slv_state; fs_in_ack = slv_in_ack; fs_gc = slv_gc;
+  fs_bits = slv_bits;
+  fs_scl = (uint8_t) (SCL_READ() ? 1 : 0);
+  fs_sda = (uint8_t) (SDA_READ() ? 1 : 0);
+  fs_fires++;
+#endif
   SCL_RELEASE();
   SDA_RELEASE();
   slave_go_quiet();

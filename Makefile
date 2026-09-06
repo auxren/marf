@@ -62,6 +62,10 @@ BUS200E_RXLOG_ONLY ?= 0
 #   pa910     contradicted by the v2.5 schematic (PA9 has no net); do not use
 #             unless a board revision is known to route it
 # See docs/200e-BUS-WIRING.md.
+# Bench forensics for the bus transport (never ship): records which code path
+# left an ACK asserted when the stretch failsafe fires. See src/i2c_bb.c.
+BUS200E_FORENSIC ?= 0
+
 BUS200E_PINS ?= auto
 ifeq ($(BUS200E_PINS),pb34)
   BUS200E_PIN_DEF = -DBUS200E_PINS_PB3_PB4=1
@@ -79,7 +83,8 @@ endif
 
 DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW) \
   -DBUS200E_ENABLE=$(BUS200E_ENABLE) -DBUS200E_DIAG=$(BUS200E_DIAG) \
-  -DBUS200E_RXLOG_ONLY=$(BUS200E_RXLOG_ONLY) $(BUS200E_PIN_DEF) $(DEFINES_EXTRA)
+  -DBUS200E_RXLOG_ONLY=$(BUS200E_RXLOG_ONLY) -DBUS200E_FORENSIC=$(BUS200E_FORENSIC) \
+  $(BUS200E_PIN_DEF) $(DEFINES_EXTRA)
 
 # ---- Flags ------------------------------------------------------------------
 CPU = -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
