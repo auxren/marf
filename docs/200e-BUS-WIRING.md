@@ -308,6 +308,42 @@ case. If a module ever does that, every other module goes silent too, because
 nothing on the bus can signal a start or stop while one device pins the data
 line. Power-cycling the offending module clears it.
 
+## Why the bus is bit-banged and not a hardware I2C peripheral
+
+This question comes up because a hardware I2C slave would be more reliable: the
+peripheral ACKs the general call and stretches the clock itself, so a late
+interrupt costs a stretch instead of a lost bit. It is what makes other DIY
+modules on this bus dependable. It is **not available on this board**, and the
+reason is worth recording so nobody spends a day rediscovering it.
+
+Every I2C-capable pin on the STM32F405RG in LQFP64, checked against the v2.5
+schematic:
+
+| Pin | Function | Already used for |
+|---|---|---|
+| PB6 | I2C1_SCL | START_B, pulse input |
+| PB8 | I2C1_SCL | START_A, pulse input |
+| PB7 | I2C1_SDA | STROBE_B, pulse input |
+| PB9 | I2C1_SDA | PULSE_A_ALL, output |
+| PB10 | I2C2_SCL | PULSE_A_2, output |
+| PB11 | I2C2_SDA | PULSE_A_1, output |
+| PA8 | I2C3_SCL | UART_CLK, and the expander DIP |
+| PC9 | I2C3_SDA | STAGE_LED_RCLK, the step LED latch clock |
+
+Two traps in particular:
+
+- **PB4 is not I2C-capable on this part.** PB4 and PB3 do carry I2C3_SDA and
+  I2C2_SDA on the STM32F401, F411 and F42x/43x, in alternate function 9. The
+  F405 and F407 do not have that remap; their I2C lives only in AF4. It is easy
+  to read an F411 pinout by mistake and conclude PB3 plus PB4 would work.
+- **PA8 is the closest thing to a free I2C pin**, and it is half of I2C3. But
+  its partner PC9 clocks the step LEDs, so the pair cannot be completed without
+  giving up the step display.
+
+Every remaining combination needs a pin that is a pulse jack, an LED clock or
+the expander switch, and none of those reach a header, so they would need
+soldering to a 0.5 mm MCU leg as well. Hence the bit-banged slave.
+
 ## Known unknowns
 
 These are the things still to be settled on real hardware. They are listed
