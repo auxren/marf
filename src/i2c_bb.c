@@ -204,6 +204,17 @@ static volatile uint8_t slv_state = SLV_IDLE;
 static volatile uint8_t slv_bits;    // data bits sampled this byte
 static volatile uint8_t slv_shift;
 static volatile uint8_t slv_in_ack;  // ACK clock cycle in progress
+#ifndef BUS200E_NO_ACK
+#define BUS200E_NO_ACK 0
+#endif
+#if BUS200E_NO_ACK
+// Bench experiment (never ship): decode without ever driving SDA. Safe on a
+// populated bus because the general-call ACK is the wired-OR of every slave --
+// the 259e, 251e and CSR still ACK, so the master sees exactly what it expects.
+// If frames complete with this on, our SDA driving is what stops the master.
+#define SDA_DRIVE_LOW()  ((void)0)
+#endif
+
 static volatile uint8_t slv_gc;      // current transaction is the general call
 
 // Last SCL level we ACTED on. A real bus strictly alternates, so an interrupt

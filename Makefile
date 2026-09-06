@@ -65,6 +65,8 @@ BUS200E_RXLOG_ONLY ?= 0
 # Bench forensics for the bus transport (never ship): records which code path
 # left an ACK asserted when the stretch failsafe fires. See src/i2c_bb.c.
 BUS200E_FORENSIC ?= 0
+# Bench experiment only: decode the bus without ever driving SDA. Never ship.
+BUS200E_NO_ACK ?= 0
 
 BUS200E_PINS ?= auto
 ifeq ($(BUS200E_PINS),pb34)
@@ -83,7 +85,7 @@ endif
 
 DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW) \
   -DBUS200E_ENABLE=$(BUS200E_ENABLE) -DBUS200E_DIAG=$(BUS200E_DIAG) \
-  -DBUS200E_RXLOG_ONLY=$(BUS200E_RXLOG_ONLY) -DBUS200E_FORENSIC=$(BUS200E_FORENSIC) \
+  -DBUS200E_RXLOG_ONLY=$(BUS200E_RXLOG_ONLY) -DBUS200E_FORENSIC=$(BUS200E_FORENSIC) -DBUS200E_NO_ACK=$(BUS200E_NO_ACK) \
   $(BUS200E_PIN_DEF) $(DEFINES_EXTRA)
 
 # ---- Flags ------------------------------------------------------------------
