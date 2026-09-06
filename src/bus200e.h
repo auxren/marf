@@ -30,12 +30,23 @@
 
 // Our identity in command payloads (NOT the I2C wire address -- commands ride
 // the general call; module addresses are payload bytes).
-// UNCONFIRMED: chosen to dodge every address in the 2WIRELESS preset dumps
-// (0x10, 0x20, 0x21, 0x28=259, 0x29, 0x32, 0x37, 0x39, 0x44=291e, 0x48, 0x5C)
-// but not validated against a real system's enumeration. Verify on the bench
-// (a 225e shows a module's address on remote-enable hold) before trusting it.
+//
+// Chosen to sit OUTSIDE the published 200e module address table entirely.
+// That table (Studio H's getDisplayMessage() switch, mirrored in their
+// GetPresets.html) runs from 0x10 to 0x72; storage cards occupy 0x50-0x5F;
+// 0x22 is the preset manager's own source address; and 0x00-0x07 plus
+// 0x78-0x7F are reserved by I2C itself. That leaves 0x08-0x0F unclaimed by
+// anything, so a MARF cannot collide with a real module however the case is
+// populated.
+//
+// The previous default was 0x3C, which the table lists as "281 C1" -- a latent
+// collision for anyone running a 281e alongside a MARF.
+//
+// Still UNCONFIRMED against a live system's enumeration (a 225e shows a
+// module's address on remote-enable hold); card backup/restore are addressed
+// to it, so verify before trusting those.
 #ifndef BUS200E_MODULE_ADDR
-#define BUS200E_MODULE_ADDR 0x3C
+#define BUS200E_MODULE_ADDR 0x0E
 #endif
 
 // Our EEPROM program slots, which now cover the whole bus preset space: a

@@ -8,6 +8,7 @@
 #include "i2c_bb.h"
 #include "bus200e.h"     // BUS200E_EV_* event encoding
 #include "delays.h"
+#include "cycle_counter.h"
 #include "marf_version.h"
 
 // ---------------------------------------------------------------------------
@@ -134,6 +135,23 @@ volatile uint32_t fs_quiet_during_ack;      // went quiet while we held the ACK
 volatile uint32_t fs_scl_isr;               // SCL ISR entries that we acted on
 volatile uint32_t fs_scl_same;              // entries where the level had NOT changed
 static volatile uint8_t fs_scl_last = 1;
+
+// Per-edge trace of one frame. The bus is proven clean (SCL: 5280 ns high /
+// 5120 ns low, zero runts) and a stock-firmware control runs 24/24 perfect
+// frames, so the fault is in this state machine's own bookkeeping. Record what
+// every SCL ISR SAW on entry, then freeze on the first failure so the trace
+// belongs to the frame that actually broke.
+//   bit 0    SCL level        bit 1    SDA level
+//   bits 2-5 slv_bits         bits 6-7 slv_state
+//   bits 8-9 slv_in_ack   bit 10 = the ISR's OWN second read of SCL
+// High 16 bits: time since the previous edge, in 0.1 us units (saturating).
+// Rolling window: the failure is at the END of a frame (byte 5 of 5), so keep
+// the LAST FS_TRACE_N edges before the failsafe froze it, not the first.
+#define FS_TRACE_N 128
+volatile uint32_t fs_trace[FS_TRACE_N];   // low 16 = state, high 16 = dt in 0.1us
+volatile uint32_t fs_trace_n;
+volatile uint8_t  fs_trace_frozen;
+static volatile uint32_t fs_t_prev;
 #endif
 
 volatile I2CBB_Stats i2cbb_stats;
@@ -228,15 +246,25 @@ void I2CBB_SclIsr(void) {
   EXTI->PR = SCL_EXTI;
 #if BUS200E_FORENSIC
   {
-    // Count ISR entries and, separately, entries where the pin level is the
-    // same as the last time we looked. On a clean bus every entry alternates;
-    // a surplus of same-level entries means one physical transition is firing
-    // several EXTIs (slow edge across the input threshold), which would inflate
-    // the bit counter and make us ACK mid-byte.
     uint8_t lvl = (uint8_t) (SCL_READ() ? 1 : 0);
     fs_scl_isr++;
     if (lvl == fs_scl_last) fs_scl_same++;
     fs_scl_last = lvl;
+    if (!fs_trace_frozen) {
+      uint32_t now = CLOCK_SOURCE_GET_TIMER();
+      uint32_t dt  = (now - fs_t_prev) / 17u;      /* 168 MHz -> ~0.1 us units */
+      fs_t_prev = now;
+      if (dt > 0xFFFFu) dt = 0xFFFFu;
+      fs_trace[fs_trace_n % FS_TRACE_N] = (uint32_t) (lvl
+                             | ((SDA_READ() ? 1u : 0u) << 1)
+                             | ((slv_bits & 0xFu) << 2)
+                             | ((slv_state & 3u) << 6)
+                             | ((slv_in_ack & 3u) << 8)
+                             /* the second read, as the branch below will see it */
+                             | ((SCL_READ() ? 1u : 0u) << 10)
+                             | (dt << 16));
+      fs_trace_n++;
+    }
   }
 #endif
 
@@ -257,14 +285,29 @@ void I2CBB_SclIsr(void) {
       slv_in_ack = 2;
       return;
     }
-    failsafe_arm();
-    SCL_DRIVE_LOW();
-    SDA_RELEASE();
+    // Drop the ACK. Clamp ONLY if SCL is genuinely still low: driving a line
+    // that is already high manufactures a falling edge of our own, which fires
+    // this very EXTI again, and the matching release fires it once more. The
+    // spurious high entry then samples the same data bit twice and shifts every
+    // byte boundary after it -- decoded frames come out as garbage. The
+    // byte-boundary path below has always guarded this (late_falls); the ACK
+    // release must too.
+    if (!SCL_READ()) {
+      failsafe_arm();
+      SCL_DRIVE_LOW();
+      SDA_RELEASE();
+      SCL_RELEASE();
+      failsafe_disarm();
+    } else {
+      // Late: the ACK bit is already over, so there is nothing to hold the
+      // master off for. Just let go of SDA and touch nothing else.
+      SDA_RELEASE();
+      failsafe_disarm();
+      i2cbb_stats.late_falls++;
+    }
     slv_in_ack = 0;
     slv_bits = 0;
     slv_shift = 0;
-    SCL_RELEASE();
-    failsafe_disarm();
     return;
   }
 
@@ -371,6 +414,7 @@ void TIM1_UP_TIM10_IRQHandler(void) {
   if (!(TIM10->SR & TIM_SR_UIF)) return;
   TIM10->SR = (uint16_t) ~TIM_SR_UIF;
 #if BUS200E_FORENSIC
+  fs_trace_frozen = 1;      // keep the trace of the frame that broke
   fs_state = slv_state; fs_in_ack = slv_in_ack; fs_gc = slv_gc;
   fs_bits = slv_bits;
   fs_scl = (uint8_t) (SCL_READ() ? 1 : 0);
