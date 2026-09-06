@@ -15,13 +15,16 @@
 void BuildFactoryPreset(ProgramPayload *p, uint8_t slot);
 
 // Seed the factory presets into any EEPROM program slot that is empty/invalid,
+// within the factory region only (slots 0 .. MARF_FACTORY_SLOTS-1); the
+// user-only slots above it are never written here.
 // and refresh any factory-owned slot when the bank content has changed
 // (MARF_FACTORY_BANK_VER bumped). Slots the user has saved to are left
 // untouched. Call once at boot, after loading calibration.
 void PopulateFactoryPresets(void);
 
-// Mark `slot` (0..15) as user-owned after a manual save, so it is never
-// overwritten by a future factory bank update.
+// Mark `slot` as user-owned after a manual save, so it is never overwritten by
+// a future factory bank update. Slots outside the factory region (0 ..
+// MARF_FACTORY_SLOTS-1) have no ownership bit and are ignored here.
 void FactoryMarkUserSave(uint8_t slot);
 
 #endif

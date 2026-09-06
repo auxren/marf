@@ -1419,11 +1419,11 @@ int ControllerApplyProgram(const StoredProgram *in) {
   return 1;
 }
 
-// Capture the running program into EEPROM slot `slot` (0..15). Returns 1 on
-// success, 0 if the slot number is out of range.
+// Capture the running program into EEPROM slot `slot`. Returns 1 on success,
+// 0 if the slot number is out of range.
 int ControllerSaveProgramToSlot(uint8_t slot) {
   StoredProgram saved_program = {};
-  if (slot >= 16) return 0;
+  if (slot >= MARF_PROGRAM_SLOTS) return 0;
 
   ControllerCaptureProgram(&saved_program);
   CAT25512_write_block(
@@ -1436,11 +1436,11 @@ int ControllerSaveProgramToSlot(uint8_t slot) {
   return 1;
 }
 
-// Load EEPROM slot `slot` (0..15) into the running program. Returns 1 on
-// success, 0 if the slot is out of range or holds no valid record.
+// Load EEPROM slot `slot` into the running program. Returns 1 on success, 0 if
+// the slot is out of range or holds no valid record.
 int ControllerLoadProgramFromSlot(uint8_t slot) {
   StoredProgram saved_program = {};
-  if (slot >= 16) return 0;
+  if (slot >= MARF_PROGRAM_SLOTS) return 0;
 
   CAT25512_read_block(
       eprom_memory.programs[slot].start,
@@ -1458,7 +1458,7 @@ void ControllerLoadProgramLoop() {
   previous_switches.value = HC165_ReadSwitches();
 
   mode_led_breathe = 0;   // this loop sends the mode LEDs directly
-  StepLedsLightSingleStep(0);
+  StepLedsShowSlot(0);
 
   while (1) {
     now = get_millis();
@@ -1476,19 +1476,19 @@ void ControllerLoadProgramLoop() {
       ControllerProcessStageAddressSwitches(&switches);
 
       if (!switches.b.StepRight) {
-        if (program_num >= 15) {
+        if (program_num >= MARF_PROGRAM_SLOTS - 1) {
           program_num = 0;
         } else {
           program_num += 1;
         }
-        StepLedsLightSingleStep(program_num);
+        StepLedsShowSlot(program_num);
       } else if (!switches.b.StepLeft) {
         if (program_num == 0) {
-          program_num = 15;
+          program_num = MARF_PROGRAM_SLOTS - 1;
         } else {
           program_num -= 1;
         }
-        StepLedsLightSingleStep(program_num);
+        StepLedsShowSlot(program_num);
       } else if (!switches.b.ClearUp) {
         // Load program (same path the 200e bus uses).
         if (ControllerLoadProgramFromSlot(program_num)) {
@@ -1525,7 +1525,7 @@ void ControllerSaveProgramLoop() {
   previous_switches.value = HC165_ReadSwitches();
 
   mode_led_breathe = 0;   // this loop sends the mode LEDs directly
-  StepLedsLightSingleStep(0);
+  StepLedsShowSlot(0);
 
   while (1) {
     now = get_millis();
@@ -1543,19 +1543,19 @@ void ControllerSaveProgramLoop() {
       ControllerProcessStageAddressSwitches(&switches);
 
       if (!switches.b.StepRight) {
-        if (program_num >= 15) {
+        if (program_num >= MARF_PROGRAM_SLOTS - 1) {
           program_num = 0;
         } else {
           program_num += 1;
         }
-        StepLedsLightSingleStep(program_num);
+        StepLedsShowSlot(program_num);
       } else if (!switches.b.StepLeft) {
         if (program_num == 0) {
-          program_num = 15;
+          program_num = MARF_PROGRAM_SLOTS - 1;
         } else {
           program_num -= 1;
         }
-        StepLedsLightSingleStep(program_num);
+        StepLedsShowSlot(program_num);
       } else if (!switches.b.ClearDown) {
         // Save program (same path the 200e bus uses).
         ControllerSaveProgramToSlot(program_num);

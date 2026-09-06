@@ -27,6 +27,20 @@
                                   // re-seed every factory-owned slot on next boot
 
 // ---- Saved program --------------------------------------------------------
+// Program slots. The 200e preset bus addresses a 30-preset space, and the
+// module matches it so a preset manager can drive every slot.
+//
+// UPGRADE CONTRACT: slots are laid out from the EEPROM head in slot order, so
+// slots 0-15 keep the byte addresses they had when there were only 16. Growing
+// this number appends slots; it never moves or invalidates an existing one.
+//
+// Slots 0-15 are also the factory-preset region (there are 16 factory presets,
+// and their ownership bookkeeping is a 16-bit mask -- see FactoryPayload).
+// Slots 16-29 are user-only: nothing seeds them and they start out empty.
+#define MARF_PROGRAM_SLOTS  30
+#define MARF_FACTORY_SLOTS  16
+
+
 typedef struct {
   uStep      steps[32];
   StepSliders sliders[32];
@@ -80,6 +94,13 @@ typedef struct {
 // update can refresh them) versus saved by the user (left untouched forever),
 // plus which bank generation is currently loaded. Its own small record at the
 // EEPROM tail, so it never touches the frozen calibration format.
+// FROZEN SIZE AND POSITION. This record is anchored below the two-point
+// calibration record at the EEPROM tail, so changing its size relocates it.
+// A relocated record reads back invalid, which read_factory_state() treats as
+// "upgrade from firmware with no bookkeeping" -- claiming every slot as
+// factory-owned and refreshing it, destroying the user's saved programs. So
+// owned_mask stays 16-bit and covers only the factory region (slots 0-15);
+// slots 16-29 are user-only and need no ownership bit.
 typedef struct {
   uint16_t bank_version;   // MARF_FACTORY_BANK_VER that last seeded the slots
   uint16_t owned_mask;     // bit i set => slot i currently holds a factory preset
@@ -129,6 +150,13 @@ _Static_assert(sizeof(StoredCal) == 28,
                "StoredCal size is frozen; changing it moves the EEPROM tail record and orphans existing calibration");
 _Static_assert(offsetof(StoredCal, payload) == 8,
                "StoredCal header layout is frozen");
+_Static_assert(sizeof(StoredFactory) == 12,
+               "StoredFactory size is frozen; growing it relocates the record, which reads back "
+               "invalid and makes the next boot overwrite every user program with factory content");
+_Static_assert(MARF_FACTORY_SLOTS <= 16,
+               "the factory owned_mask is 16 bits wide");
+_Static_assert(MARF_FACTORY_SLOTS <= MARF_PROGRAM_SLOTS,
+               "the factory region must fit inside the program slots");
 
 // CRC-16/CCITT (poly 0x1021, init 0xFFFF). Pure, host-testable.
 uint16_t marf_crc16(const void *data, uint32_t len);

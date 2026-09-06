@@ -94,21 +94,23 @@ When set to steps 17-32, of course the slider value will still be that of 1-16.
 
 #### Save Program
 
-This version supports saving and loading 16 programs (even with expander). 
+This version supports saving and loading 30 programs (even with expander),
+matching the 200e preset space. 
 Slider data is always saved along with the program. Note that the marf does not 
 stop running while saving a program.
 
 1.  Press the Clear switch _down_ briefly to enter save mode. 
 2.  The pulse leds will toggle to indicate that you are in save mode.
 3.  To abort saving, press one of the Display switches.
-4.  Use the Stage No switch to select one of the 16 memory locations.
-    The step leds will indicate the memory location.
+4.  Use the Stage No switch to select one of the 30 memory locations.
+    The step leds will indicate the memory location: steady for slots 1-16,
+    blinking for slots 17-30.
 5.  Press Clear switch _down_ again briefly to save the program.
 6.  Leds will flash downwards when the program is saved.
 
 #### Load Program
 
-Any of the 16 saved programs may be reloaded. Note that the marf does not stop 
+Any of the 30 saved programs may be reloaded. Note that the marf does not stop 
 running when loading a program. Once the program is loaded, all sliders will be 
 "pinned" at their saved value. To restore slider activity, the slider must be moved 
 through the saved value. If a slider is stuck then moving it from minimum to maximum
@@ -117,7 +119,7 @@ value will always unstick it.
 1.  Press the Clear switch _up_ briefly to enter load mode.
 2.  The pulse leds will toggle to indicate that you are in load mode.
 3.  To abort loading, press one of the Display switches.
-4.  Use the Stage No switch to select one of the 16 memory locations.
+4.  Use the Stage No switch to select one of the 30 memory locations.
 5.  Press Clear switch _up_ again briefly to load the program.
 6.  Leds will flash upwards when the program is loaded.
 

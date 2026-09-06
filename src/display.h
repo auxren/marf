@@ -105,4 +105,12 @@ void RunWaitingLoadSaveAnimation(AfgControllerState afg1, AfgControllerState afg
 // Light a single step
 void StepLedsLightSingleStep(uint8_t step);
 
+// Step LEDs available for the load/save slot display on an un-expanded panel.
+#define STEP_LEDS_PER_BANK 16
+
+// Show a program slot on the step LEDs during the load/save modal loops. Slots
+// at or above STEP_LEDS_PER_BANK share the LEDs with the lower bank and blink
+// to mark themselves (RunWaitingLoadSaveAnimation drives the blink).
+void StepLedsShowSlot(uint8_t slot);
+
 #endif

@@ -20,12 +20,14 @@ void run_bus200e_tests(void);
 
 /* ---- fake ops ------------------------------------------------------------ */
 
-static uint8_t save_calls[64], recall_calls[64];
+static uint8_t save_calls[BUS200E_SLOT_COUNT + 4],
+               recall_calls[BUS200E_SLOT_COUNT + 4];
 static int n_save, n_recall;
 
-static struct { uint8_t card7; uint32_t off; uint32_t len; uint8_t first; } cw_calls[32];
+static struct { uint8_t card7; uint32_t off; uint32_t len; uint8_t first; }
+       cw_calls[BUS200E_SLOT_COUNT + 4];
 static int n_cw;
-static struct { uint8_t slot; } sw_calls[32];
+static struct { uint8_t slot; } sw_calls[BUS200E_SLOT_COUNT + 4];
 static int n_sw;
 static int n_sr, n_cr;
 static int fail_card_write;      /* fail the n-th card_write (1-based; 0 = never) */
@@ -195,13 +197,20 @@ static void test_remote_enable_gating(void) {
 
 static void test_preset_range_gating(void) {
   printf("test_preset_range_gating\n");
+  /* We cover the whole bus preset space, so the last bus preset must land. */
+  CHECK(BUS200E_SLOT_COUNT >= BUS200E_BUS_PRESETS);
+
   reset(&fake_ops);
-  FRAME(0x00, BUS200E_SLOT_COUNT);          /* first bus preset we don't have */
-  FRAME(0x00, BUS200E_BUS_PRESETS - 1);     /* last bus preset */
-  CHECK(n_recall == 0);
-  CHECK(Bus200eLogTotal() == 2);            /* both logged all the same */
-  FRAME(0x00, BUS200E_SLOT_COUNT - 1);
-  CHECK(n_recall == 1 && recall_calls[0] == BUS200E_SLOT_COUNT - 1);
+  FRAME(0x00, BUS200E_BUS_PRESETS - 1);     /* last bus preset: ours */
+  CHECK(n_recall == 1 && recall_calls[0] == BUS200E_BUS_PRESETS - 1);
+
+  /* Past the end of our slots: logged, never dispatched. */
+  reset(&fake_ops);
+  FRAME(0x00, BUS200E_SLOT_COUNT);          /* first slot we do not have */
+  FRAME(0x01, BUS200E_SLOT_COUNT);          /* ... and the save side */
+  FRAME(0x00, 0xFF);                        /* far out of range */
+  CHECK(n_recall == 0 && n_save == 0);
+  CHECK(Bus200eLogTotal() == 3);            /* all logged all the same */
 }
 
 static void test_null_ops_logs_only(void) {

@@ -17,7 +17,7 @@ repository.
 6. [Scales & quantizing](06-scales.md) — per‑sequence scales and roots
 7. [Shift‑register (Turing) mode](07-shift-register.md) — looping per‑stage CV generators
 8. [Running & clocking](08-running-and-clocking.md) — start/stop/strobe/advance, modes, loops
-9. [Saving & loading programs](09-saving-and-loading.md) — the 16 memory slots
+9. [Saving & loading programs](09-saving-and-loading.md) — the 30 memory slots
 10. [Section shift](10-section-shift.md) — reaching steps 17–32 without an expander
 11. [Pulse tricks](11-pulse-tricks.md) — useful pulse‑input behaviours
 12. [Troubleshooting](12-troubleshooting.md) — LED signals, recovery, common issues

@@ -38,9 +38,11 @@
 #define BUS200E_MODULE_ADDR 0x3C
 #endif
 
-#define BUS200E_SLOT_COUNT  16   // our EEPROM program slots
-#define BUS200E_BUS_PRESETS 30   // the bus preset space is 0-29; presets at or
-                                 // beyond BUS200E_SLOT_COUNT are logged, ignored
+// Our EEPROM program slots, which now cover the whole bus preset space: a
+// preset manager can address all 30 the way it would any other 200e module.
+#define BUS200E_SLOT_COUNT  MARF_PROGRAM_SLOTS
+#define BUS200E_BUS_PRESETS 30   // the bus preset space is 0-29; anything at or
+                                 // beyond BUS200E_SLOT_COUNT is logged, ignored
 
 // Remote-enable state at boot. The 200e etiquette (does a 225e expect modules
 // to come up enabled?) is unverified on real hardware -- see the design note.

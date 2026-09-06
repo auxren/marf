@@ -164,14 +164,17 @@ meant to behave.
 - [ ] **P2** — Select a slot with **Stage No Left/Right** (step LEDs show it); **Clear down again** saves; step LEDs **flash downward**.
 - [ ] **P3** — **Clear up (brief)** enters Load mode; select slot; **Clear up again** loads; step LEDs **flash upward**.
 - [ ] **P4** — Pressing a **Display** button **aborts** save/load.
-- [ ] **P5** — All **16 slots** are independently usable.
+- [ ] **P5** — All **30 slots** are independently usable.
+- [ ] **P5b** — **Slot display**: slots 1–16 light their step LED steadily; slots 17–30 light step LED 1–14 **blinking**. Stage No Right past slot 30 wraps to slot 1; Stage No Left from slot 1 wraps to slot 30.
 - [ ] **P6** — Loading an **empty/never-saved** slot → quick **triple flash**, nothing loaded (current patch untouched).
 - [ ] **P7** — After a load, sliders are **pinned** to stored values until moved through them.
 - [ ] **P8** — A recalled program restores **scale/root**, each AFG's **stage shift (section)** and each stage's **shift-register clock/length**.
 - [ ] **P9** — Save and load happen **without stopping** the running sequences.
-- [ ] **P10** — **Factory presets**: on a fresh chip, every never-saved slot loads a playable sequence (I Feel Love, Berlin School, Halloween, Stranger Things, Bach, Reich phasing, polymeter, acid, On the Run, TEE, Cars, Blue Monday, Blade Runner, Glass, drift, harmony). Each plays immediately with nothing patched. Every preset is **two-part**: AFG 1 on stages 1–16, AFG 2 on 17–32.
+- [ ] **P10** — **Factory presets**: on a fresh chip, every never-saved slot **in the first 16** loads a playable sequence (I Feel Love, Berlin School, Halloween, Stranger Things, Bach, Reich phasing, polymeter, acid, On the Run, TEE, Cars, Blue Monday, Blade Runner, Glass, drift, harmony). Each plays immediately with nothing patched. Every preset is **two-part**: AFG 1 on stages 1–16, AFG 2 on 17–32.
 - [ ] **P10b** — **Saved stage shift**: loading a preset restores **AFG 2 to stages 17–32** and AFG 1 to 1–16 (the shift is saved in the program) — starting both AFGs plays the full arrangement with no manual shift. Saving a patch with AFG 2 shifted and reloading restores that shift. (16-slider board; expander leaves sections alone.)
 - [ ] **P11** — A factory slot you **save over** keeps your version permanently (it's now user-owned); it is **not** re-seeded by a bank update. A slot you **clear** is re-seeded at the next boot. A firmware update with a new bank refreshes the factory-owned slots only, leaving user saves intact.
+- [ ] **P12** — **Upgrade safety**: a module carrying programs saved by 3.4 or earlier still loads all 16 of them after updating to the 30-slot firmware, unchanged. Slots 17–30 read as empty (triple flash) until saved.
+- [ ] **P13** — **User-only slots**: a program saved to slot 17–30 survives a reboot and a firmware update; the factory bank never writes there.
 
 ## Q. Section shift (unexpanded only — DIP 4 off)
 - [ ] **Q1** — **Display 1 + Stage No Right** moves AFG 1 to stages **17–32**.

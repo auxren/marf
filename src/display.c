@@ -469,6 +469,25 @@ void StepLedsLightSingleStep(uint8_t step) {
   LED_STEP_SendWord(steps_leds_lit);
 }
 
+// ---- Load/save slot display ----------------------------------------------
+// There are more program slots than step LEDs, so the slot number is shown
+// modulo the 16 LEDs and slots in the upper bank BLINK. That is the same
+// convention the Display LEDs already use to mark a section-shifted generator,
+// so "blinking means the upper bank" reads the same way in both places.
+static uint8_t load_save_slot;        // slot currently shown
+static uint8_t load_save_blink_phase; // last phase painted (forces a repaint)
+
+static uint16_t slot_led_word(uint8_t slot) {
+  return (uint16_t) ~(1u << (slot % STEP_LEDS_PER_BANK));
+}
+
+void StepLedsShowSlot(uint8_t slot) {
+  load_save_slot = slot;
+  load_save_blink_phase = 1;          // upper-bank slots start lit
+  steps_leds_lit = slot_led_word(slot);
+  LED_STEP_SendWord(steps_leds_lit);
+}
+
 // Called approx every 1ms
 // Just toggles pulse leds while waiting for step selection.
 
@@ -509,6 +528,17 @@ void RunWaitingLoadSaveAnimation(AfgControllerState afg1, AfgControllerState afg
   } else if (afg2.mode == MODE_STOP) {
     mode_leds_lit.b.Seq2Stop &= 0;
   };
+
+  // Blink the step LED for an upper-bank slot, in step with the pulse-LED
+  // toggle above. Only repainted on a phase change: shifting the step word out
+  // is slow and this runs every ~500 us.
+  if (load_save_slot >= STEP_LEDS_PER_BANK) {
+    uint8_t phase = (counter < 300) ? 1 : 0;
+    if (phase != load_save_blink_phase) {
+      load_save_blink_phase = phase;
+      LED_STEP_SendWord(phase ? slot_led_word(load_save_slot) : 0xFFFFu);
+    }
+  }
 
   LEDS_modes_SendStruct(&mode_leds_lit);
 }

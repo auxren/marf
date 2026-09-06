@@ -15,8 +15,9 @@ typedef struct {
 
 // Typedef for full eprom memory layout
 typedef struct {
-  // 16 saved programs (each a versioned, checksummed StoredProgram)
-  MemoryRange programs[16];
+  // Saved programs (each a versioned, checksummed StoredProgram), laid out
+  // from the EEPROM head in slot order so existing slots never move.
+  MemoryRange programs[MARF_PROGRAM_SLOTS];
 
   // Analog calibration data + pulse-led-swap flag (versioned StoredCal)
   MemoryRange analog_cal_data;

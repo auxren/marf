@@ -2,7 +2,7 @@
 
 This is the hardware rework that puts a MARF on the Buchla 200e preset bus, so
 a preset manager (a 225e, a Studio H WPM, or anything else that speaks the bus)
-can save and recall the module's 16 programs.
+can save and recall the module's 30 programs.
 
 > **Status: not yet validated on hardware.** The firmware side is written and
 > tested; the attachment point on the board is still being confirmed. Where a
@@ -206,12 +206,13 @@ build acts on them, and a save command overwrites a program slot.
 - **Save preset N** writes the running program into slot N, exactly as the
   front-panel save gesture does, and marks the slot as yours so a factory bank
   update will not overwrite it.
-- Bus presets **0 to 15** map to the module's 16 program slots. The bus preset
-  space runs to 29; requests at 16 and above are logged and ignored, because
-  the module has nowhere to put them.
+- Bus presets **0 to 29** map one-to-one onto the module's 30 program slots, so
+  a preset manager addresses the MARF exactly as it would any other 200e
+  module. The first 16 slots ship with the factory bank; slots 17 to 30 start
+  empty.
 - **Remote enable and disable** are honoured. While the bus has remote control
   disabled, save and recall commands are logged and ignored.
-- **Card backup and restore** copy all 16 slots to and from a storage card.
+- **Card backup and restore** copy all 30 slots to and from a storage card.
   Restore checks every record's magic, version and checksum before letting it
   into the EEPROM, so a foreign or corrupt card cannot poison your programs.
 
