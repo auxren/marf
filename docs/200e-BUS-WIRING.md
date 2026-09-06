@@ -65,16 +65,51 @@ Three pins are both free and reachable: PA10, PB3 and PB4.
 ### Option A: the TO COMPUTER header (recommended)
 
 The 2x5 header silkscreened **TO COMPUTER** carries only four signals, and two
-of them are free and adjacent in the same column.
+of them are free and sit next to each other in the same column.
 
-- SCL to **header pin 2** (UART_RX, PA10)
-- SDA to **header pin 4** (TDO, PB3)
+- **SCL (clock) to header pin 2** — UART_RX, PA10
+- **SDA (data) to header pin 4** — TDO, PB3
 
 Build with `BUS200E_PINS=pa10pb3`, which is also what plain `auto` selects on
-v2. No soldering at the module: two jumpers push onto the header.
+v2. No soldering at the module: two jumpers push straight onto the header.
 
 This is the recommendation because it leaves the debug header alone. See the
 warning under option B for why that matters.
+
+#### What to use
+
+Two **female-to-female DuPont jumper wires**, the standard 0.1 inch (2.54 mm)
+kind sold for breadboarding. One end pushes onto the header pin, the other end
+goes to the wire you solder to the power connector. 20 cm is plenty; keep them
+as short as the routing allows.
+
+Two details worth getting right:
+
+- **Use individual jumpers, not a ribbon strip.** The two pins you want are
+  pin 2 and pin 4, which are adjacent in the same column, so a 2-way ribbon
+  would fit — but pin 6 immediately below them is **+5 V**, and a strip is very
+  easy to seat one row off. Separate wires make that mistake obvious.
+- **Colour them and keep the colours consistent with the Buchla wiring**:
+  yellow for clock (pin 2), green for data (pin 4). The power connector uses
+  the same convention, so the whole run reads the same at both ends.
+
+Header pin numbering on a 2x5 IDC header: pin 1 is marked on the silkscreen
+(usually a square pad or a triangle), odd pins run down one column and even
+pins down the other, so pin 2 is beside pin 1 and pin 4 is directly below
+pin 2.
+
+```
+      TO COMPUTER
+   pin 1  o  o  pin 2   <- SCL / clock  (PA10)   yellow
+   pin 3  o  o  pin 4   <- SDA / data   (PB3)    green
+   pin 5  o  o  pin 6      +5 V   -- keep off
+   pin 7  o  o  pin 8
+   pin 9  o  o  pin 10     -15 V  -- keep off
+```
+
+If your jumpers are loose on the pins, crimp the female shells gently with
+pliers before fitting. A jumper that falls off mid-performance looks exactly
+like a dead bus.
 
 > Header pin 6 is **+5 V** and sits directly below pin 4, and header pin 10 is
 > **−15 V**. Keep probes and jumpers off both.
@@ -140,6 +175,12 @@ them to the two pins you chose.
 
 - Power connector **pin 8 (yellow, SCL)** → your SCL pin
 - Power connector **pin 9 (green, SDA)** → your SDA pin
+
+For option A the easiest build is: solder a short length of hookup wire to
+power connector pins 8 and 9, then solder the **male** end of a female-to-female
+DuPont jumper to each, or crimp a male pin on and mate it. That leaves the only
+soldering at the power connector, where there is room to work, and the module
+end stays a plug you can pull.
 
 Keep the wires short and away from the analog section. Ground is already
 common through the power connector, so do not add a ground wire.
@@ -243,6 +284,29 @@ Both paths run through the same code as the front panel, so a bus recall and a
 panel recall leave the module in identical state.
 
 ---
+
+## Current state on real hardware
+
+As of 2026-09-06, on a v2 unit in a 200e case with a Studio H WPM:
+
+**Working.** The bus reaches the MCU, both frame formats decode, remote enable
+and disable are honoured, and a preset recall from the WPM loads the addressed
+program into the running module. Bus preset 12 on the WPM loads MARF program
+12 (the wire carries 11; the manager's panel is 1-indexed and the wire is
+0-indexed).
+
+**Not yet reliable.** Roughly half the command frames are decoded; the rest are
+dropped and retried. Nothing is corrupted when a frame is lost — the parser
+discards partial frames and the failsafe releases the lines — but you may have
+to send a recall more than once. This is a firmware issue in the bit-banged
+slave, not a wiring one, and it is being worked on. Do not read a missed recall
+as a bad solder joint.
+
+**Fixed, and worth knowing about if you are on older firmware.** An earlier
+build could hold SDA low indefinitely and jam the preset bus for the whole
+case. If a module ever does that, every other module goes silent too, because
+nothing on the bus can signal a start or stop while one device pins the data
+line. Power-cycling the offending module clears it.
 
 ## Known unknowns
 
