@@ -243,6 +243,16 @@ static volatile uint8_t  slv_probing;
 static volatile uint8_t  slv_ack_this_frame;   // drive ACKs for the rest of this frame
 static volatile uint16_t slv_frames_since_probe;
 
+// True when this frame's ACKs will actually be driven. The address byte decides
+// it moments later, so treat "still on the address" as pending.
+static inline uint8_t slv_ack_pending(void) {
+#if BUS200E_COOP_ACK
+  return (uint8_t) (slv_state == SLV_ADDR || slv_ack_this_frame);
+#else
+  return 1u;
+#endif
+}
+
 // Line-hold failsafe (design note: non-negotiable). TIM10 runs one-shot at
 // 1 MHz and is armed for the whole time we hold EITHER line down: the SCL
 // clamp, and -- just as important -- the ACK bit, during which SDA is driven
@@ -369,6 +379,14 @@ void I2CBB_SclIsr(void) {
       slv_in_ack = 2;
       return;
     }
+    if (!slv_ack_this_frame) {
+      // We drove nothing this frame, so there is nothing to release and no
+      // reason to stretch. Just close the ACK bit out.
+      slv_in_ack = 0;
+      slv_bits = 0;
+      slv_shift = 0;
+      return;
+    }
     // Drop the ACK. Clamp ONLY if SCL is genuinely still low: driving a line
     // that is already high manufactures a falling edge of our own, which fires
     // this very EXTI again, and the matching release fires it once more. The
@@ -425,8 +443,11 @@ void I2CBB_SclIsr(void) {
     return;
   }
 
-  failsafe_arm();
-  SCL_DRIVE_LOW();
+  // Clamp only if we intend to ACK. The stretch exists to buy time for our own
+  // response; with cooperative ACK deciding a peer answers for us we are purely
+  // a listener, and every SCL_DRIVE_LOW/SCL_RELEASE pair is an edge of our own
+  // making that this same ISR then has to reason about. Passive means passive.
+  if (slv_ack_pending()) { failsafe_arm(); SCL_DRIVE_LOW(); }
   if (slv_state == SLV_ADDR) {
     if (slv_shift == 0x00) {
       // General call (write). ACK it and start collecting the frame.
@@ -457,7 +478,8 @@ void I2CBB_SclIsr(void) {
       SDA_ACK_ADDR();
 #endif
       slv_in_ack = 1;
-      SCL_RELEASE();
+      if (slv_ack_this_frame) { SCL_RELEASE(); }
+      else { SCL_RELEASE(); failsafe_disarm(); }  /* clamped speculatively */
       // NO disarm here: SDA stays driven low for the whole ACK bit, and it is
       // only released on the next SCL falling edge. If the master stops
       // clocking in between, a held ACK jams the bus for every device on it
@@ -477,7 +499,7 @@ void I2CBB_SclIsr(void) {
     i2cbb_stats.bytes++;
     if (slv_ack_this_frame) SDA_ACK_DATA();
     slv_in_ack = 1;
-    SCL_RELEASE();
+    if (slv_ack_this_frame) SCL_RELEASE();
     // NO disarm here -- see the address-ACK path above.
   }
 }

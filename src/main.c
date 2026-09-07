@@ -165,7 +165,7 @@ void mADC_init(void)
   // sharing tier 0 made a bus edge wait for whichever handler was running.
   // Relative order among the pre-existing handlers is unchanged.
   nvicStructure.NVIC_IRQChannel = ADC_IRQn;
-  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 1 : 0;
+  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 1 : 0;   /* one tier below the bus */
   nvicStructure.NVIC_IRQChannelSubPriority = 0;
   nvicStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&nvicStructure);
@@ -202,13 +202,13 @@ void mInterruptInit(void) {
   EXTI_Init(&mInt);
 
   NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority 	= 0x0F; // lower
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority 	= BUS200E_ENABLE ? 0x01 : 0x0F;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority 				= 0x00; 
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE; 
   NVIC_Init(&NVIC_InitStructure);
 
   NVIC_InitStructure.NVIC_IRQChannel = EXTI1_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority 	= 0x0F; // lower
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority 	= BUS200E_ENABLE ? 0x01 : 0x0F;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority 				= 0x00; 
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE; 
   NVIC_Init(&NVIC_InitStructure);
@@ -572,13 +572,13 @@ void mTimersInit(void) {
   TIM_ITConfig(TIM5, TIM_IT_Update, ENABLE);
 
   nvicStructure.NVIC_IRQChannel = TIM4_IRQn;
-  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 2 : 1;
+  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 1 : 1;
   nvicStructure.NVIC_IRQChannelSubPriority = 1;
   nvicStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&nvicStructure);
 
   nvicStructure.NVIC_IRQChannel = TIM5_IRQn;
-  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 2 : 1;
+  nvicStructure.NVIC_IRQChannelPreemptionPriority = BUS200E_ENABLE ? 1 : 1;
   nvicStructure.NVIC_IRQChannelSubPriority = 1;
   nvicStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&nvicStructure);
@@ -586,7 +586,19 @@ void mTimersInit(void) {
   NVIC_SetPriority (TIM4_IRQn, 1);
   NVIC_SetPriority (TIM5_IRQn, 1);
 
-  SCB->AIRCR = AIRCR_VECTKEY_MASK | NVIC_PriorityGroup_0;
+  // Priority grouping. NVIC_PriorityGroup_0 is ZERO preemption-priority bits
+  // and four subpriority bits: no interrupt can preempt another, subpriority
+  // only orders which PENDING handler runs next. That is fine for a closed
+  // system, but it stalls the 200e bus slave -- measured 2026-09-06, a bus edge
+  // waited ~20 us behind a long ADC or pulse handler, which loses whole bytes.
+  //
+  // With the bus compiled in, switch to four preemption bits so the bus EXTIs
+  // (tier 0) can preempt everything else (all on tier 1, so they keep today's
+  // mutual non-preemption exactly). Gated, because enabling nesting changes
+  // interrupt behaviour firmware-wide and the default image should not take
+  // that risk for a feature it does not have.
+  SCB->AIRCR = AIRCR_VECTKEY_MASK |
+               (BUS200E_ENABLE ? NVIC_PriorityGroup_4 : NVIC_PriorityGroup_0);
 
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM14, ENABLE);
 
@@ -727,6 +739,13 @@ int main(void) {
 
   // Initialize all the peripherals
 
+#if BUS200E_ENABLE
+  // Establish the priority grouping BEFORE any NVIC_Init. StdPeriph computes a
+  // handler's priority byte from the grouping in force at the time of the call,
+  // so anything configured earlier would be encoded under the old scheme --
+  // observed exactly that: the ADC kept preempt 0 because its init ran first.
+  SCB->AIRCR = AIRCR_VECTKEY_MASK | NVIC_PriorityGroup_4;
+#endif
   start_cycle_timer();
   InitProgram();
   RCC_GetClocksFreq(&RCC_Clocks);
