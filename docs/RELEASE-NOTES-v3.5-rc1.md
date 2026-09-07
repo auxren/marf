@@ -44,9 +44,10 @@ for continuity on v1 hardware.
 
 - **The bus work has been tested on exactly one module, in one case, on one
   bus.** That is the main reason this is an RC.
-- **It has not been tested while the module is actually sequencing.** All
-  measurements were taken with the module idle. If you run the bus while playing
-  a pattern and something misbehaves, that is a genuinely useful report.
+- Bus traffic **has** been tested with a sequence loaded and the module's timing
+  interrupts running (80/80 recalls, no errors), but not while actively driving
+  clocks and pulses into a patch. If you run the bus mid-performance and
+  something misbehaves, that is a genuinely useful report.
 - A preset manager will **not list** the MARF. Recall and save work regardless —
   they are broadcasts — but the module does not announce itself.
 - Storage-card backup and restore over the bus is **not implemented**.
@@ -73,6 +74,7 @@ Taken on a 200e case with a Studio H WPM, a 259e, a 251e and a Studio H CSR:
 | Command frames intact | 586 / 586 |
 | Preset recalls decoded and applied | 192 / 192 |
 | Preset saves | 16 / 16, plus a verified round trip |
+| Recalls with a sequence loaded and running | 80 / 80 |
 | Bus transaction timing | 592–616 µs, versus 595–616 µs with the module not fitted |
 
 The last row is the one worth understanding: the module's presence is not

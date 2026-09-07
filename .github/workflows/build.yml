@@ -114,10 +114,20 @@ jobs:
             build/MARF.map
           if-no-files-found: error
 
+      - name: Use hand-written release notes when we have them
+        if: github.ref_type == 'tag'
+        run: |
+          NOTES="docs/RELEASE-NOTES-${GITHUB_REF_NAME}.md"
+          if [ -f "$NOTES" ]; then cp "$NOTES" build/NOTES.md; else : > build/NOTES.md; fi
+
       - name: Publish release (on tag)
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
+          body_path: build/NOTES.md
+          # Anything tagged -rc goes out as a pre-release, so it cannot be
+          # mistaken for the current stable build.
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
           files: |
             build/${{ steps.name.outputs.base }}.hex
             build/${{ steps.name.outputs.base }}.bin
