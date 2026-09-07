@@ -195,6 +195,44 @@ static void test_remote_enable_gating(void) {
   CHECK(Bus200eRemoteEnabled());
 }
 
+// A long frame that fails its own validation must NOT be re-read as a short
+// command. Bench-observed 2026-09-06: bit drift turned recalls of presets 8,
+// 16 and 24 into SAVE(16), SAVE(32) and SAVE(48) -- silently overwriting preset
+// slots. Short commands have fixed lengths; enforcing them makes that
+// impossible.
+static void test_corrupt_long_frame_never_becomes_a_save(void) {
+  reset(&fake_ops);
+  /* well-formed long SAVE still works: [04][dest][22][02][slot] */
+  FRAME(0x04, 0x00, 0x22, 0x02, 7);
+  CHECK(n_save == 1 && save_calls[0] == 7);
+
+  /* 5-byte frames whose length byte does not match are NOT short commands */
+  reset(&fake_ops);
+  FRAME(0x01, 0x10, 0x22, 0x02, 6);   /* starts 0x01: a short SAVE is 2 bytes */
+  FRAME(0x00, 0x10, 0x22, 0x02, 6);   /* starts 0x00: a short RECALL is 2 bytes */
+  FRAME(0x08, 0x00, 0x44, 0x02, 6);   /* one-bit-shifted rubbish */
+  CHECK(n_save == 0);
+  CHECK(n_recall == 0);
+  CHECK(Bus200eLogTotal() == 3);      /* all three logged, none acted on */
+
+  /* genuine short commands, at their proper lengths, still work */
+  reset(&fake_ops);
+  FRAME(0x01, 9);                     /* short SAVE, 2 bytes */
+  CHECK(n_save == 1 && save_calls[0] == 9);
+  reset(&fake_ops);
+  FRAME(0x00, 4);                     /* short RECALL, 2 bytes */
+  CHECK(n_recall == 1 && recall_calls[0] == 4);
+  reset(&fake_ops);
+  FRAME(0x14);                        /* remote enable, 1 byte */
+  CHECK(Bus200eRemoteEnabled() == 1);
+
+  /* right command byte, wrong length: refused */
+  reset(&fake_ops);
+  FRAME(0x01);                        /* SAVE with no argument */
+  FRAME(0x14, 0x00);                  /* remote enable with a stray byte */
+  CHECK(n_save == 0);
+}
+
 static void test_preset_range_gating(void) {
   printf("test_preset_range_gating\n");
   /* We cover the whole bus preset space, so the last bus preset must land. */
@@ -374,6 +412,7 @@ void run_bus200e_tests(void) {
   test_all_slots_round_trip();
   test_backup_covers_every_slot();
   test_remote_enable_gating();
+  test_corrupt_long_frame_never_becomes_a_save();
   test_preset_range_gating();
   test_null_ops_logs_only();
   test_backup_job();

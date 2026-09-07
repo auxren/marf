@@ -234,6 +234,15 @@ static volatile uint8_t slv_gc;      // current transaction is the general call
 static volatile uint8_t  slv_scl_lvl = 1;   // the bus idles high
 static volatile uint8_t  slv_sda_confirmed;  // SDA level that survived the confirm
 
+// Cooperative ACK state (see i2c_bb.h). slv_probing marks a frame whose address
+// ACK we deliberately did not drive, so the ACK clock's rising edge can tell us
+// whether anyone else is out there.
+volatile uint8_t  bus200e_peer_state = BUS200E_PEER_UNKNOWN;
+volatile uint32_t bus200e_probe_count;
+static volatile uint8_t  slv_probing;
+static volatile uint8_t  slv_ack_this_frame;   // drive ACKs for the rest of this frame
+static volatile uint16_t slv_frames_since_probe;
+
 // Line-hold failsafe (design note: non-negotiable). TIM10 runs one-shot at
 // 1 MHz and is armed for the whole time we hold EITHER line down: the SCL
 // clamp, and -- just as important -- the ACK bit, during which SDA is driven
@@ -342,6 +351,21 @@ void I2CBB_SclIsr(void) {
     // Arriving here with ==1 and SCL already low means we missed the rising
     // edge, so the high phase is over and releasing now is correct too.
     if (slv_in_ack == 1 && scl) {
+#if BUS200E_COOP_ACK
+      if (slv_probing) {
+        // We did not drive this ACK. SDA low here means somebody else did, so
+        // the bus has a peer that can acknowledge on our behalf. Sampled on the
+        // rising edge, ~5 us after the falling edge, by which time a hardware
+        // slave's 324 ns ACK is long since asserted.
+        bus200e_peer_state = SDA_READ() ? BUS200E_PEER_ABSENT
+                                        : BUS200E_PEER_PRESENT;
+        slv_probing = 0;
+        // If we are alone, start ACKing from the very next byte. This frame is
+        // already lost (its address went unacknowledged) but the next will not
+        // be.
+        if (bus200e_peer_state == BUS200E_PEER_ABSENT) slv_ack_this_frame = 1;
+      }
+#endif
       slv_in_ack = 2;
       return;
     }
@@ -410,7 +434,28 @@ void I2CBB_SclIsr(void) {
       slv_state = SLV_DATA;
       push_ev(BUS200E_EV_START);
       i2cbb_stats.gc_frames++;
+#if BUS200E_COOP_ACK
+      // Decide once per frame: probe, abstain, or ACK.
+      {
+        uint16_t due = (bus200e_peer_state == BUS200E_PEER_ABSENT)
+                         ? BUS200E_PROBE_WHEN_ALONE : BUS200E_PROBE_WITH_PEERS;
+        slv_probing = (bus200e_peer_state == BUS200E_PEER_UNKNOWN ||
+                       slv_frames_since_probe >= due) ? 1u : 0u;
+        if (slv_probing) {
+          slv_frames_since_probe = 0;
+          bus200e_probe_count++;
+        } else {
+          slv_frames_since_probe++;
+        }
+        // Drive only when we believe we are the sole slave and are not probing.
+        slv_ack_this_frame =
+            (uint8_t) (!slv_probing && bus200e_peer_state == BUS200E_PEER_ABSENT);
+      }
+      if (slv_ack_this_frame) SDA_ACK_ADDR();
+#else
+      slv_ack_this_frame = 1;
       SDA_ACK_ADDR();
+#endif
       slv_in_ack = 1;
       SCL_RELEASE();
       // NO disarm here: SDA stays driven low for the whole ACK bit, and it is
@@ -430,7 +475,7 @@ void I2CBB_SclIsr(void) {
     // Completed general-call payload byte.
     push_ev(slv_shift);
     i2cbb_stats.bytes++;
-    SDA_ACK_DATA();
+    if (slv_ack_this_frame) SDA_ACK_DATA();
     slv_in_ack = 1;
     SCL_RELEASE();
     // NO disarm here -- see the address-ACK path above.
@@ -493,6 +538,8 @@ void I2CBB_SdaIsr(void) {
     slv_shift = 0;
     slv_in_ack = 0;
     slv_gc = 0;
+    slv_probing = 0;
+    slv_ack_this_frame = 0;
     i2cbb_stats.starts++;
   }
 }

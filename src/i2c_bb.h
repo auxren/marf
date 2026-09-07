@@ -134,6 +134,44 @@
 // fraction of the 5 us phase.
 #define I2CBB_SCL_CONFIRM_NS   300u
 
+// ---------------------------------------------------------------------------
+// Cooperative ACK.
+//
+// A software slave cannot keep up with this bus: measured on the bench
+// 2026-09-06, hardware slaves pull SDA down 324 ns after the SCL fall, while
+// our ISR takes 1421 ns. Any edge that chatters drifts our bit counter by one,
+// after which we ACK on a data bit, the master loses arbitration and abandons
+// the frame. That cost about a third of all frames.
+//
+// But the MARF never needs to TRANSMIT. Save and recall are broadcasts to the
+// general call address: every module hears them and acts on its own storage.
+// The ACK is a protocol obligation, not a message -- and on a populated bus the
+// other modules discharge it for us. Decoding without ever driving SDA measured
+// 100% intact frames, twice, against ~68% when we ACK.
+//
+// So: if a peer is acknowledging, stay off SDA entirely. If we are the only
+// preset-bus module, we must ACK or the master gets a NACK and aborts.
+//
+// Detection is free in the direction that matters. We simply decline to drive
+// one address ACK and watch whether SDA goes low anyway:
+//   peers present -> it does, the frame completes normally, the probe cost
+//                    nothing, so we can re-probe often and self-heal.
+//   we are alone  -> it does not, that one frame is NACKed, so probe rarely.
+#ifndef BUS200E_COOP_ACK
+#define BUS200E_COOP_ACK 1
+#endif
+// Re-probe interval in general-call frames, per state. Probing while peers are
+// present is free; probing while alone costs one frame each time.
+#define BUS200E_PROBE_WITH_PEERS  16u
+#define BUS200E_PROBE_WHEN_ALONE 256u
+
+#define BUS200E_PEER_UNKNOWN 0
+#define BUS200E_PEER_PRESENT 1
+#define BUS200E_PEER_ABSENT  2
+// Readable over SWD for diagnosis; also drives the DIAG LED readout.
+extern volatile uint8_t bus200e_peer_state;
+extern volatile uint32_t bus200e_probe_count;
+
 #define I2CBB_MASTER_HALF_US     10u    // master half-bit (~50 kHz)
 #define I2CBB_BUSFREE_US         100u   // both lines high this long = bus idle
 #define I2CBB_MASTER_TIMEOUT_MS  5u     // cap on any single stretch/idle wait

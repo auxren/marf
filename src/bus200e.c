@@ -147,21 +147,34 @@ static void parse_frame(void) {
     return;
   }
 
-  // PRIMO framing: first byte is the command.
+  // Short framing: first byte is the command.
+  //
+  // Every short command has a FIXED length, and that must be enforced. A long
+  // frame that fails the check above arrives here intact, and without a length
+  // test its first byte is re-read as a short command -- which is how a
+  // corrupted RECALL becomes a SAVE and silently overwrites a preset slot.
+  // Observed on the bench 2026-09-06: sending recalls of presets 8, 16 and 24
+  // decoded as SAVE(16), SAVE(32) and SAVE(48). A 5-byte frame beginning 0x01
+  // is not a valid 2-byte short SAVE and never could be.
+  //
+  // Refusing on length costs nothing (a real short command always matches) and
+  // turns a silent, destructive mis-decode into an ignored frame.
   switch (f[0]) {
-    case 0x00: c.op = BUS200E_OP_RECALL; c.arg = (n > 1) ? f[1] : 0; break;
-    case 0x01: c.op = BUS200E_OP_SAVE;   c.arg = (n > 1) ? f[1] : 0; break;
-    case 0x14: c.op = BUS200E_OP_REMOTE_EN;  break;
-    case 0x15: c.op = BUS200E_OP_REMOTE_DIS; break;
+    case 0x00:
+      if (n != 2) break;                      /* -> UNKNOWN below */
+      c.op = BUS200E_OP_RECALL; c.arg = f[1]; break;
+    case 0x01:
+      if (n != 2) break;
+      c.op = BUS200E_OP_SAVE;   c.arg = f[1]; break;
+    case 0x14: if (n != 1) break; c.op = BUS200E_OP_REMOTE_EN;  break;
+    case 0x15: if (n != 1) break; c.op = BUS200E_OP_REMOTE_DIS; break;
     case 0x2D:  // dump presets to card: [0x2D, modAddr, memLSB, memMSB, cardLo]
     case 0x2E:  // restore presets from card, same argument order
-      if (n >= 5) {
+      if (n == 5) {
         c.op = (f[0] == 0x2D) ? BUS200E_OP_BACKUP : BUS200E_OP_RESTORE;
         c.mod_addr = f[1];
         c.mem_off = (uint16_t) (f[2] | (f[3] << 8));
         c.card_lo = f[4];
-      } else {
-        c.op = BUS200E_OP_UNKNOWN; c.arg = f[0];
       }
       break;
     default:
@@ -169,11 +182,11 @@ static void parse_frame(void) {
         // Bus MIDI (status-first) and realtime clock ride the same bus.
         c.op = (f[0] >= 0xF8) ? BUS200E_OP_CLOCK : BUS200E_OP_MIDI;
         c.arg = f[0];
-      } else {
-        c.op = BUS200E_OP_UNKNOWN; c.arg = f[0];
       }
       break;
   }
+  // Anything that fell through a length check, or matched nothing, is unknown.
+  if (c.op == BUS200E_OP_NONE) { c.op = BUS200E_OP_UNKNOWN; c.arg = f[0]; }
   dispatch(&c);
 }
 
