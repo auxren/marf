@@ -42,7 +42,60 @@ INCLUDES = \
 
 # Target hardware revision: 2 (default, SAModular/EMS v2) or 1 (v1.x board).
 MARF_HW ?= 2
-DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW)
+
+# 200e preset-bus attachment (docs/DESIGN-200e-bus.md). Off by default; build
+# with BUS200E_ENABLE=1 to compile the bus code in. The first enabled build is
+# RX-log-only (decoded bus commands land in a debug ring; no actions taken).
+BUS200E_ENABLE ?= 0
+# BUS200E_DIAG=1 (with BUS200E_ENABLE=1) paints the bus pin levels and counters
+# on the step LEDs for bring-up without SWD; see src/i2c_bb.h. Never ship it.
+BUS200E_DIAG ?= 0
+# BUS200E_RXLOG_ONLY=1 keeps the bus receive-only: commands are decoded into the
+# debug ring but never act on a preset. Implied by BUS200E_DIAG. Use it to prove
+# the wiring before letting the bus write to the EEPROM.
+BUS200E_RXLOG_ONLY ?= 0
+# Which pins the bus is wired to. Names read SCL then SDA.
+#   auto      per-hardware default: pa10pb3 on v2, pb34 on v1
+#   pa10pb3   TO COMPUTER header: SCL = pin 2 (PA10), SDA = pin 4 (PB3)
+#   pb3pa10   the same two pins with clock and data swapped
+#   pb34      STLINK header: SCL = pin 13 (PB3), SDA = pin 3 (PB4)
+#   pa910     contradicted by the v2.5 schematic (PA9 has no net); do not use
+#             unless a board revision is known to route it
+# See docs/200e-BUS-WIRING.md.
+# Bench forensics for the bus transport (never ship): records which code path
+# left an ACK asserted when the stretch failsafe fires. See src/i2c_bb.c.
+BUS200E_FORENSIC ?= 0
+# Bench experiment only: decode the bus without ever driving SDA. Never ship.
+BUS200E_NO_ACK ?= 0
+# Cooperative ACK: 1 (default) stays off SDA when a peer acknowledges for us;
+# 0 forces the always-ACK path, i.e. how the module behaves as the only
+# preset-bus module in a case. See src/i2c_bb.h.
+BUS200E_COOP_ACK ?= 1
+# Bisect which ACK stops the master: 1 = we ACK it, 0 = we stay off SDA.
+BUS200E_ACK_ADDR ?=
+BUS200E_ACK_DATA ?=
+
+BUS200E_PINS ?= auto
+ifeq ($(BUS200E_PINS),pb34)
+  BUS200E_PIN_DEF = -DBUS200E_PINS_PB3_PB4=1
+else ifeq ($(BUS200E_PINS),pa10pb3)
+  BUS200E_PIN_DEF = -DBUS200E_PINS_PA10_PB3=1
+else ifeq ($(BUS200E_PINS),pb3pa10)
+  BUS200E_PIN_DEF = -DBUS200E_PINS_PB3_PA10=1
+else ifeq ($(BUS200E_PINS),pa910)
+  BUS200E_PIN_DEF = -DBUS200E_PINS_PA9_PA10=1
+else ifeq ($(BUS200E_PINS),auto)
+  BUS200E_PIN_DEF =
+else
+  $(error BUS200E_PINS must be auto, pa10pb3, pb3pa10, pb34 or pa910 (got "$(BUS200E_PINS)"))
+endif
+
+DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW) \
+  -DBUS200E_ENABLE=$(BUS200E_ENABLE) -DBUS200E_DIAG=$(BUS200E_DIAG) \
+  -DBUS200E_RXLOG_ONLY=$(BUS200E_RXLOG_ONLY) -DBUS200E_FORENSIC=$(BUS200E_FORENSIC) -DBUS200E_NO_ACK=$(BUS200E_NO_ACK) -DBUS200E_COOP_ACK=$(BUS200E_COOP_ACK) \
+  $(if $(BUS200E_ACK_ADDR),-DBUS200E_ACK_ADDR=$(BUS200E_ACK_ADDR)) \
+  $(if $(BUS200E_ACK_DATA),-DBUS200E_ACK_DATA=$(BUS200E_ACK_DATA)) \
+  $(BUS200E_PIN_DEF) $(DEFINES_EXTRA)
 
 # ---- Flags ------------------------------------------------------------------
 CPU = -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
@@ -85,10 +138,12 @@ v16: rev1
 HOST_CC    ?= cc
 TEST_SRC    = test/test_core.c test/test_storage.c test/test_scales.c test/test_turing.c \
               test/test_presets.c test/test_clockfollow.c test/test_afg_bench.c \
-              test/test_v1_invariants.c test/test_support.c \
+              test/test_v1_invariants.c test/test_bus200e.c test/test_support.c \
               src/program.c src/analog_data.c src/storage.c src/scales.c src/turing.c \
-              src/presets.c src/clockfollow.c src/afg.c
-TEST_CFLAGS = -std=c11 -Wall -Itest/shim -I$(SRC_DIR)
+              src/presets.c src/clockfollow.c src/afg.c src/bus200e.c
+# The host suite always builds the (pure) bus engine, whatever the target build
+# gates it to.
+TEST_CFLAGS = -std=c11 -Wall -Itest/shim -I$(SRC_DIR) -DBUS200E_ENABLE=1
 # Link libraries must come AFTER the sources (GNU ld is order-sensitive).
 TEST_LIBS   = -lm
 

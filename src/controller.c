@@ -1,4 +1,5 @@
 #include "controller.h"
+#include "afg_critical.h"
 
 #include <stddef.h>
 #include <string.h>  // memcpy
@@ -17,6 +18,11 @@
 #include "watchdog.h"
 #include "scales.h"
 #include "turing.h"
+
+#if BUS200E_ENABLE
+#include "i2c_bb.h"
+#include "bus200e.h"
+#endif
 
 // Step selected for editing (0-31)
 volatile uint8_t edit_mode_step_num = 0;
@@ -290,6 +296,39 @@ void ControllerMainLoop() {
       mode_led_breathe = turing_enabled[disp_afg] && fs.b.VoltageSource;
     }
 
+
+#if BUS200E_ENABLE
+    // 200e preset bus: drain the slave event queue into the parser and run
+    // one chunk of any pending card transfer (superloop context only).
+    {
+      uint16_t bus_ev;
+      while (I2CBB_GetSlaveEvent(&bus_ev)) Bus200eFeedEvent(bus_ev);
+      Bus200eTask();
+    }
+#if BUS200E_DIAG
+    // Bring-up readout on the step LEDs (lit = 1), overriding the step display:
+    //   1 SCL high (no pull)      2 SDA high (no pull)
+    //   3 SCL high (pull-up on)   4 SDA high (pull-up on)
+    //   5 heartbeat ~1 Hz         6 stretch failsafe fired
+    //   7 late fall seen          8 traffic for other addresses seen
+    //   9-12 STARTs seen, low nibble (LED 9 = LSB)
+    //  13-16 general-call frames, low nibble (LED 13 = LSB)
+    {
+      uint8_t raw, pulled;
+      uint32_t lit = 0;
+      I2CBB_DiagProbe(&raw, &pulled);
+      lit |= (uint32_t) (raw & 3u);
+      lit |= (uint32_t) (pulled & 3u) << 2;
+      lit |= ((get_millis() >> 9) & 1u) << 4;
+      lit |= (i2cbb_stats.stretch_timeouts ? 1u : 0u) << 5;
+      lit |= (i2cbb_stats.late_falls ? 1u : 0u) << 6;
+      lit |= (i2cbb_stats.quieted ? 1u : 0u) << 7;
+      lit |= (i2cbb_stats.starts & 0xFu) << 8;
+      lit |= (i2cbb_stats.gc_frames & 0xFu) << 12;
+      steps_leds_lit = 0xFFFFFFFFu & ~lit;
+    }
+#endif
+#endif
 
     // Flush LEDs every 20ms.
     // Shifting out to the leds is kind of slow, so rate limit the update to 50 Hz.
@@ -1200,13 +1239,15 @@ void ControllerCalibrationLoop() {
     }
     marf_stored_twopoint_finalize(&tp);
 
-    __disable_irq();
+    // Long blocking EEPROM erase+write. Targeted mask, not __disable_irq():
+    // a global disable here would swallow 200e bus edges for the whole op.
+    AfgCritState cal_crit = AFG_CRIT_THREAD_ENTER();
     CAT25512_erase();
     CAT25512_write_block(eprom_memory.analog_cal_data.start,
         (unsigned char *) &cal, eprom_memory.analog_cal_data.size);
     CAT25512_write_block(eprom_memory.twopoint_cal_data.start,
         (unsigned char *) &tp, eprom_memory.twopoint_cal_data.size);
-    __enable_irq();
+    afg_crit_exit(cal_crit);
     adc_resume();
 
     // Apply immediately (no reboot needed).
@@ -1319,8 +1360,100 @@ void ControllerLoadCalibration() {
 
 
 // Load program loop
-void ControllerLoadProgramLoop() {
+// ---------------------------------------------------------------------------
+// Slot-level save/load, shared by the front-panel modal loops and (when built
+// with BUS200E_ENABLE) the 200e preset bus. One code path means a bus recall
+// and a panel recall put the module in exactly the same state; the panel loops
+// add only their blocking animations on top.
+//
+// Both run in superloop context (never an ISR): they touch the live program
+// state and talk to the external EEPROM over SPI.
+// ---------------------------------------------------------------------------
+
+// Capture the running program into `out` and stamp magic/version/CRC.
+void ControllerCaptureProgram(StoredProgram *out) {
+  // Prevent slider updates from landing mid-copy.
+  controller_job_flags.inhibit_adc = 1;
+  memcpy((void *) out->payload.steps, (void *) steps, sizeof(steps));
+  memcpy((void *) out->payload.sliders, (void *) sliders, sizeof(sliders));
+  controller_job_flags.inhibit_adc = 0;
+
+  // Per-sequence scale/root and each AFG's stage shift (section).
+  for (uint8_t a = 0; a < 2; a++) {
+    out->payload.scale[a] = afg_scale[a];
+    out->payload.root[a]  = afg_root[a];
+  }
+  out->payload.section[0] = AfgGetControllerState(AFG1).section;
+  out->payload.section[1] = AfgGetControllerState(AFG2).section;
+
+  marf_stored_program_finalize(out);
+}
+
+// Apply a stored record to the running program. Returns 1 if it was valid and
+// applied, 0 if it was empty/old-format/corrupt (live state left untouched).
+int ControllerApplyProgram(const StoredProgram *in) {
+  if (!marf_stored_program_valid(in)) return 0;
+
+  memcpy((void *) steps, (void *) in->payload.steps, sizeof(steps));
+  memcpy((void *) sliders, (void *) in->payload.sliders, sizeof(sliders));
+
+  // Restore per-sequence scale/root (clamped defensively).
+  for (uint8_t a = 0; a < 2; a++) {
+    uint8_t sc = in->payload.scale[a];
+    uint8_t rt = in->payload.root[a];
+    afg_scale[a] = (sc < SCALE_COUNT) ? sc : SCALE_CHROMATIC;
+    afg_root[a]  = (rt < 12) ? rt : 0;
+  }
+
+  // Restore each AFG's saved stage shift (section). The factory presets are
+  // two-part and save AFG 2 on stages 17-32, so loading one and starting both
+  // generators plays the whole arrangement with no manual shift. (Sections only
+  // apply on a 16-slider board; with the expander all 32 stages share one
+  // section, so leave the shift alone.)
+  if (!Is_Expander_Present()) {
+    AfgSetSection(AFG1, in->payload.section[0] & 1);
+    AfgSetSection(AFG2, in->payload.section[1] & 1);
+  }
+
+  // Pin sliders and reset to step 1
+  pin_all_sliders();
+  AfgReset(AFG1);
+  AfgReset(AFG2);
+  return 1;
+}
+
+// Capture the running program into EEPROM slot `slot`. Returns 1 on success,
+// 0 if the slot number is out of range.
+int ControllerSaveProgramToSlot(uint8_t slot) {
   StoredProgram saved_program = {};
+  if (slot >= MARF_PROGRAM_SLOTS) return 0;
+
+  ControllerCaptureProgram(&saved_program);
+  CAT25512_write_block(
+      eprom_memory.programs[slot].start,
+      (unsigned char *) &saved_program,
+      eprom_memory.programs[slot].size);
+
+  // This slot is now the user's: protect it from factory bank updates.
+  FactoryMarkUserSave(slot);
+  return 1;
+}
+
+// Load EEPROM slot `slot` into the running program. Returns 1 on success, 0 if
+// the slot is out of range or holds no valid record.
+int ControllerLoadProgramFromSlot(uint8_t slot) {
+  StoredProgram saved_program = {};
+  if (slot >= MARF_PROGRAM_SLOTS) return 0;
+
+  CAT25512_read_block(
+      eprom_memory.programs[slot].start,
+      (unsigned char *) &saved_program,
+      eprom_memory.programs[slot].size);
+
+  return ControllerApplyProgram(&saved_program);
+}
+
+void ControllerLoadProgramLoop() {
   uint8_t program_num = 0;
   uButtons previous_switches, switches;
   uint32_t switch_last_read_time = 0;
@@ -1328,7 +1461,7 @@ void ControllerLoadProgramLoop() {
   previous_switches.value = HC165_ReadSwitches();
 
   mode_led_breathe = 0;   // this loop sends the mode LEDs directly
-  StepLedsLightSingleStep(0);
+  StepLedsShowSlot(0);
 
   while (1) {
     now = get_millis();
@@ -1346,55 +1479,22 @@ void ControllerLoadProgramLoop() {
       ControllerProcessStageAddressSwitches(&switches);
 
       if (!switches.b.StepRight) {
-        if (program_num >= 15) {
+        if (program_num >= MARF_PROGRAM_SLOTS - 1) {
           program_num = 0;
         } else {
           program_num += 1;
         }
-        StepLedsLightSingleStep(program_num);
+        StepLedsShowSlot(program_num);
       } else if (!switches.b.StepLeft) {
         if (program_num == 0) {
-          program_num = 15;
+          program_num = MARF_PROGRAM_SLOTS - 1;
         } else {
           program_num -= 1;
         }
-        StepLedsLightSingleStep(program_num);
+        StepLedsShowSlot(program_num);
       } else if (!switches.b.ClearUp) {
-        // Load program.
-        // Read from EPROM into temporary saved_program
-        CAT25512_read_block(
-            eprom_memory.programs[program_num].start,
-            (unsigned char *) &saved_program,
-            eprom_memory.programs[program_num].size);
-
-        if (marf_stored_program_valid(&saved_program)) {
-          // Copy from saved_program to steps and sliders
-          memcpy((void *) steps, (void *) saved_program.payload.steps, sizeof(steps));
-          memcpy((void *) sliders, (void *) saved_program.payload.sliders, sizeof(sliders));
-
-          // Restore per-sequence scale/root (clamped defensively)
-          for (uint8_t a = 0; a < 2; a++) {
-            uint8_t sc = saved_program.payload.scale[a];
-            uint8_t rt = saved_program.payload.root[a];
-            afg_scale[a] = (sc < SCALE_COUNT) ? sc : SCALE_CHROMATIC;
-            afg_root[a]  = (rt < 12) ? rt : 0;
-          }
-
-          // Restore each AFG's saved stage shift (section). The factory presets
-          // are two-part and save AFG 2 on stages 17-32, so loading one and
-          // starting both generators plays the whole arrangement with no manual
-          // shift. (Sections only apply on a 16-slider board; with the expander
-          // all 32 stages share one section, so leave the shift alone.)
-          if (!Is_Expander_Present()) {
-            AfgSetSection(AFG1, saved_program.payload.section[0] & 1);
-            AfgSetSection(AFG2, saved_program.payload.section[1] & 1);
-          }
-
-          // Pin sliders and reset to step 1
-          pin_all_sliders();
-          AfgReset(AFG1);
-          AfgReset(AFG2);
-
+        // Load program (same path the 200e bus uses).
+        if (ControllerLoadProgramFromSlot(program_num)) {
           // Cute little animation
           RunLoadProgramAnimation();
         } else {
@@ -1422,14 +1522,13 @@ void ControllerLoadProgramLoop() {
 // Save program loop
 void ControllerSaveProgramLoop() {
   uint8_t program_num = 0;
-  StoredProgram saved_program = {};
   uButtons previous_switches, switches;
   uint32_t switch_last_read_time = 0;
   uint32_t now = 0;
   previous_switches.value = HC165_ReadSwitches();
 
   mode_led_breathe = 0;   // this loop sends the mode LEDs directly
-  StepLedsLightSingleStep(0);
+  StepLedsShowSlot(0);
 
   while (1) {
     now = get_millis();
@@ -1447,45 +1546,22 @@ void ControllerSaveProgramLoop() {
       ControllerProcessStageAddressSwitches(&switches);
 
       if (!switches.b.StepRight) {
-        if (program_num >= 15) {
+        if (program_num >= MARF_PROGRAM_SLOTS - 1) {
           program_num = 0;
         } else {
           program_num += 1;
         }
-        StepLedsLightSingleStep(program_num);
+        StepLedsShowSlot(program_num);
       } else if (!switches.b.StepLeft) {
         if (program_num == 0) {
-          program_num = 15;
+          program_num = MARF_PROGRAM_SLOTS - 1;
         } else {
           program_num -= 1;
         }
-        StepLedsLightSingleStep(program_num);
+        StepLedsShowSlot(program_num);
       } else if (!switches.b.ClearDown) {
-        // Save program
-        // Copy from steps and sliders to temp saved_program.
-        // Prevent updates to slider values during this time.
-        controller_job_flags.inhibit_adc = 1;
-        memcpy((void *) saved_program.payload.steps, (void *) steps, sizeof(steps));
-        memcpy((void *) saved_program.payload.sliders, (void *) sliders, sizeof(sliders));
-        controller_job_flags.inhibit_adc = 0;
-
-        // Capture per-sequence scale/root and each AFG's stage shift (section)
-        for (uint8_t a = 0; a < 2; a++) {
-          saved_program.payload.scale[a] = afg_scale[a];
-          saved_program.payload.root[a]  = afg_root[a];
-        }
-        saved_program.payload.section[0] = AfgGetControllerState(AFG1).section;
-        saved_program.payload.section[1] = AfgGetControllerState(AFG2).section;
-
-        // Stamp magic/version/CRC, then write the record to the EPROM
-        marf_stored_program_finalize(&saved_program);
-        CAT25512_write_block(
-            eprom_memory.programs[program_num].start,
-            (unsigned char *) &saved_program,
-            eprom_memory.programs[program_num].size);
-
-        // This slot is now the user's: protect it from factory bank updates.
-        FactoryMarkUserSave(program_num);
+        // Save program (same path the 200e bus uses).
+        ControllerSaveProgramToSlot(program_num);
 
         // Run cute animation
         RunSaveProgramAnimation();
@@ -1537,9 +1613,10 @@ void ControllerScanAdcLoop() {
     WriteOtherCvWithoutSmoothing(i, new_readings[i]);
   }
 
-  // Now process the pending events
-  // Disable all irq including the function generators
-  __disable_irq();
+  // Now process the pending events. Mask only the handlers that touch AFG
+  // state -- NOT every interrupt. This block contains a delay_us(10) and both
+  // AfgProcessModeChanges calls, long enough to swallow 200e bus edges.
+  AfgCritState pulse_crit = AFG_CRIT_THREAD_ENTER();
   if (any_pulses_high(controller_job_flags.afg1_interrupts)) {
     AfgProcessModeChanges(AFG1, controller_job_flags.afg1_interrupts,
                           controller_job_flags.afg1_pulse_stamp);
@@ -1560,7 +1637,7 @@ void ControllerScanAdcLoop() {
   controller_job_flags.adc_mux_shift_out = 1;
   controller_job_flags.inhibit_adc = 1;
   controller_job_flags.modal_loop = CONTROLLER_MODAL_NONE;
-  __enable_irq();
+  afg_crit_exit(pulse_crit);
   adc_resume();
 }
 

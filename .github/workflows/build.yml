@@ -50,10 +50,19 @@ jobs:
       - name: Build (REV1, v1 hardware)
         run: make -j"$(nproc)" rev1
 
+      - name: Build (v2, 200e preset bus enabled)
+        # Requires a two-wire hardware modification (docs/200e-BUS-WIRING.md).
+        # Shipped as a separate image so nobody flashes it by accident, and NOT
+        # packaged as a one-click flasher for the same reason. v2 only: the v1
+        # pin mapping has never been verified for continuity, and PA10 is a DIP
+        # switch on that board.
+        run: make -j"$(nproc)" BUS200E_ENABLE=1 BUS200E_PINS=pa10pb3 BUILD_DIR=build-200e TARGET=MARF-200E
+
       - name: Report size
         run: |
           arm-none-eabi-size build/MARF.elf
           arm-none-eabi-size build-rev1/MARF-REV1.elf
+          arm-none-eabi-size build-200e/MARF-200E.elf
 
       - name: Build user manual (PDF)
         run: |
@@ -79,6 +88,8 @@ jobs:
           cp build/MARF-Manual.pdf "build/${BASE}-manual.pdf"
           cp build-rev1/MARF-REV1.hex "build/${BASE}-REV1.hex"
           cp build-rev1/MARF-REV1.bin "build/${BASE}-REV1.bin"
+          cp build-200e/MARF-200E.hex "build/${BASE}-v2-200e-bus.hex"
+          cp build-200e/MARF-200E.bin "build/${BASE}-v2-200e-bus.bin"
 
       - name: Package one-click flashers (Easel Weasel)
         run: |
@@ -95,22 +106,36 @@ jobs:
             build/${{ steps.name.outputs.base }}-manual.pdf
             build/${{ steps.name.outputs.base }}-REV1.hex
             build/${{ steps.name.outputs.base }}-REV1.bin
+            build/${{ steps.name.outputs.base }}-v2-200e-bus.hex
+            build/${{ steps.name.outputs.base }}-v2-200e-bus.bin
             build/MARF-Flasher-V2.zip
             build/MARF-Flasher-REV1.zip
             build/MARF.elf
             build/MARF.map
           if-no-files-found: error
 
+      - name: Use hand-written release notes when we have them
+        if: github.ref_type == 'tag'
+        run: |
+          NOTES="docs/RELEASE-NOTES-${GITHUB_REF_NAME}.md"
+          if [ -f "$NOTES" ]; then cp "$NOTES" build/NOTES.md; else : > build/NOTES.md; fi
+
       - name: Publish release (on tag)
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
+          body_path: build/NOTES.md
+          # Anything tagged -rc goes out as a pre-release, so it cannot be
+          # mistaken for the current stable build.
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
           files: |
             build/${{ steps.name.outputs.base }}.hex
             build/${{ steps.name.outputs.base }}.bin
             build/${{ steps.name.outputs.base }}-manual.pdf
             build/${{ steps.name.outputs.base }}-REV1.hex
             build/${{ steps.name.outputs.base }}-REV1.bin
+            build/${{ steps.name.outputs.base }}-v2-200e-bus.hex
+            build/${{ steps.name.outputs.base }}-v2-200e-bus.bin
             build/MARF-Flasher-V2.zip
             build/MARF-Flasher-REV1.zip
           generate_release_notes: true

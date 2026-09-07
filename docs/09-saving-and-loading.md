@@ -1,6 +1,8 @@
 # 9. Saving & loading programs
 
-The module stores **16 programs**. A program captures the full stage
+The module stores **30 programs**, matching the preset space every 200e module
+uses, so a Buchla preset manager on the
+[200e preset bus](200e-BUS-WIRING.md) can drive all of them. A program captures the full stage
 programming **and** all slider positions — including each sequence's
 [scale and root](06-scales.md), each AFG's **stage shift** (whether it plays
 stages 1–16 or 17–32) and every stage's
@@ -16,8 +18,8 @@ will refuse to load garbage (see below).
 
 1. **Briefly press Clear Down** to enter **Save** mode. The Pulse LEDs toggle to
    show you are in save mode.
-2. Use **Stage No Left / Right** to choose one of the 16 memory locations. The step
-   LEDs show the selected location.
+2. Use **Stage No Left / Right** to choose one of the 30 memory locations. The
+   step LEDs show the selected location (see below).
 3. **Briefly press Clear Down again** to save.
 4. The step LEDs **flash downward** to confirm the save.
 
@@ -32,6 +34,18 @@ To **abort** without saving, press either **Display** button.
 4. The step LEDs **flash upward** to confirm the load.
 
 To **abort**, press either **Display** button.
+
+## Reading the slot number
+
+There are 30 memory locations and only 16 step LEDs, so the locations are shown
+in two banks of 16:
+
+- **Slots 1–16** light their step LED **steadily**.
+- **Slots 17–30** light step LED 1–14 **blinking**.
+
+A blinking step LED therefore means "upper bank", the same way a blinking
+Display LED means a generator is [section shifted](10-section-shift.md) onto
+stages 17–32. Stage No Right past slot 30 wraps around to slot 1.
 
 ### If a slot is empty or unreadable
 
@@ -53,11 +67,13 @@ one.
 
 ## Factory presets
 
-A fresh module (or any slot you've never saved to) comes **pre‑loaded** with a
+A fresh module comes with the **first 16 slots pre‑loaded** with a
 bank of ready‑to‑play sequences — load them like any other program. They are a
 starting point: audition one, tweak it, and **save over the slot** to keep your
 version. The factory bank only ever fills slots that are empty or unreadable, so
-it **never overwrites a program you saved**.
+it **never overwrites a program you saved**. **Slots 17‑30 are yours alone**:
+the factory bank never writes to them, so they start empty and stay that way
+until you or the preset bus save something there.
 
 The bank is a mix of recognizable synth lines and patterns that show off the
 module (slides, odd loop lengths, the two independent AFGs):

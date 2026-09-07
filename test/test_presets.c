@@ -117,11 +117,11 @@ static void test_themes(void) {
   CHECK(any_higher == 1);
 }
 
-/* Lay out 16 program slots at the head and the factory record at the tail,
+/* Lay out the program slots at the head and the factory record at the tail,
  * mirroring EpromInitializeMemoryLayout (not compiled for host tests). */
 static void setup_eprom_layout(void) {
   uint16_t start = 0, size = sizeof(StoredProgram);
-  for (uint8_t i = 0; i < 16; i++) {
+  for (uint8_t i = 0; i < MARF_PROGRAM_SLOTS; i++) {
     eprom_memory.programs[i].start = start;
     eprom_memory.programs[i].size  = size;
     start += size;
@@ -163,8 +163,8 @@ static void test_populate_fills_empty_preserves_saved(void) {
 
   PopulateFactoryPresets();
 
-  /* Every slot is now a valid program. */
-  for (uint8_t i = 0; i < 16; i++) {
+  /* Every slot in the factory region is now a valid program. */
+  for (uint8_t i = 0; i < MARF_FACTORY_SLOTS; i++) {
     StoredProgram sp;
     CAT25512_read_block(eprom_memory.programs[i].start,
                         (unsigned char *) &sp, eprom_memory.programs[i].size);
@@ -183,6 +183,58 @@ static void test_populate_fills_empty_preserves_saved(void) {
   /* Idempotent: the bank is now current, so a second run rewrites nothing. */
   PopulateFactoryPresets();
   CHECK(read_marker(5) == 2222);
+}
+
+/* The upgrade contract: growing the slot count appends slots and never moves
+   an existing one, so programs saved by older firmware still read back. */
+static void test_slot_addresses_are_stable(void) {
+  printf("test_slot_addresses_are_stable\n");
+  setup_eprom_layout();
+
+  /* Slots are packed from the head in slot order... */
+  for (uint8_t i = 0; i < MARF_PROGRAM_SLOTS; i++) {
+    CHECK(eprom_memory.programs[i].start == (uint16_t) (i * sizeof(StoredProgram)));
+    CHECK(eprom_memory.programs[i].size == sizeof(StoredProgram));
+  }
+
+  /* ...so the 16 that existed before the bus work are exactly where they were. */
+  for (uint8_t i = 0; i < 16; i++)
+    CHECK(eprom_memory.programs[i].start == (uint16_t) (i * 272u));
+
+  /* The whole region still clears the records anchored at the tail. */
+  uint32_t head_end = (uint32_t) MARF_PROGRAM_SLOTS * sizeof(StoredProgram);
+  uint32_t tail = 0xFFFFu - sizeof(StoredCal) - sizeof(StoredTwoPointCal)
+                          - sizeof(StoredFactory);
+  CHECK(head_end <= tail);
+
+  /* The factory record must never change size: relocating it makes it read
+     back invalid, and the next boot would then reclaim every slot as
+     factory-owned and overwrite the user's programs. */
+  CHECK(sizeof(StoredFactory) == 12);
+}
+
+/* Factory seeding owns slots 0..MARF_FACTORY_SLOTS-1 only. The slots above it
+   are user territory and must be left empty for the bus to fill. */
+static void test_factory_never_touches_user_slots(void) {
+  printf("test_factory_never_touches_user_slots\n");
+  setup_eprom_layout();
+  memset(fake_eeprom, 0xFF, 0x10000);
+
+  PopulateFactoryPresets();
+
+  CHECK(MARF_PROGRAM_SLOTS > MARF_FACTORY_SLOTS);   /* there are user-only slots */
+  for (uint8_t i = MARF_FACTORY_SLOTS; i < MARF_PROGRAM_SLOTS; i++) {
+    StoredProgram sp;
+    CAT25512_read_block(eprom_memory.programs[i].start,
+                        (unsigned char *) &sp, eprom_memory.programs[i].size);
+    CHECK(marf_stored_program_valid(&sp) == 0);     /* still empty */
+  }
+
+  /* A save into a user-only slot sticks, and a later bank update leaves it. */
+  write_user_save(MARF_FACTORY_SLOTS, 4444);
+  FactoryMarkUserSave(MARF_FACTORY_SLOTS);          /* no-op, but must not corrupt */
+  PopulateFactoryPresets();
+  CHECK(read_marker(MARF_FACTORY_SLOTS) == 4444);
 }
 
 static void test_bank_update_refreshes_owned_only(void) {
@@ -277,6 +329,8 @@ static void test_two_part(void) {
 }
 
 void run_presets_tests(void) {
+  test_slot_addresses_are_stable();
+  test_factory_never_touches_user_slots();
   test_build_each_preset_valid();
   test_themes();
   test_feel();

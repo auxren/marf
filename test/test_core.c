@@ -22,6 +22,7 @@ void run_presets_tests(void);
 void run_clockfollow_tests(void);
 void run_afg_bench_tests(void);
 void run_v1_invariants_tests(void);
+void run_bus200e_tests(void);
 #define CHECK(cond) do { \
     g_run++; \
     if (!(cond)) { g_fail++; printf("  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond); } \
@@ -276,6 +277,7 @@ int main(void) {
   run_clockfollow_tests();
   run_afg_bench_tests();
   run_v1_invariants_tests();
+  run_bus200e_tests();
 
   printf("\nMARF_HW=%d: %d checks, %d failed\n", MARF_HW, g_run, g_fail);
   return g_fail ? 1 : 0;

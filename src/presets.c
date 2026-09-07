@@ -330,7 +330,7 @@ static void read_factory_state(StoredFactory *f) {
     // saves over a slot (FactoryMarkUserSave) its bit is cleared and it is
     // protected from every future bank update.
     f->payload.bank_version = 0;
-    f->payload.owned_mask   = 0xFFFFu;
+    f->payload.owned_mask   = 0xFFFFu;   // all MARF_FACTORY_SLOTS bits
   }
 }
 
@@ -347,7 +347,9 @@ void PopulateFactoryPresets(void) {
 
   uint8_t bank_outdated = (fs.payload.bank_version < MARF_FACTORY_BANK_VER);
 
-  for (uint8_t slot = 0; slot < 16; slot++) {
+  // Only the factory region is seeded. Slots at MARF_FACTORY_SLOTS and above
+  // are user-only: they start empty, and nothing here ever writes to them.
+  for (uint8_t slot = 0; slot < MARF_FACTORY_SLOTS; slot++) {
     CAT25512_read_block(eprom_memory.programs[slot].start,
                         (unsigned char *) &sp,
                         eprom_memory.programs[slot].size);
@@ -373,7 +375,8 @@ void PopulateFactoryPresets(void) {
 // Called after the user saves a program into `slot`: that slot is now theirs, so
 // clear its factory-owned bit and it will never be overwritten by a bank update.
 void FactoryMarkUserSave(uint8_t slot) {
-  if (slot > 15) return;
+  // Slots outside the factory region have no ownership bit and need none.
+  if (slot >= MARF_FACTORY_SLOTS) return;
   StoredFactory fs;
   read_factory_state(&fs);
   if (fs.payload.owned_mask & (1u << slot)) {

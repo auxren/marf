@@ -17,10 +17,16 @@ repository.
 6. [Scales & quantizing](06-scales.md) — per‑sequence scales and roots
 7. [Shift‑register (Turing) mode](07-shift-register.md) — looping per‑stage CV generators
 8. [Running & clocking](08-running-and-clocking.md) — start/stop/strobe/advance, modes, loops
-9. [Saving & loading programs](09-saving-and-loading.md) — the 16 memory slots
+9. [Saving & loading programs](09-saving-and-loading.md) — the 30 memory slots
 10. [Section shift](10-section-shift.md) — reaching steps 17–32 without an expander
 11. [Pulse tricks](11-pulse-tricks.md) — useful pulse‑input behaviours
 12. [Troubleshooting](12-troubleshooting.md) — LED signals, recovery, common issues
+
+## Beyond the manual
+
+- [200e preset bus wiring](200e-BUS-WIRING.md) — the two-wire rework that lets a
+  Buchla preset manager save and recall the module's programs. Experimental,
+  not yet validated on hardware.
 
 A combined **PDF** of this manual (`MARF-Manual.pdf`) is attached to each
 [release](https://github.com/auxren/marf/releases). To build it yourself:

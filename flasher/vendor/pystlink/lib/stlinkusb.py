@@ -63,8 +63,13 @@ class StlinkUsbConnector():
         except (usb.core.USBError, ValueError):
             serial = usb.util.get_string(self._dev, self._dev.iSerialNumber)
         if serial != None:
-            if re.search("[0-9a-fA-f]+", serial).span()[1] != 24:
-                serial = ''.join(["%.2x" % ord(c) for c in list(serial)])
+            # Some ST-Link clones report a raw binary serial descriptor with no
+            # hex characters at all, so re.search() returns None. Upstream
+            # dereferences it unguarded and dies during enumeration; treat "no
+            # match" the same as "not a 24-char hex serial" and hex-encode it.
+            m = re.search("[0-9a-fA-f]+", serial)
+            if m is None or m.span()[1] != 24:
+                serial = ''.join(["%.4x" % ord(c) for c in list(serial)])
         return serial
 
     def __init__(self, dbg=None, serial = None, index = 0):
