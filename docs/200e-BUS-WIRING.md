@@ -13,6 +13,73 @@ can save and recall the module's 30 programs.
 
 ---
 
+## Quick start: connecting the module
+
+**You need:** two female-to-female DuPont jumper wires, a soldering iron, and a
+v2 board. That is the whole bill of materials. No level shifter, no resistors,
+no cuts.
+
+**1. Check your case carries the bus.** Power the case with a preset manager
+installed and measure the module slot's power connector against ground:
+
+| Power connector pin | Should read |
+|---|---|
+| pin 8 (yellow) — SCL, the clock | about 5 V |
+| pin 9 (green) — SDA, the data | about 5 V |
+
+Both near 5 V means the bus reaches that slot. Two dead pins mean it does not,
+and nothing below will help. (Some cases idle a little under 5 V — anything
+above ~3.5 V is the bus being present.)
+
+**2. Solder two short wires** to the back of the power connector, one to pin 8
+and one to pin 9. Keep them short and away from the analog section. Do not add a
+ground wire; ground is already shared.
+
+**3. Plug the other ends onto the TO COMPUTER header**, the 2x5 header on the
+v2 board. Pin 1 is marked on the silkscreen; odd pins run down one column and
+even pins down the other.
+
+```
+        TO COMPUTER
+     pin 1  o  o  pin 2   <-- power connector pin 8   (SCL / clock, yellow)
+     pin 3  o  o  pin 4   <-- power connector pin 9   (SDA / data,  green)
+     pin 5  o  o  pin 6       +5 V   DO NOT TOUCH
+     pin 7  o  o  pin 8
+     pin 9  o  o  pin 10      -15 V  DO NOT TOUCH
+```
+
+> **Count twice.** Pin 6 is +5 V and sits directly below pin 4, and pin 10 is
+> −15 V. Both are next to where you are working.
+
+**4. Flash the bus firmware:** the release file named `…-v2-200e-bus.hex`. The
+ordinary image ignores these pins entirely, so nothing happens until you flash
+this one. Equally, if you want to undo everything, flashing the ordinary image
+makes the module inert on the bus again without touching the wiring.
+
+**5. Try it.** Recall a preset from your preset manager. The MARF should load
+that program number, exactly as the front-panel load gesture does.
+
+### If it does not work
+
+- **Nothing happens at all.** Check step 1 again: the bus has to reach the slot.
+- **Still nothing.** Clock and data may be swapped. Rather than resoldering,
+  rebuild with `BUS200E_PINS=pb3pa10`, which is the same two pins the other way
+  round. Swapped lines decode nothing at all and look exactly like a dead bus.
+- **Unplug your ST-Link before judging anything.** Its ribbon loads the data
+  line — measured here, it pushes SDA's rise time from 720 ns to 1200 ns, past
+  the I2C limit — because our SDA pin doubles as TDO on the debug header.
+
+### Things worth knowing
+
+- **The module will not appear in your preset manager's display.** Announcing
+  itself would mean transmitting on the bus, which it deliberately does not do.
+  Recall and save still work, because those are broadcasts every module hears.
+- **With stock firmware the module is inert on the bus**, so a modified module
+  behaves completely normally until you flash the bus image.
+- **v2 boards only.** On v1 hardware these pins are DIP switch inputs.
+
+---
+
 ## What the rework is
 
 Two wires. No level shifter, no resistors, no cuts, no other parts.
