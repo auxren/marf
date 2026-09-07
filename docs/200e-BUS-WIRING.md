@@ -295,8 +295,8 @@ program into the running module. Bus preset 12 on the WPM loads MARF program
 12 (the wire carries 11; the manager's panel is 1-indexed and the wire is
 0-indexed).
 
-**Not yet reliable.** Roughly half the command frames are decoded; the rest are
-dropped and retried. Nothing is corrupted when a frame is lost — the parser
+**Not yet reliable.** Roughly a third of command frames are lost and retried
+(measured 68% intact with the bus in good electrical order). Nothing is corrupted when a frame is lost — the parser
 discards partial frames and the failsafe releases the lines — but you may have
 to send a recall more than once. This is a firmware issue in the bit-banged
 slave, not a wiring one, and it is being worked on. Do not read a missed recall
@@ -307,6 +307,37 @@ build could hold SDA low indefinitely and jam the preset bus for the whole
 case. If a module ever does that, every other module goes silent too, because
 nothing on the bus can signal a start or stop while one device pins the data
 line. Power-cycling the offending module clears it.
+
+## Do not measure this bus with a debugger on it
+
+If you attach an ST-Link to the STLINK header while running the bus, you are
+loading SDA. Our SDA is **PB3, which is also TDO on STLINK pin 13**, so the
+ribbon's cable capacitance hangs directly on the data line. SCL (PA10) reaches
+only the TO COMPUTER header and is unaffected, which makes the effect easy to
+miss: the two lines simply disagree.
+
+Measured on the bench 2026-09-06, same bus, same minute:
+
+| | SCL rise (10-90%) | SDA rise (10-90%) |
+|---|---|---|
+| ST-Link ribbon plugged in | 880 ns | **1200 ns** (over the 1000 ns limit) |
+| ST-Link unplugged | 880 ns | **880 ns** |
+
+A persistent gap between SCL and SDA rise times is the tell. Flash first, then
+unplug the debugger before you measure or trust any timing.
+
+Two other electrical notes from the same session, both worth knowing:
+
+- **A module can clamp the whole bus.** This case idled at 3.94 V rather than
+  5 V, which is a 3.3 V rail plus a diode drop. Pulling modules one at a time
+  found it (a 259e here). It is worth fixing on principle, but note it was NOT
+  what limited reliability, and removing it actually made the measured rise
+  times look *worse* — a line clamped at 4 V reaches 90% of a 4 V swing sooner
+  than 90% of a 4.9 V swing. Judge the bus by rise time, not idle voltage.
+- **Hot-plugging modules into a powered case can wedge the bus.** After
+  reconnecting modules live, both SCL and SDA sat at ~0.12 V with no activity
+  at all. A power cycle cleared it. A single stuck slave normally pins one
+  line; both lines down points at a module coming up in a bad state.
 
 ## Why the bus is bit-banged and not a hardware I2C peripheral
 
