@@ -7,7 +7,7 @@ touches where your presets live.
 
 | File | For |
 |---|---|
-| `marf-…-v2.hex` | v2 boards. **Start here.** |
+| `marf-…-<date>.hex` (no suffix) | v2 boards. **Start here.** |
 | `marf-…-REV1.hex` | original v1.x boards (REV1) |
 | `marf-…-v2-200e-bus.hex` | v2 boards **that have had the two-wire 200e bus modification** |
 
@@ -17,6 +17,10 @@ image but carries code you cannot use, so flash the normal one. It is
 deliberately not offered as a one-click flasher, to make it hard to pick by
 accident. There is no REV1 bus image: that pin mapping has never been verified
 for continuity on v1 hardware.
+
+If you would rather not deal with a programmer, `MARF-Flasher-V2.zip` and
+`MARF-Flasher-REV1.zip` carry the same two normal images with a one-click
+installer. The bus image is `.hex` only, on purpose.
 
 ## New
 
