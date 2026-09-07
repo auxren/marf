@@ -132,6 +132,11 @@ volatile uint32_t fs_fires;                 // failsafe firings
 volatile uint32_t fs_start_during_ack;      // START seen while we held the ACK
 volatile uint32_t fs_stop_during_ack;       // STOP  seen while we held the ACK
 volatile uint32_t fs_quiet_during_ack;      // went quiet while we held the ACK
+// Our OWN ACK assert cost: cycles from SCL-ISR entry to the instant we pull SDA
+// down. The analyzer cannot measure this when peers are present, because SDA is
+// a wired-OR and whichever slave is quickest sets the edge. 168 cycles = 1 us.
+volatile uint32_t fs_ack_cycles_max, fs_ack_cycles_last, fs_ack_n;
+static volatile uint32_t fs_isr_entry;
 volatile uint32_t fs_scl_isr;               // SCL ISR entries that we acted on
 volatile uint32_t fs_scl_same;              // entries where the level had NOT changed
 static volatile uint8_t fs_scl_last = 1;
@@ -326,6 +331,7 @@ void I2CBB_SclIsr(void) {
 #if BUS200E_FORENSIC
   {
     uint8_t lvl = (uint8_t) (SCL_READ() ? 1 : 0);
+    fs_isr_entry = CLOCK_SOURCE_GET_TIMER();
     fs_scl_isr++;
     if (lvl == fs_scl_last) fs_scl_same++;
     fs_scl_last = lvl;
@@ -473,6 +479,13 @@ void I2CBB_SclIsr(void) {
             (uint8_t) (!slv_probing && bus200e_peer_state == BUS200E_PEER_ABSENT);
       }
       if (slv_ack_this_frame) SDA_ACK_ADDR();
+#if BUS200E_FORENSIC
+      if (slv_ack_this_frame) {
+        uint32_t c = CLOCK_SOURCE_GET_TIMER() - fs_isr_entry;
+        fs_ack_cycles_last = c; fs_ack_n++;
+        if (c > fs_ack_cycles_max) fs_ack_cycles_max = c;
+      }
+#endif
 #else
       slv_ack_this_frame = 1;
       SDA_ACK_ADDR();
@@ -498,6 +511,13 @@ void I2CBB_SclIsr(void) {
     push_ev(slv_shift);
     i2cbb_stats.bytes++;
     if (slv_ack_this_frame) SDA_ACK_DATA();
+#if BUS200E_FORENSIC
+      if (slv_ack_this_frame) {
+        uint32_t c = CLOCK_SOURCE_GET_TIMER() - fs_isr_entry;
+        fs_ack_cycles_last = c; fs_ack_n++;
+        if (c > fs_ack_cycles_max) fs_ack_cycles_max = c;
+      }
+#endif
     slv_in_ack = 1;
     if (slv_ack_this_frame) SCL_RELEASE();
     // NO disarm here -- see the address-ACK path above.

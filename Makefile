@@ -67,6 +67,10 @@ BUS200E_RXLOG_ONLY ?= 0
 BUS200E_FORENSIC ?= 0
 # Bench experiment only: decode the bus without ever driving SDA. Never ship.
 BUS200E_NO_ACK ?= 0
+# Cooperative ACK: 1 (default) stays off SDA when a peer acknowledges for us;
+# 0 forces the always-ACK path, i.e. how the module behaves as the only
+# preset-bus module in a case. See src/i2c_bb.h.
+BUS200E_COOP_ACK ?= 1
 # Bisect which ACK stops the master: 1 = we ACK it, 0 = we stay off SDA.
 BUS200E_ACK_ADDR ?=
 BUS200E_ACK_DATA ?=
@@ -88,7 +92,7 @@ endif
 
 DEFINES = -DSTM32F40XX -DSTM32F4XX -DUSE_STDPERIPH_DRIVER -DMARF_HW=$(MARF_HW) \
   -DBUS200E_ENABLE=$(BUS200E_ENABLE) -DBUS200E_DIAG=$(BUS200E_DIAG) \
-  -DBUS200E_RXLOG_ONLY=$(BUS200E_RXLOG_ONLY) -DBUS200E_FORENSIC=$(BUS200E_FORENSIC) -DBUS200E_NO_ACK=$(BUS200E_NO_ACK) \
+  -DBUS200E_RXLOG_ONLY=$(BUS200E_RXLOG_ONLY) -DBUS200E_FORENSIC=$(BUS200E_FORENSIC) -DBUS200E_NO_ACK=$(BUS200E_NO_ACK) -DBUS200E_COOP_ACK=$(BUS200E_COOP_ACK) \
   $(if $(BUS200E_ACK_ADDR),-DBUS200E_ACK_ADDR=$(BUS200E_ACK_ADDR)) \
   $(if $(BUS200E_ACK_DATA),-DBUS200E_ACK_DATA=$(BUS200E_ACK_DATA)) \
   $(BUS200E_PIN_DEF) $(DEFINES_EXTRA)

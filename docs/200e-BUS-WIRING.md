@@ -311,10 +311,24 @@ program into the running module. Bus preset 12 on the WPM loads MARF program
 12 (the wire carries 11; the manager's panel is 1-indexed and the wire is
 0-indexed).
 
-**Reliable.** 194 of 194 command frames intact across three runs, and 72 of 72
-recalls decoded correctly, with the debugger detached. Measured again in the
-*unfavourable* electrical configuration (all modules fitted, bus clamped to
-3.9 V, ST-Link attached loading SDA) it was still 100%, so there is margin. Nothing is corrupted when a frame is lost — the parser
+**Reliable.** Soak-tested 2026-09-06:
+
+| Test | Result |
+|---|---|
+| Command frames intact on the wire | **586 / 586** |
+| Preset recalls decoded and applied | **192 / 192** |
+| Payload bytes received | every one |
+| Dropped frames, stuck lines, spurious saves | none |
+
+Bus transaction timing (592-616 us) is indistinguishable from the module not
+being fitted (595-616 us), so the MARF costs the bus nothing. Measured again in
+the *unfavourable* electrical configuration -- all modules fitted, bus clamped
+to 3.9 V by a 259e, ST-Link attached and loading SDA -- it was still 100%, so
+there is margin.
+
+The always-acknowledge path, which is how the module behaves when it is the
+only preset-bus module in a case, also measures 100% (including a deliberately
+slowed diagnostic build). Nothing is corrupted when a frame is lost — the parser
 discards partial frames and the failsafe releases the lines — but you may have
 to send a recall more than once. This is a firmware issue in the bit-banged
 slave, not a wiring one, and it is being worked on. Do not read a missed recall
