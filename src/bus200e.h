@@ -75,8 +75,18 @@
 // Costs one extra read pass over the bank, so a backup occupies the bus for
 // roughly twice as long. Worth it: a backup nobody checked is not a backup.
 // Needs card_read; without it the write is unverified and proceeds as before.
+// DEFAULT OFF, deliberately. The read-back uses I2CBB_MasterRead, and the card
+// master path has never been verified end to end on real hardware. Shipping
+// this on by default in v3.5-rc2 broke whole-bank BACKUP on a live bus: the
+// read came back unusable, the compare failed, and the transfer aborted after
+// a single record. Turning a safety check on before its own mechanism has been
+// exercised converts a working backup into a failing one, which is worse than
+// the silent hole it was written to catch.
+//
+// Turn it on with BUS200E_VERIFY_WRITES=1 once the card read path has been
+// confirmed against real hardware.
 #ifndef BUS200E_VERIFY_WRITES
-#define BUS200E_VERIFY_WRITES 1
+#define BUS200E_VERIFY_WRITES 0
 #endif
 
 // Decoded operations, for the debug ring and dispatch.
@@ -130,7 +140,13 @@ typedef struct {
   uint32_t dropped;          // frames discarded (poisoned/preempted/overlong)
   uint32_t job_errors;       // card transfers aborted on an ops error
   uint32_t restore_rejects;  // restore records that failed validation
-  uint32_t verify_failures;  // backup records that read back wrong (see below)
+  uint32_t verify_failures;  // backup records that read back WRONG: a real
+                             // bad write, and the job aborts
+  uint32_t verify_unavailable; // backup records that could not be read back at
+                             // all. NOT a bad write -- the write was ACKed and
+                             // we simply could not confirm it, so the transfer
+                             // continues unverified rather than discarding a
+                             // probably-good backup.
 } Bus200eStats;
 
 // Reset all state (parser, remote-enable, job, log, stats) and store `ops`.

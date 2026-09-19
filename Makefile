@@ -73,7 +73,7 @@ BUS200E_NO_ACK ?= 0
 BUS200E_COOP_ACK ?= 1
 
 # Read each backup record back off the card and compare before advancing.
-BUS200E_VERIFY_WRITES ?= 1
+BUS200E_VERIFY_WRITES ?= 0
 # Bisect which ACK stops the master: 1 = we ACK it, 0 = we stay off SDA.
 BUS200E_ACK_ADDR ?=
 BUS200E_ACK_DATA ?=
@@ -146,7 +146,7 @@ TEST_SRC    = test/test_core.c test/test_storage.c test/test_scales.c test/test_
               src/presets.c src/clockfollow.c src/afg.c src/bus200e.c
 # The host suite always builds the (pure) bus engine, whatever the target build
 # gates it to.
-TEST_CFLAGS = -std=c11 -Wall -Itest/shim -I$(SRC_DIR) -DBUS200E_ENABLE=1
+TEST_CFLAGS = -std=c11 -Wall -Itest/shim -I$(SRC_DIR) -DBUS200E_ENABLE=1 -DBUS200E_VERIFY_WRITES=1
 # Link libraries must come AFTER the sources (GNU ld is order-sensitive).
 TEST_LIBS   = -lm
 

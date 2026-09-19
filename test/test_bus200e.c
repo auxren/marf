@@ -33,6 +33,7 @@ static int n_sr, n_cr;
 static int fail_card_write;      /* fail the n-th card_write (1-based; 0 = never) */
 static int corrupt_odd_reads;    /* card_read returns invalid records for odd slots */
 static int corrupt_readback_at;  /* 1-based: n-th card_read returns altered data */
+static int fail_card_read;       /* fail the n-th card_read (1-based; 0 = never) */
 
 static void f_save(uint8_t slot) { save_calls[n_save++] = slot; }
 static void f_recall(uint8_t slot) { recall_calls[n_recall++] = slot; }
@@ -63,6 +64,7 @@ static int f_card_write(uint8_t card7, uint32_t off, const uint8_t *d, uint32_t 
 
 static int f_card_read(uint8_t card7, uint32_t off, uint8_t *d, uint32_t n) {
   (void) card7;
+  if (fail_card_read && n_cr + 1 == fail_card_read) { n_cr++; return -1; }
   StoredProgram rec;
   uint32_t slot = (n_cr < BUS200E_SLOT_COUNT) ? (uint32_t) n_cr : 0;
   (void) off;
@@ -129,6 +131,7 @@ static void reset(const Bus200eOps *ops) {
   n_save = n_recall = n_cw = n_sw = n_sr = n_cr = n_bw = 0;
   fail_card_write = 0;
   corrupt_readback_at = 0;
+  fail_card_read = 0;
   fail_bus_write = 0;
   corrupt_odd_reads = 0;
   memset(bw_calls, 0, sizeof(bw_calls));
@@ -396,6 +399,23 @@ static void test_backup_without_card_read_still_completes(void) {
   CHECK(Bus200eGetStats()->verify_failures == 0);
 }
 
+/* A card we cannot READ is not the same as a write that did not land. The
+   write was ACKed; we simply could not confirm it. Aborting there would throw
+   away a probably-good backup and leave the user worse off than with no
+   verification at all. */
+static void test_unreadable_card_does_not_fail_a_good_backup(void) {
+  printf("test_unreadable_card_does_not_fail_a_good_backup\n");
+  reset(&fake_ops);
+  fail_card_read = 2;
+  FRAME(0x2D, BUS200E_MODULE_ADDR, 0x00, 0x00, 0x00);
+  for (int i = 0; i < BUS200E_SLOT_COUNT; i++) Bus200eTask();
+  CHECK(!Bus200eJobActive());
+  CHECK(n_cw == BUS200E_SLOT_COUNT);        /* all 30 written, not aborted */
+  CHECK(Bus200eGetStats()->job_errors == 0);
+  CHECK(Bus200eGetStats()->verify_failures == 0);   /* no bad write seen */
+  CHECK(Bus200eGetStats()->verify_unavailable == 1);/* one went unconfirmed */
+}
+
 static void test_restore_validates_records(void) {
   printf("test_restore_validates_records\n");
   reset(&fake_ops);
@@ -638,6 +658,7 @@ void run_bus200e_tests(void) {
   test_backup_verifies_each_record_by_reading_it_back();
   test_backup_aborts_when_a_record_reads_back_wrong();
   test_backup_without_card_read_still_completes();
+  test_unreadable_card_does_not_fail_a_good_backup();
   test_restore_validates_records();
   test_second_job_dropped_while_busy();
   test_midi_and_clock_log_only();

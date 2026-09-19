@@ -329,8 +329,13 @@ void Bus200eTask(void) {
     // only and is never reentered.
     if (bus_ops->card_read) {
       static StoredProgram back;
-      if (bus_ops->card_read(card7, off, (uint8_t *) &back, sizeof(back)) != 0 ||
-          memcmp(&back, &rec, sizeof(rec)) != 0) {
+      if (bus_ops->card_read(card7, off, (uint8_t *) &back, sizeof(back)) != 0) {
+        // Could not read it back. The write itself was ACKed, so this says
+        // nothing about whether the data landed -- treating it as a bad write
+        // would discard a probably-good backup and leave the user worse off
+        // than with no verification at all. Record it and carry on unverified.
+        stats.verify_unavailable++;
+      } else if (memcmp(&back, &rec, sizeof(rec)) != 0) {
         stats.verify_failures++;
         stats.job_errors++;
         job.active = 0;
