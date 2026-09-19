@@ -47,14 +47,34 @@ typedef struct {
   uint8_t    scale[2];   // per-AFG quantizer scale
   uint8_t    root[2];    // per-AFG quantizer root
   uint8_t    section[2]; // per-AFG stage shift (0 = stages 1-16, 1 = 17-32)
-} ProgramPayload;  // 262 bytes
+} ProgramPayload;  // 264 bytes -- NOT 262. The members sum to 262 (128 + 128
+                   // + 6), but the struct is 4-byte aligned and pads to 264,
+                   // and the CRC is taken over sizeof(payload), so those two
+                   // padding bytes are inside it. Anyone computing this CRC
+                   // off-device (a preset editor, a test fixture) must use
+                   // 264 or produce records this module correctly rejects.
+                   // Confirmed against a real 8160-byte bank: 264 validates
+                   // 30/30 records, 262 validates none.
 
 typedef struct {
   uint32_t magic;
   uint16_t version;
-  uint16_t crc;        // CRC-16/CCITT over payload
+  uint16_t crc;        // CRC-16/CCITT-FALSE (init 0xFFFF, poly 0x1021, no
+                       // reflection, no final xor) over the 264-byte payload
   ProgramPayload payload;
 } StoredProgram;
+
+// Pinned deliberately. These sizes are load-bearing in two places that fail
+// silently and expensively: every saved preset's EEPROM address (see the
+// UPGRADE CONTRACT above) and the 272-byte record stride a storage card is
+// written with. Growing the payload shifts every slot and invalidates every
+// preset a user has saved, so make that a compile error rather than a
+// discovery. Changing these means bumping MARF_PROGRAM_VERSION and handling
+// the migration.
+_Static_assert(sizeof(ProgramPayload) == 264,
+               "ProgramPayload size is fixed; growing it moves every slot");
+_Static_assert(sizeof(StoredProgram) == 272,
+               "StoredProgram is the card record stride; it must stay 272");
 
 // ---- Calibration ----------------------------------------------------------
 typedef struct {
