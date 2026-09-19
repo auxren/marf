@@ -320,6 +320,24 @@ void Bus200eTask(void) {
       job.active = 0;
       return;
     }
+
+#if BUS200E_VERIFY_WRITES
+    // Read it back. A wire-level ACK is not proof of storage: a receiver that
+    // overruns its buffer ACKs in hardware and drops the bytes anyway, which
+    // leaves a hole no error path can see. Compare or do not claim it stored.
+    // Static, not a second 272-byte stack frame: this runs in the superloop
+    // only and is never reentered.
+    if (bus_ops->card_read) {
+      static StoredProgram back;
+      if (bus_ops->card_read(card7, off, (uint8_t *) &back, sizeof(back)) != 0 ||
+          memcmp(&back, &rec, sizeof(rec)) != 0) {
+        stats.verify_failures++;
+        stats.job_errors++;
+        job.active = 0;
+        return;
+      }
+    }
+#endif
   }
 
   job.next_slot++;

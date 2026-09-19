@@ -32,6 +32,7 @@ static int n_sw;
 static int n_sr, n_cr;
 static int fail_card_write;      /* fail the n-th card_write (1-based; 0 = never) */
 static int corrupt_odd_reads;    /* card_read returns invalid records for odd slots */
+static int corrupt_readback_at;  /* 1-based: n-th card_read returns altered data */
 
 static void f_save(uint8_t slot) { save_calls[n_save++] = slot; }
 static void f_recall(uint8_t slot) { recall_calls[n_recall++] = slot; }
@@ -69,6 +70,10 @@ static int f_card_read(uint8_t card7, uint32_t off, uint8_t *d, uint32_t n) {
   rec.payload.steps[0].val[0] = (uint8_t) slot;
   marf_stored_program_finalize(&rec);
   if (corrupt_odd_reads && (slot & 1)) rec.crc ^= 0xFFFF;
+  /* The harness builds slot_read and card_read records identically, so a
+     backup's read-back compares equal unless we deliberately alter one. */
+  if (corrupt_readback_at && n_cr + 1 == corrupt_readback_at)
+    rec.payload.steps[0].val[0] ^= 0xFF;
   if (n > sizeof(rec)) n = sizeof(rec);
   memcpy(d, &rec, n);
   n_cr++;
@@ -95,6 +100,12 @@ static const Bus200eOps fake_ops = {
   f_bus_write,
 };
 
+/* Ops without card_read: a backup cannot verify itself, and must still run. */
+static const Bus200eOps fake_ops_no_read = {
+  f_save, f_recall, f_slot_read, f_slot_write, f_card_write, NULL,
+  f_bus_write,
+};
+
 /* Ops with every callback present except the reply path. */
 static const Bus200eOps ops_no_bus_write = {
   f_save, f_recall, f_slot_read, f_slot_write, f_card_write, f_card_read,
@@ -117,6 +128,7 @@ static void reset(const Bus200eOps *ops) {
   Bus200eInit(ops);
   n_save = n_recall = n_cw = n_sw = n_sr = n_cr = n_bw = 0;
   fail_card_write = 0;
+  corrupt_readback_at = 0;
   fail_bus_write = 0;
   corrupt_odd_reads = 0;
   memset(bw_calls, 0, sizeof(bw_calls));
@@ -344,6 +356,44 @@ static void test_backup_aborts_on_error(void) {
   CHECK(!Bus200eJobActive());
   CHECK(n_cw == 2);                         /* two good writes, then abort */
   CHECK(Bus200eGetStats()->job_errors == 1);
+}
+
+static void test_backup_verifies_each_record_by_reading_it_back(void) {
+  printf("test_backup_verifies_each_record_by_reading_it_back\n");
+  reset(&fake_ops);
+  FRAME(0x2D, BUS200E_MODULE_ADDR, 0x00, 0x00, 0x00);
+  for (int i = 0; i < BUS200E_SLOT_COUNT; i++) Bus200eTask();
+  CHECK(!Bus200eJobActive());
+  CHECK(n_cw == BUS200E_SLOT_COUNT);        /* every record written ... */
+  CHECK(n_cr == BUS200E_SLOT_COUNT);        /* ... and every one read back */
+  CHECK(Bus200eGetStats()->verify_failures == 0);
+  CHECK(Bus200eGetStats()->job_errors == 0);
+}
+
+static void test_backup_aborts_when_a_record_reads_back_wrong(void) {
+  printf("test_backup_aborts_when_a_record_reads_back_wrong\n");
+  reset(&fake_ops);
+  /* The card ACKs the write but stores something else -- the silent hole a
+     wire-level ACK cannot rule out. Without the read-back this run would
+     finish reporting success. */
+  corrupt_readback_at = 3;
+  FRAME(0x2D, BUS200E_MODULE_ADDR, 0x00, 0x00, 0x00);
+  for (int i = 0; i < BUS200E_SLOT_COUNT; i++) Bus200eTask();
+  CHECK(!Bus200eJobActive());               /* stopped, did not run to 30 */
+  CHECK(n_cw == 3);                         /* aborted on the third record */
+  CHECK(Bus200eGetStats()->verify_failures == 1);
+  CHECK(Bus200eGetStats()->job_errors == 1);
+}
+
+static void test_backup_without_card_read_still_completes(void) {
+  printf("test_backup_without_card_read_still_completes\n");
+  reset(&fake_ops_no_read);
+  FRAME(0x2D, BUS200E_MODULE_ADDR, 0x00, 0x00, 0x00);
+  for (int i = 0; i < BUS200E_SLOT_COUNT; i++) Bus200eTask();
+  CHECK(!Bus200eJobActive());
+  CHECK(n_cw == BUS200E_SLOT_COUNT);        /* unverified, but not broken */
+  CHECK(n_cr == 0);
+  CHECK(Bus200eGetStats()->verify_failures == 0);
 }
 
 static void test_restore_validates_records(void) {
@@ -585,6 +635,9 @@ void run_bus200e_tests(void) {
   test_backup_other_module_ignored();
   test_pre_primo_backup_args();
   test_backup_aborts_on_error();
+  test_backup_verifies_each_record_by_reading_it_back();
+  test_backup_aborts_when_a_record_reads_back_wrong();
+  test_backup_without_card_read_still_completes();
   test_restore_validates_records();
   test_second_job_dropped_while_busy();
   test_midi_and_clock_log_only();

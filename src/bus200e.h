@@ -64,6 +64,21 @@
 // Storage cards slave at 0x50|cardLo and speak a 24xx-EEPROM-style protocol.
 #define BUS200E_CARD_BASE 0x50
 
+// Read every backup record back off the card and compare it before moving on.
+//
+// A card write that is ACKed on the wire is not proof the data landed: a
+// receiver whose buffer overruns still ACKs in hardware, and a short transfer
+// then completes with no error anywhere -- state DONE, error NONE, a third of
+// the bank missing. That failure was observed on a real bus on 2026-09-18.
+// Verifying turns a silent hole into an abort with verify_failures set.
+//
+// Costs one extra read pass over the bank, so a backup occupies the bus for
+// roughly twice as long. Worth it: a backup nobody checked is not a backup.
+// Needs card_read; without it the write is unverified and proceeds as before.
+#ifndef BUS200E_VERIFY_WRITES
+#define BUS200E_VERIFY_WRITES 1
+#endif
+
 // Decoded operations, for the debug ring and dispatch.
 typedef enum {
   BUS200E_OP_NONE = 0,
@@ -115,6 +130,7 @@ typedef struct {
   uint32_t dropped;          // frames discarded (poisoned/preempted/overlong)
   uint32_t job_errors;       // card transfers aborted on an ops error
   uint32_t restore_rejects;  // restore records that failed validation
+  uint32_t verify_failures;  // backup records that read back wrong (see below)
 } Bus200eStats;
 
 // Reset all state (parser, remote-enable, job, log, stats) and store `ops`.
