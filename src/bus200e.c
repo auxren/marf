@@ -250,10 +250,22 @@ void Bus200eFeedEvent(uint16_t ev) {
 
 void Bus200eTask(void) {
   // Answer a pending QUERY before touching the card job: it is one short
-  // frame, the requester is waiting on it, and a card transfer can occupy the
-  // bus for many milliseconds. Dropped rather than retried if the write fails
+  // frame and the requester is waiting on it, where a card record takes
+  // hundreds of times longer. Dropped rather than retried if the write fails
   // -- the manager re-queries, and a module that spins here would fight the
   // bus it just lost.
+  //
+  // Deliberately falls through to the job rather than returning. Returning
+  // would cost a whole Task call per query, and an enumeration sweep of the
+  // address space is ~112 of them -- with 0x1B answered unconditionally, a
+  // sweep run during a backup would repeatedly starve the transfer.
+  //
+  // reply_pending is one flag, not a count: two requests arriving between
+  // Task calls yield one reply. That is deliberate. The reply carries no
+  // per-request state (it is the same five bytes every time), every module
+  // answers a 0x1B at once so the bus is already contended, and a requester
+  // that hears nothing re-queries. Coalescing is the friendlier failure on a
+  // shared wire than emitting a burst.
   if (reply_pending) {
     reply_pending = 0;
     if (bus_ops && bus_ops->bus_write) {
@@ -266,7 +278,6 @@ void Bus200eTask(void) {
       };
       bus_ops->bus_write(reply, sizeof(reply));
     }
-    return;
   }
 
   if (!job.active) return;

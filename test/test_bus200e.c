@@ -527,6 +527,42 @@ static void test_query_does_not_disturb_a_card_job(void) {
   CHECK(!Bus200eJobActive());
 }
 
+/* A reply must not cost the transfer a Task call: an enumeration sweep is
+   ~112 queries, and 0x1B is answered unconditionally, so a sweep running
+   during a backup would otherwise starve it one call at a time. */
+static void test_reply_does_not_steal_a_job_slot(void) {
+  printf("test_reply_does_not_steal_a_job_slot\n");
+  reset(&fake_ops);
+  FRAME(0x07, 0x00, 0x22, 0x04, BUS200E_MODULE_ADDR, 0x00, 0x00, 0x00);
+  FRAME(0x04, BUS200E_MODULE_ADDR, 0x22, 0x1A, 0xFF);
+  Bus200eTask();                  /* one call: reply AND one record */
+  CHECK(n_bw == 1);
+  CHECK(n_cw == 1);
+
+  /* Sustained: a query before every call still ships one record per call. */
+  reset(&fake_ops);
+  FRAME(0x07, 0x00, 0x22, 0x04, BUS200E_MODULE_ADDR, 0x00, 0x00, 0x00);
+  for (int i = 0; i < BUS200E_SLOT_COUNT; i++) {
+    FRAME(0x04, 0x44, 0x22, 0x1B, 0xFF);   /* broadcast: always answered */
+    Bus200eTask();
+  }
+  CHECK(n_cw == BUS200E_SLOT_COUNT);       /* transfer completed regardless */
+  CHECK(n_bw == BUS200E_SLOT_COUNT);
+  CHECK(!Bus200eJobActive());
+}
+
+/* Two requests between Task calls coalesce into one reply, by design. */
+static void test_replies_coalesce(void) {
+  printf("test_replies_coalesce\n");
+  reset(&fake_ops);
+  FRAME(0x04, BUS200E_MODULE_ADDR, 0x22, 0x1A, 0xFF);
+  FRAME(0x04, 0x44, 0x22, 0x1B, 0xFF);
+  Bus200eTask();
+  CHECK(n_bw == 1);               /* one frame, not a burst */
+  Bus200eTask();
+  CHECK(n_bw == 1);
+}
+
 void run_bus200e_tests(void) {
   test_query_replies_when_addressed();
   test_query_for_another_module_is_silent();
@@ -535,6 +571,8 @@ void run_bus200e_tests(void) {
   test_query_without_reply_path_is_safe();
   test_query_reply_failure_is_not_retried_forever();
   test_query_does_not_disturb_a_card_job();
+  test_reply_does_not_steal_a_job_slot();
+  test_replies_coalesce();
   test_primo_recall_save();
   test_pre_primo_recall_save();
   test_all_slots_round_trip();
