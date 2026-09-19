@@ -72,7 +72,8 @@ typedef enum {
   BUS200E_OP_REMOTE_EN,
   BUS200E_OP_REMOTE_DIS,
   BUS200E_OP_POLL_DONE,   // pre-PRIMO "polling complete" (no action)
-  BUS200E_OP_QUERY,       // mod_addr = queried module (response is phase 2)
+  BUS200E_OP_QUERY,       // mod_addr = queried module; we answer if it is us
+  BUS200E_OP_ENUM,        // 0x1B broadcast enumerate: every module answers
   BUS200E_OP_BACKUP,      // mod_addr/card_lo/mem_off populated
   BUS200E_OP_RESTORE,     // mod_addr/card_lo/mem_off populated
   BUS200E_OP_MIDI,        // arg = status byte (phase 2; log only)
@@ -102,6 +103,11 @@ typedef struct {
   // offset; the implementation encodes it on the wire. 0 = ok.
   int (*card_write)(uint8_t card7, uint32_t off, const uint8_t *d, uint32_t n);
   int (*card_read)(uint8_t card7, uint32_t off, uint8_t *d, uint32_t n);
+  // Raw general-call master write: put these bytes on the bus addressed to
+  // 0x00, once, when the bus is quiet. Used for the QUERY / enumerate reply,
+  // which is a frame rather than an EEPROM-style offset+data transfer, so it
+  // cannot go through card_write. NULL = this build never answers a QUERY.
+  int (*bus_write)(const uint8_t *d, uint32_t n);               // 0 = ok
 } Bus200eOps;
 
 typedef struct {

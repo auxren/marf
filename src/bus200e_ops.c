@@ -124,6 +124,22 @@ static int ops_card_read(uint8_t card7, uint32_t off, uint8_t *d, uint32_t n) {
   return I2CBB_MasterRead(card7, pre, sizeof(pre), d, n) == I2CBB_OK ? 0 : -1;
 }
 
+// ---- General-call reply (we master the bus, briefly) -----------------------
+
+// A QUERY reply is a bare frame to the general-call address, not an
+// EEPROM-style offset+data transfer, so it cannot reuse ops_card_write: that
+// one prefixes address bytes and then waits out a write cycle the general
+// call has no concept of. One write, no prefix, no delay.
+//
+// Arbitration matters here in a way it does not for a card transfer. Every
+// module that receives a 0x1B answers it, so several masters can start at
+// once; the loser must simply drop its reply rather than retry into the
+// winner's frame. I2CBB_MasterWrite reports that as an ordinary failure and
+// the engine treats a failed reply as spent -- the manager re-queries.
+static int ops_bus_write(const uint8_t *d, uint32_t n) {
+  return I2CBB_MasterWrite(0x00, NULL, 0, d, n) == I2CBB_OK ? 0 : -1;
+}
+
 const Bus200eOps bus200e_target_ops = {
   .save_preset   = ops_save_preset,
   .recall_preset = ops_recall_preset,
@@ -131,6 +147,7 @@ const Bus200eOps bus200e_target_ops = {
   .slot_write    = ops_slot_write,
   .card_write    = ops_card_write,
   .card_read     = ops_card_read,
+  .bus_write     = ops_bus_write,
 };
 
 #endif  // BUS200E_ENABLE

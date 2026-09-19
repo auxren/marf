@@ -75,15 +75,51 @@ static int f_card_read(uint8_t card7, uint32_t off, uint8_t *d, uint32_t n) {
   return 0;
 }
 
+/* Captured general-call master writes (QUERY / enumerate replies). */
+static struct { uint8_t buf[16]; uint32_t len; } bw_calls[8];
+static int n_bw;
+static int fail_bus_write;       /* non-zero: bus_write reports failure */
+
+static int f_bus_write(const uint8_t *d, uint32_t n) {
+  if (n_bw < (int) (sizeof(bw_calls) / sizeof(bw_calls[0]))) {
+    uint32_t k = (n > sizeof(bw_calls[0].buf)) ? sizeof(bw_calls[0].buf) : n;
+    memcpy(bw_calls[n_bw].buf, d, k);
+    bw_calls[n_bw].len = n;
+  }
+  n_bw++;
+  return fail_bus_write ? -1 : 0;
+}
+
 static const Bus200eOps fake_ops = {
   f_save, f_recall, f_slot_read, f_slot_write, f_card_write, f_card_read,
+  f_bus_write,
 };
+
+/* Ops with every callback present except the reply path. */
+static const Bus200eOps ops_no_bus_write = {
+  f_save, f_recall, f_slot_read, f_slot_write, f_card_write, f_card_read,
+  NULL,
+};
+
+/* The reply every 200e module owes a QUERY, verified byte-exact on real
+   hardware 2026-09-18 against a 251e (04 22 5C 1C FF), a 259e (04 22 28 1C FF)
+   and a 257e (04 22 11 1C FF): [nBytes][0x22 manager][own addr][0x1C][0xFF]. */
+static int reply_is_wellformed(int i) {
+  return bw_calls[i].len == 5 &&
+         bw_calls[i].buf[0] == 0x04 &&
+         bw_calls[i].buf[1] == 0x22 &&
+         bw_calls[i].buf[2] == BUS200E_MODULE_ADDR &&
+         bw_calls[i].buf[3] == 0x1C &&
+         bw_calls[i].buf[4] == 0xFF;
+}
 
 static void reset(const Bus200eOps *ops) {
   Bus200eInit(ops);
-  n_save = n_recall = n_cw = n_sw = n_sr = n_cr = 0;
+  n_save = n_recall = n_cw = n_sw = n_sr = n_cr = n_bw = 0;
   fail_card_write = 0;
+  fail_bus_write = 0;
   corrupt_odd_reads = 0;
+  memset(bw_calls, 0, sizeof(bw_calls));
 }
 
 /* Feed one general-call frame: START, payload bytes, STOP. */
@@ -406,7 +442,99 @@ static void test_log_ring(void) {
   CHECK(!Bus200eLogRead(BUS200E_LOG_SIZE, &c));   /* aged out of the ring */
 }
 
+/* ---- QUERY / broadcast-enumerate replies --------------------------------- */
+
+static void test_query_replies_when_addressed(void) {
+  printf("test_query_replies_when_addressed\n");
+  reset(&fake_ops);
+  FRAME(0x04, BUS200E_MODULE_ADDR, 0x22, 0x1A, 0xFF);
+  CHECK(last_op() == BUS200E_OP_QUERY);
+  CHECK(n_bw == 0);                 /* never answered from the RX path */
+  Bus200eTask();
+  CHECK(n_bw == 1);
+  CHECK(reply_is_wellformed(0));
+  Bus200eTask();
+  CHECK(n_bw == 1);                 /* exactly one reply per request */
+}
+
+static void test_query_for_another_module_is_silent(void) {
+  printf("test_query_for_another_module_is_silent\n");
+  reset(&fake_ops);
+  FRAME(0x04, 0x44, 0x22, 0x1A, 0xFF);     /* a 291e's address, not ours */
+  Bus200eTask();
+  CHECK(n_bw == 0);
+  CHECK(last_op() == BUS200E_OP_QUERY);    /* still observed in the log */
+}
+
+static void test_enumerate_replies_regardless_of_address(void) {
+  printf("test_enumerate_replies_regardless_of_address\n");
+  reset(&fake_ops);
+  /* 0x1B is the broadcast counterpart: every module answers, whatever the
+     destination byte says. Decoded from 251e and 259e firmware. */
+  FRAME(0x04, 0x44, 0x22, 0x1B, 0xFF);
+  CHECK(last_op() == BUS200E_OP_ENUM);
+  Bus200eTask();
+  CHECK(n_bw == 1);
+  CHECK(reply_is_wellformed(0));
+}
+
+static void test_query_reply_is_not_remote_gated(void) {
+  printf("test_query_reply_is_not_remote_gated\n");
+  reset(&fake_ops);
+  FRAME(0x04, 0x00, 0x22, 0x17, 0xFF);     /* remote DISABLE */
+  CHECK(!Bus200eRemoteEnabled());
+  FRAME(0x04, BUS200E_MODULE_ADDR, 0x22, 0x1A, 0xFF);
+  Bus200eTask();
+  /* Real modules answer QUERY with remote-enable off -- a 251e did exactly
+     that on 2026-09-18 before any 0x16 had been sent this session. */
+  CHECK(n_bw == 1 && reply_is_wellformed(0));
+}
+
+static void test_query_without_reply_path_is_safe(void) {
+  printf("test_query_without_reply_path_is_safe\n");
+  reset(&ops_no_bus_write);
+  FRAME(0x04, BUS200E_MODULE_ADDR, 0x22, 0x1A, 0xFF);
+  Bus200eTask();                           /* must not crash or wedge */
+  CHECK(n_bw == 0);
+  CHECK(last_op() == BUS200E_OP_QUERY);
+  reset(NULL);
+  FRAME(0x04, BUS200E_MODULE_ADDR, 0x22, 0x1A, 0xFF);
+  Bus200eTask();
+  CHECK(last_op() == BUS200E_OP_QUERY);
+}
+
+static void test_query_reply_failure_is_not_retried_forever(void) {
+  printf("test_query_reply_failure_is_not_retried_forever\n");
+  reset(&fake_ops);
+  fail_bus_write = 1;
+  FRAME(0x04, BUS200E_MODULE_ADDR, 0x22, 0x1A, 0xFF);
+  Bus200eTask();
+  CHECK(n_bw == 1);
+  Bus200eTask();
+  Bus200eTask();
+  CHECK(n_bw == 1);      /* a failed reply is dropped, not spun on */
+}
+
+static void test_query_does_not_disturb_a_card_job(void) {
+  printf("test_query_does_not_disturb_a_card_job\n");
+  reset(&fake_ops);
+  FRAME(0x07, 0x00, 0x22, 0x04, BUS200E_MODULE_ADDR, 0x00, 0x00, 0x00);
+  CHECK(Bus200eJobActive());
+  FRAME(0x04, BUS200E_MODULE_ADDR, 0x22, 0x1A, 0xFF);
+  for (int i = 0; i < BUS200E_SLOT_COUNT + 4; i++) Bus200eTask();
+  CHECK(n_bw == 1 && reply_is_wellformed(0));   /* reply got out */
+  CHECK(n_cw == BUS200E_SLOT_COUNT);            /* and every slot still shipped */
+  CHECK(!Bus200eJobActive());
+}
+
 void run_bus200e_tests(void) {
+  test_query_replies_when_addressed();
+  test_query_for_another_module_is_silent();
+  test_enumerate_replies_regardless_of_address();
+  test_query_reply_is_not_remote_gated();
+  test_query_without_reply_path_is_safe();
+  test_query_reply_failure_is_not_retried_forever();
+  test_query_does_not_disturb_a_card_job();
   test_primo_recall_save();
   test_pre_primo_recall_save();
   test_all_slots_round_trip();

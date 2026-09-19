@@ -159,7 +159,22 @@ module and earns its analyzer time.
 
 - [ ] PB3/PB4 board continuity check (item 1 above).
 - [ ] Case busboard routes pins 8/9 at the MARF position.
-- [ ] Pick `BUS200E_MODULE_ADDR` (enumerate a real system; avoid 0x28, 0x44).
+- [x] Pick `BUS200E_MODULE_ADDR` — **`0x0E`**, in the unclaimed `0x08`–`0x0F`
+      range. Confirmed clear on Oren's case 2026-09-18 by an exhaustive
+      QUERY sweep of `0x08`–`0x77`: only `0x10` (257e), `0x20` (Studio H CSR),
+      `0x28` (259e) and `0x5C` (251e) answer.
+- [x] **Answer QUERY (`0x1A`) and broadcast enumerate (`0x1B`).** Until
+      2026-09-18 both were parsed and logged but never answered, which made
+      this module **invisible to the only discovery primitive the bus has
+      while still obeying every broadcast RECALL/SAVE** — a real hazard for
+      anyone enumerating the case to decide what a `SAVE` will hit. The reply
+      is `[04][22][own][1C][FF]`, verified byte-exact on that date against a
+      251e (`04 22 5C 1C FF`), a 259e (`04 22 28 1C FF`) and a 257e
+      (`04 22 11 1C FF`). `0x1A` is answered only when the destination byte
+      is ours; `0x1B` is answered unconditionally; neither is gated by
+      remote-enable, matching real modules and both disassemblies. Short/V2
+      framing has no QUERY — the reference manager refuses to send one — so
+      only the long framing parses it.
 - [ ] Remote-enable default-state etiquette on a real 225e.
 - [ ] Preset-slot mapping for bus presets 0–29 vs our slot count.
 - [ ] 206e quirks — 2WIRELESS has special startup handling ("free 206e when

@@ -15,6 +15,12 @@
 
 static const Bus200eOps *bus_ops;
 
+// A QUERY (or broadcast enumerate) owes exactly one reply frame. It is queued
+// here rather than sent from the RX path: the reply is a mastered write, and
+// the bus is by definition not quiet while the request's own STOP is still
+// being processed. Bus200eTask() drains it.
+static uint8_t reply_pending;
+
 // ---- parser state ----------------------------------------------------------
 static uint8_t  frame[FRAME_MAX];
 static uint8_t  frame_len;
@@ -103,7 +109,20 @@ static void dispatch(Bus200eCmd *c) {
       job.next_slot = 0;
       break;
 
-    default:  // POLL_DONE / QUERY / MIDI / CLOCK / UNKNOWN: log only (phase 2)
+    // QUERY is addressed; the broadcast form is not. Neither is gated by
+    // remote-enable -- real modules answer with remote off, which a 251e did
+    // on 2026-09-18 before any 0x16 had been sent, and which both the 251e and
+    // 259e disassemblies show explicitly.
+    case BUS200E_OP_QUERY:
+      if (c->mod_addr != BUS200E_MODULE_ADDR) break;
+      reply_pending = 1;
+      break;
+
+    case BUS200E_OP_ENUM:
+      reply_pending = 1;
+      break;
+
+    default:  // POLL_DONE / MIDI / CLOCK / UNKNOWN: log only (phase 2)
       break;
   }
 }
@@ -128,6 +147,7 @@ static void parse_frame(void) {
       case 0x16: c.op = BUS200E_OP_REMOTE_EN;  break;
       case 0x17: c.op = BUS200E_OP_REMOTE_DIS; break;
       case 0x1A: c.op = BUS200E_OP_QUERY;      break;
+      case 0x1B: c.op = BUS200E_OP_ENUM;       break;
       case 0x04:  // dump presets to card: [.., modAddr, cardLo, memLSB, memMSB]
       case 0x05:  // restore presets from card, same argument order
         if (n >= 8) {
@@ -229,6 +249,26 @@ void Bus200eFeedEvent(uint16_t ev) {
 // ---- card transfer job -----------------------------------------------------
 
 void Bus200eTask(void) {
+  // Answer a pending QUERY before touching the card job: it is one short
+  // frame, the requester is waiting on it, and a card transfer can occupy the
+  // bus for many milliseconds. Dropped rather than retried if the write fails
+  // -- the manager re-queries, and a module that spins here would fight the
+  // bus it just lost.
+  if (reply_pending) {
+    reply_pending = 0;
+    if (bus_ops && bus_ops->bus_write) {
+      static const uint8_t reply[5] = {
+        0x04,                     // nBytes: 4 follow
+        0x22,                     // destination: the preset manager
+        BUS200E_MODULE_ADDR,      // source: us -- the reply's only payload
+        0x1C,                     // QUERY reply
+        0xFF,                     // fixed filler, not a status or type code
+      };
+      bus_ops->bus_write(reply, sizeof(reply));
+    }
+    return;
+  }
+
   if (!job.active) return;
 
   if (!bus_ops ||
